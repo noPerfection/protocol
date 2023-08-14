@@ -2,7 +2,6 @@ package message
 
 import (
 	"fmt"
-	"github.com/ahmetson/service-lib/log"
 	"testing"
 
 	"github.com/ahmetson/common-lib/data_type/key_value"
@@ -14,14 +13,12 @@ import (
 // returns the current testing orchestra
 type TestRequestSuite struct {
 	suite.Suite
-	ok     Request
-	logger *log.Logger
+	ok Request
 }
 
 // Make sure that Account is set to five
 // before each test
 func (suite *TestRequestSuite) SetupTest() {
-	logger, _ := log.New("test request", false)
 	request := Request{
 		Command:    "some_command",
 		Parameters: key_value.Empty(),
@@ -30,10 +27,7 @@ func (suite *TestRequestSuite) SetupTest() {
 	request.AddRequestStack("service_1", "name_1", "instance_1")
 	request.AddRequestStack("service_2", "name_2", "instance_2")
 
-	suite.logger = logger
 	suite.ok = request
-
-	suite.logger.Info("request stack", request)
 }
 
 // All methods that begin with "Test" are run as tests within a
