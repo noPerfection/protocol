@@ -33,7 +33,7 @@ func (suite *TestRequestSuite) SetupTest() {
 // All methods that begin with "Test" are run as tests within a
 // suite.
 func (suite *TestRequestSuite) TestIsOk() {
-	suite.Empty(suite.ok.GetPublicKey())
+	suite.Empty(suite.ok.PublicKey())
 }
 
 func (suite *TestRequestSuite) TestToBytes() {
@@ -69,47 +69,47 @@ func (suite *TestRequestSuite) TestToBytes() {
 func (suite *TestRequestSuite) TestParsing() {
 	okString, _ := suite.ok.Bytes()
 
-	ok, err := ParseRequest([]string{string(okString)})
+	ok, err := NewReq([]string{string(okString)})
 	suite.Require().NoError(err)
 
 	suite.EqualValues(suite.ok, ok)
 
 	// Parsing a request with the nil values should fail
 	invalidReply := `{"command":"","parameters":null}`
-	_, err = ParseRequest([]string{invalidReply})
+	_, err = NewReq([]string{invalidReply})
 	suite.Error(err)
 
 	// Parsing should fail for missing keys
 	invalidReply = `{}`
-	_, err = ParseRequest([]string{invalidReply})
+	_, err = NewReq([]string{invalidReply})
 	suite.Error(err)
 
 	// Parsing the json with additional field should be
 	// successful, but skip the other parameters
 	invalidReply = `{"command":"is here","parameters":{},"status":"OK", "sig": ""}`
-	_, err = ParseRequest([]string{invalidReply})
+	_, err = NewReq([]string{invalidReply})
 	suite.NoError(err)
 
 	// Parsing the request with the missing field should fail
 	invalidReply = `{"parameters":{}}`
-	_, err = ParseRequest([]string{invalidReply})
+	_, err = NewReq([]string{invalidReply})
 	suite.Error(err)
 
 	// Parsing the request with the missing field should fail
 	invalidReply = `{"command":"command"}`
-	_, err = ParseRequest([]string{invalidReply})
+	_, err = NewReq([]string{invalidReply})
 	suite.Error(err)
 
 	// Request parameters are case-insensitive
 	// Not way to turn off
 	// https://golang.org/pkg/encoding/json/#Unmarshal
 	invalidReply = `{"Command":"command","parameters":{}}`
-	_, err = ParseRequest([]string{invalidReply})
+	_, err = NewReq([]string{invalidReply})
 	suite.NoError(err)
 
 	// Request parsing with the right parameters should succeed
 	invalidReply = `{"command":"command","parameters":{}}`
-	_, err = ParseRequest([]string{invalidReply})
+	_, err = NewReq([]string{invalidReply})
 	suite.NoError(err)
 }
 

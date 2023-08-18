@@ -27,7 +27,7 @@ type Request struct {
 	publicKey  string
 }
 
-// If the reply type is failure then
+// If the reply type is failure, then
 // THe message should be given too
 func (request *Request) validCommand() error {
 	if len(request.Command) == 0 {
@@ -37,9 +37,9 @@ func (request *Request) validCommand() error {
 	return nil
 }
 
-// IsFirst returns true if the request has no trace
+// IsFirst returns true if the request has no trace,
 //
-// For example, if the proxy will insert it.
+// For example, if the proxy inserts it.
 func (request *Request) IsFirst() bool {
 	return len(request.Trace) == 0
 }
@@ -67,7 +67,7 @@ func (request *Request) AddRequestStack(serviceUrl string, serverName string, se
 	request.Trace = append(request.Trace, stack)
 }
 
-// Bytes converts the message to the sequence of bytes
+// Bytes convert the message to the sequence of bytes
 func (request *Request) Bytes() ([]byte, error) {
 	err := request.validCommand()
 	if err != nil {
@@ -92,8 +92,8 @@ func (request *Request) SetPublicKey(publicKey string) {
 	request.publicKey = publicKey
 }
 
-// GetPublicKey For security; Work in Progress.
-func (request *Request) GetPublicKey() string {
+// PublicKey For security; Work in Progress.
+func (request *Request) PublicKey() string {
 	return request.publicKey
 }
 
@@ -153,26 +153,40 @@ func JoinMessages(messages []string) string {
 	return msg
 }
 
-// ParseRequest from the zeromq messages
-func ParseRequest(messages []string) (Request, error) {
+// NewReq from the zeromq messages
+func NewReq(messages []string) (*Request, error) {
 	msg := JoinMessages(messages)
 
 	data, err := key_value.NewFromString(msg)
 	if err != nil {
-		return Request{}, fmt.Errorf("failed to convert message string %s to key-value: %v", msg, err)
+		return nil, fmt.Errorf("failed to convert message string %s to key-value: %v", msg, err)
 	}
 
 	var request Request
 	err = data.Interface(&request)
 	if err != nil {
-		return Request{}, fmt.Errorf("failed to convert key-value %v to intermediate interface: %v", data, err)
+		return nil, fmt.Errorf("failed to convert key-value %v to intermediate interface: %v", data, err)
 	}
 
 	// verify that data is not nil
 	_, err = request.Bytes()
 	if err != nil {
-		return Request{}, fmt.Errorf("failed to validate: %w", err)
+		return nil, fmt.Errorf("failed to validate: %w", err)
 	}
 
-	return request, nil
+	return &request, nil
+}
+
+func NewReqWithMeta(messages []string, meta map[string]string) (*Request, error) {
+	req, err := NewReq(messages)
+	if err != nil {
+		return nil, fmt.Errorf("new req: %w", err)
+	}
+
+	pubKey, ok := meta["pub_key"]
+	if ok {
+		req.SetPublicKey(pubKey)
+	}
+
+	return req, nil
 }
