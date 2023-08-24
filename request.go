@@ -2,6 +2,7 @@ package message
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ahmetson/common-lib/data_type/key_value"
@@ -146,11 +147,11 @@ func (request *Request) Ok(parameters key_value.KeyValue) Reply {
 
 // JoinMessages into the single string the array of zeromq messages
 func JoinMessages(messages []string) string {
-	msg := ""
-	for _, v := range messages {
-		msg += v
+	body := messages[:]
+	if len(messages) >= 3 && messages[1] == "" {
+		body = messages[2:]
 	}
-	return msg
+	return strings.Join(body, "")
 }
 
 // NewReq from the zeromq messages
