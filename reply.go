@@ -24,6 +24,11 @@ type Reply struct {
 	Status     ReplyStatus        `json:"status"`     // message.OK or message.FAIL
 	Message    string             `json:"message"`    // If Status is fail, then the field will contain an error message.
 	Parameters key_value.KeyValue `json:"parameters"` // If the Status is OK, then the field will contain the parameters.
+	sessionId  string
+}
+
+func (reply *Reply) SessionId() string {
+	return reply.sessionId
 }
 
 // SetStack adds the current service's server into the reply
