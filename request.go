@@ -126,8 +126,8 @@ func (request *Request) Next(command string, parameters key_value.KeyValue) {
 
 // Fail creates a new Reply as a failure
 // It accepts the error message that explains the reason of the failure.
-func (request *Request) Fail(message string) Reply {
-	reply := Reply{
+func (request *Request) Fail(message string) *Reply {
+	reply := &Reply{
 		Status:     FAIL,
 		Message:    message,
 		Parameters: key_value.Empty(),
@@ -139,8 +139,8 @@ func (request *Request) Fail(message string) Reply {
 	return reply
 }
 
-func (request *Request) Ok(parameters key_value.KeyValue) Reply {
-	reply := Reply{
+func (request *Request) Ok(parameters key_value.KeyValue) *Reply {
+	reply := &Reply{
 		Status:     OK,
 		Message:    "",
 		Parameters: parameters,
@@ -152,7 +152,7 @@ func (request *Request) Ok(parameters key_value.KeyValue) Reply {
 	return reply
 }
 
-// MultiPart returns true if the message has id, delimiter and content
+// MultiPart returns true if the message has id, delimiter, and content
 func MultiPart(messages []string) bool {
 	return len(messages) >= 3 && messages[1] == ""
 }

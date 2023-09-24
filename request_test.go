@@ -13,13 +13,13 @@ import (
 // returns the current testing orchestra
 type TestRequestSuite struct {
 	suite.Suite
-	ok Request
+	ok *Request
 }
 
 // Make sure that Account is set to five
 // before each test
 func (suite *TestRequestSuite) SetupTest() {
-	request := Request{
+	request := &Request{
 		Command:    "some_command",
 		Parameters: key_value.Empty(),
 	}
