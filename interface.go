@@ -29,6 +29,8 @@ type RequestInterface interface {
 	Ok(parameters key_value.KeyValue) ReplyInterface
 	Traces() []*Stack
 	SetMeta(map[string]string)
+	CommandName() string
+	RouteParameters() key_value.KeyValue
 }
 
 type ReplyInterface interface {
@@ -43,6 +45,8 @@ type ReplyInterface interface {
 	// Bytes converts Reply to the sequence of bytes
 	Bytes() ([]byte, error)
 	Traces() []*Stack
+	ErrorMessage() string
+	ReplyParameters() key_value.KeyValue
 }
 
 type ReqFunc = func(messages []string) (RequestInterface, error)

@@ -81,6 +81,26 @@ func NewRawRep(messages []string) (ReplyInterface, error) {
 	return reply, nil
 }
 
+// CommandName returns the command name if it was a Request
+func (request *RawRequest) CommandName() string {
+	defReq, err := NewReq(request.messages)
+	if err != nil {
+		return ""
+	}
+
+	return defReq.CommandName()
+}
+
+// RouteParameters returns the parameters if it was a Request
+func (request *RawRequest) RouteParameters() key_value.KeyValue {
+	defReq, err := NewReq(request.messages)
+	if err != nil {
+		return nil
+	}
+
+	return defReq.RouteParameters()
+}
+
 // ConId returns a connection id for each sending session.
 func (request *RawRequest) ConId() string {
 	return request.conId
@@ -255,6 +275,26 @@ func (reply *RawReply) IsOK() bool {
 	}
 
 	return defRep.IsOK()
+}
+
+// ReplyParameters returns the parameters if it was a Reply
+func (reply *RawReply) ReplyParameters() key_value.KeyValue {
+	defRep, err := NewRep(reply.messages)
+	if err != nil {
+		return nil
+	}
+
+	return defRep.ReplyParameters()
+}
+
+// ErrorMessage if it was a Reply
+func (reply *RawReply) ErrorMessage() string {
+	defRep, err := NewRep(reply.messages)
+	if err != nil {
+		return ""
+	}
+
+	return defRep.ErrorMessage()
 }
 
 // String the message

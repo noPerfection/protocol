@@ -41,6 +41,14 @@ func NewRep(messages []string) (ReplyInterface, error) {
 	return &reply, nil
 }
 
+func (reply *Reply) ErrorMessage() string {
+	return reply.Message
+}
+
+func (reply *Reply) ReplyParameters() key_value.KeyValue {
+	return reply.Parameters
+}
+
 func (reply *Reply) ConId() string {
 	return reply.conId
 }
