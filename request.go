@@ -2,7 +2,6 @@ package message
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ahmetson/common-lib/data_type/key_value"
@@ -22,7 +21,7 @@ type Stack struct {
 // Request message sent by Client socket and accepted by ControllerCategory socket.
 type Request struct {
 	Uuid       string             `json:"uuid,omitempty"`
-	Trace      []*Stack           `json:"Trace,omitempty"`
+	Trace      []*Stack           `json:"traces,omitempty"`
 	Command    string             `json:"command"`
 	Parameters key_value.KeyValue `json:"parameters"`
 	publicKey  string
@@ -147,32 +146,15 @@ func (request *Request) Ok(parameters key_value.KeyValue) ReplyInterface {
 	return reply
 }
 
-// ValidCommand checks if the reply type is failure, then
-// THe message should be given too
-func ValidCommand(cmd string) error {
-	if len(cmd) == 0 {
-		return fmt.Errorf("command is missing")
+func (request *Request) SetMeta(meta map[string]string) {
+	pubKey, ok := meta["pub_key"]
+	if ok {
+		request.SetPublicKey(pubKey)
 	}
-
-	return nil
-}
-
-// MultiPart returns true if the message has id, delimiter, and content
-func MultiPart(messages []string) bool {
-	return len(messages) >= 3 && messages[1] == ""
-}
-
-// JoinMessages into the single string the array of zeromq messages
-func JoinMessages(messages []string) string {
-	body := messages[:]
-	if MultiPart(messages) {
-		body = messages[2:]
-	}
-	return strings.Join(body, "")
 }
 
 // NewReq from the zeromq messages
-func NewReq(messages []string) (*Request, error) {
+func NewReq(messages []string) (RequestInterface, error) {
 	msg := JoinMessages(messages)
 
 	data, err := key_value.NewFromString(msg)

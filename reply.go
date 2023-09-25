@@ -8,19 +8,10 @@ import (
 	"github.com/ahmetson/common-lib/data_type/key_value"
 )
 
-// ReplyStatus can be only as "OK" or "fail"
-// It indicates whether the reply message is correct or not.
-type ReplyStatus string
-
-const (
-	OK   ReplyStatus = "OK"
-	FAIL ReplyStatus = "fail"
-)
-
 // Reply SDS Service returns the reply. Anyone who sends a request to the SDS Service gets this message.
 type Reply struct {
 	Uuid       string             `json:"uuid,omitempty"`
-	Trace      []*Stack           `json:"Trace,omitempty"`
+	Trace      []*Stack           `json:"traces,omitempty"`
 	Status     ReplyStatus        `json:"status"`     // message.OK or message.FAIL
 	Message    string             `json:"message"`    // If Status is fail, then the field will contain an error message.
 	Parameters key_value.KeyValue `json:"parameters"` // If the Status is OK, then the field will contain the parameters.
@@ -88,55 +79,25 @@ func (reply *Reply) Bytes() ([]byte, error) {
 	return bytes, nil
 }
 
-// ParseReply decodes the Zeromq messages into the Reply.
-func ParseReply(messages []string) (Reply, error) {
+// NewRep decodes Zeromq messages into Reply.
+func NewRep(messages []string) (ReplyInterface, error) {
 	msg := JoinMessages(messages)
 	data, err := key_value.NewFromString(msg)
 	if err != nil {
-		return Reply{}, fmt.Errorf("key_value.NewFromString: %w", err)
+		return nil, fmt.Errorf("key_value.NewFromString: %w", err)
 	}
 
-	reply, err := ParseJsonReply(data)
-	if err != nil {
-		return Reply{}, fmt.Errorf("ParseJsonReply: %w", err)
-	}
-
-	return reply, nil
-}
-
-// ParseJsonReply creates the 'Reply' message from a key value
-func ParseJsonReply(dat key_value.KeyValue) (Reply, error) {
 	var reply Reply
-	err := dat.Interface(&reply)
+	err = data.Interface(&reply)
 	if err != nil {
-		return Reply{}, fmt.Errorf("failed to serialize key-value to msg.Reply: %v", err)
+		return nil, fmt.Errorf("failed to serialize key-value to msg.Reply: %v", err)
 	}
 
 	// It will call valid_fail(), valid_status()
 	_, err = reply.Bytes()
 	if err != nil {
-		return Reply{}, fmt.Errorf("validation: %w", err)
+		return nil, fmt.Errorf("validation: %w", err)
 	}
 
-	return reply, nil
-}
-
-// ValidStatus validates the status of the reply.
-// It should be either OK or fail.
-func ValidStatus(status ReplyStatus) error {
-	if status != FAIL && status != OK {
-		return fmt.Errorf("status is either '%s' or '%s', but given: '%s'", OK, FAIL, status)
-	}
-
-	return nil
-}
-
-// ValidFail checks if the reply type is failure, then
-// THe message should be given too
-func ValidFail(status ReplyStatus, msg string) error {
-	if status == FAIL && len(msg) == 0 {
-		return fmt.Errorf("failure should not have an empty message")
-	}
-
-	return nil
+	return &reply, nil
 }
