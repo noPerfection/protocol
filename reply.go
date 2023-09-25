@@ -18,6 +18,29 @@ type Reply struct {
 	conId      string
 }
 
+// NewRep decodes Zeromq messages into Reply.
+func NewRep(messages []string) (ReplyInterface, error) {
+	msg := JoinMessages(messages)
+	data, err := key_value.NewFromString(msg)
+	if err != nil {
+		return nil, fmt.Errorf("key_value.NewFromString: %w", err)
+	}
+
+	var reply Reply
+	err = data.Interface(&reply)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize key-value to msg.Reply: %v", err)
+	}
+
+	// It will call valid_fail(), valid_status()
+	_, err = reply.Bytes()
+	if err != nil {
+		return nil, fmt.Errorf("validation: %w", err)
+	}
+
+	return &reply, nil
+}
+
 func (reply *Reply) ConId() string {
 	return reply.conId
 }
@@ -77,27 +100,4 @@ func (reply *Reply) Bytes() ([]byte, error) {
 	}
 
 	return bytes, nil
-}
-
-// NewRep decodes Zeromq messages into Reply.
-func NewRep(messages []string) (ReplyInterface, error) {
-	msg := JoinMessages(messages)
-	data, err := key_value.NewFromString(msg)
-	if err != nil {
-		return nil, fmt.Errorf("key_value.NewFromString: %w", err)
-	}
-
-	var reply Reply
-	err = data.Interface(&reply)
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize key-value to msg.Reply: %v", err)
-	}
-
-	// It will call valid_fail(), valid_status()
-	_, err = reply.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("validation: %w", err)
-	}
-
-	return &reply, nil
 }

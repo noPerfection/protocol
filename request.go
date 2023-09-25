@@ -18,6 +18,34 @@ type Stack struct {
 	ServerInstance string `json:"server_instance"`
 }
 
+// NewReq from the zeromq messages
+func NewReq(messages []string) (RequestInterface, error) {
+	msg := JoinMessages(messages)
+
+	data, err := key_value.NewFromString(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert message string %s to key-value: %v", msg, err)
+	}
+
+	var request Request
+	err = data.Interface(&request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert key-value %v to intermediate interface: %v", data, err)
+	}
+
+	// verify that data is not nil
+	_, err = request.Bytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate: %w", err)
+	}
+
+	if MultiPart(messages) {
+		request.conId = messages[0]
+	}
+
+	return &request, nil
+}
+
 // Request message sent by Client socket and accepted by ControllerCategory socket.
 type Request struct {
 	Uuid       string             `json:"uuid,omitempty"`
@@ -151,32 +179,4 @@ func (request *Request) SetMeta(meta map[string]string) {
 	if ok {
 		request.SetPublicKey(pubKey)
 	}
-}
-
-// NewReq from the zeromq messages
-func NewReq(messages []string) (RequestInterface, error) {
-	msg := JoinMessages(messages)
-
-	data, err := key_value.NewFromString(msg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert message string %s to key-value: %v", msg, err)
-	}
-
-	var request Request
-	err = data.Interface(&request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert key-value %v to intermediate interface: %v", data, err)
-	}
-
-	// verify that data is not nil
-	_, err = request.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate: %w", err)
-	}
-
-	if MultiPart(messages) {
-		request.conId = messages[0]
-	}
-
-	return &request, nil
 }
