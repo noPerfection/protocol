@@ -20,24 +20,28 @@ const (
 // Reply SDS Service returns the reply. Anyone who sends a request to the SDS Service gets this message.
 type Reply struct {
 	Uuid       string             `json:"uuid,omitempty"`
-	Trace      []Stack            `json:"trace,omitempty"`
+	traces     []*Stack           `json:"trace,omitempty"`
 	Status     ReplyStatus        `json:"status"`     // message.OK or message.FAIL
 	Message    string             `json:"message"`    // If Status is fail, then the field will contain an error message.
 	Parameters key_value.KeyValue `json:"parameters"` // If the Status is OK, then the field will contain the parameters.
-	sessionId  string
+	conId      string
 }
 
-func (reply *Reply) SessionId() string {
-	return reply.sessionId
+func (reply *Reply) ConId() string {
+	return reply.conId
+}
+
+func (reply *Reply) Traces() []*Stack {
+	return reply.traces
 }
 
 // SetStack adds the current service's server into the reply
 func (reply *Reply) SetStack(serviceUrl string, serverName string, serverInstance string) error {
-	for i, stack := range reply.Trace {
+	for i, stack := range reply.traces {
 		if strings.Compare(stack.ServiceUrl, serviceUrl) == 0 &&
 			strings.Compare(stack.ServerName, serverName) == 0 &&
 			strings.Compare(stack.ServerInstance, serverInstance) == 0 {
-			reply.Trace[i].ReplyTime = uint64(time.Now().UnixMicro())
+			reply.traces[i].ReplyTime = uint64(time.Now().UnixMicro())
 			return nil
 		}
 	}
