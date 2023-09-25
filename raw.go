@@ -181,7 +181,7 @@ func (request *RawRequest) SetUuid() {
 	request.Uuid = id.String()
 }
 
-// Next creates a new request based on the previous one.
+// Next creates a new request based on the previous one. It uses the Request.
 func (request *RawRequest) Next(command string, parameters key_value.KeyValue) {
 	nextReq, err := (&Request{Command: command, Parameters: parameters}).String()
 	if err != nil {
@@ -249,7 +249,12 @@ func (reply *RawReply) SetStack(serviceUrl string, serverName string, serverInst
 
 // IsOK is unsupported
 func (reply *RawReply) IsOK() bool {
-	return true
+	defRep, err := NewRep(reply.messages)
+	if err != nil {
+		return false
+	}
+
+	return defRep.IsOK()
 }
 
 // String the message
