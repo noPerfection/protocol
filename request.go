@@ -135,6 +135,19 @@ func (request *Request) String() (string, error) {
 	return string(bytes), nil
 }
 
+func (request *Request) Strings() ([]string, error) {
+	str, err := request.String()
+	if err != nil {
+		return nil, fmt.Errorf("request.Strings: %w", err)
+	}
+
+	if len(request.conId) > 0 {
+		return []string{request.conId, "", str}, nil
+	}
+
+	return []string{"", str}, nil
+}
+
 func (request *Request) SetUuid() {
 	id := uuid.New()
 	request.Uuid = id.String()

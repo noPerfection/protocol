@@ -19,6 +19,7 @@ type RequestInterface interface {
 	// SetPublicKey For security; Work in Progress.
 	SetPublicKey(publicKey string)
 	String() (string, error)
+	Strings() ([]string, error)
 	SetUuid()
 	// Next creates a new request based on the previous one.
 	Next(command string, parameters key_value.KeyValue)
@@ -38,6 +39,7 @@ type ReplyInterface interface {
 	IsOK() bool
 	// String converts the Reply to the string format
 	String() (string, error)
+	Strings() ([]string, error)
 	// Bytes converts Reply to the sequence of bytes
 	Bytes() ([]byte, error)
 	Traces() []*Stack

@@ -78,6 +78,19 @@ func (reply *Reply) String() (string, error) {
 	return string(bytes), nil
 }
 
+func (reply *Reply) Strings() ([]string, error) {
+	str, err := reply.String()
+	if err != nil {
+		return nil, fmt.Errorf("request.Strings: %w", err)
+	}
+
+	if len(reply.conId) > 0 {
+		return []string{reply.conId, "", str}, nil
+	}
+
+	return []string{"", str}, nil
+}
+
 // Bytes converts Reply to the sequence of bytes
 func (reply *Reply) Bytes() ([]byte, error) {
 	err := ValidFail(reply.Status, reply.Message)
