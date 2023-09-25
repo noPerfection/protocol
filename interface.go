@@ -44,3 +44,6 @@ type ReplyInterface interface {
 	Bytes() ([]byte, error)
 	Traces() []*Stack
 }
+
+type ReqFunc = func(messages []string) (RequestInterface, error)
+type ReplyFunc = func(messages []string) (ReplyInterface, error)

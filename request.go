@@ -18,6 +18,11 @@ type Stack struct {
 	ServerInstance string `json:"server_instance"`
 }
 
+// DefaultMessage returns a message for parsing request and parsing reply
+func DefaultMessage() (ReqFunc, ReplyFunc) {
+	return NewReq, NewRep
+}
+
 // NewReq from the zeromq messages
 func NewReq(messages []string) (RequestInterface, error) {
 	msg := JoinMessages(messages)
