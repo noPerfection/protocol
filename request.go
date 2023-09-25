@@ -198,17 +198,3 @@ func NewReq(messages []string) (*Request, error) {
 
 	return &request, nil
 }
-
-func NewReqWithMeta(messages []string, meta map[string]string) (*Request, error) {
-	req, err := NewReq(messages)
-	if err != nil {
-		return nil, fmt.Errorf("new req: %w", err)
-	}
-
-	pubKey, ok := meta["pub_key"]
-	if ok {
-		req.SetPublicKey(pubKey)
-	}
-
-	return req, nil
-}

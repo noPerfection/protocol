@@ -27,6 +27,7 @@ type RequestInterface interface {
 	Fail(message string) ReplyInterface
 	Ok(parameters key_value.KeyValue) ReplyInterface
 	Traces() []*Stack
+	SetMeta(map[string]string)
 }
 
 type ReplyInterface interface {
