@@ -38,7 +38,7 @@ func (suite *TestRequestSuite) TestIsOk() {
 
 func (suite *TestRequestSuite) TestToBytes() {
 	trace := fmt.Sprintf(`[{"command":"some_command","request_time":%d,"server_instance":"instance_1","server_name":"name_1","service_url":"service_1"},{"command":"some_command","request_time":%d,"server_instance":"instance_2","server_name":"name_2","service_url":"service_2"}],"uuid":"%s"`,
-		suite.ok.traces[0].RequestTime, suite.ok.traces[1].RequestTime, suite.ok.Uuid)
+		suite.ok.Trace[0].RequestTime, suite.ok.Trace[1].RequestTime, suite.ok.Uuid)
 	okString := fmt.Sprintf(`{"command":"some_command","parameters":{},"trace":%s}`, trace)
 
 	okBytes, err := suite.ok.Bytes()

@@ -33,7 +33,7 @@ package message
 //// Request message sent by Client socket and accepted by ControllerCategory socket.
 //type Request struct {
 //	Uuid       string             `json:"uuid,omitempty"`
-//	traces      []Stack            `json:"trace,omitempty"`
+//	Trace      []Stack            `json:"trace,omitempty"`
 //	Command    string             `json:"command"`
 //	Parameters key_value.KeyValue `json:"parameters"`
 //	publicKey  string
@@ -59,16 +59,16 @@ package message
 ////
 //// For example, if the proxy inserts it.
 //func (request *Request) IsFirst() bool {
-//	return len(request.traces) == 0
+//	return len(request.Trace) == 0
 //}
 //
 //// SyncTrace is if the reply has more stacks, the request is updated with it.
 //func (request *Request) SyncTrace(reply *Reply) {
-//	repTraceLen := len(reply.traces)
-//	reqTraceLen := len(request.traces)
+//	repTraceLen := len(reply.Trace)
+//	reqTraceLen := len(request.Trace)
 //
 //	if repTraceLen > reqTraceLen {
-//		request.traces = append(request.traces, reply.traces[reqTraceLen:]...)
+//		request.Trace = append(request.Trace, reply.Trace[reqTraceLen:]...)
 //	}
 //}
 //
@@ -82,7 +82,7 @@ package message
 //		ServerInstance: serverInstance,
 //	}
 //
-//	request.traces = append(request.traces, stack)
+//	request.Trace = append(request.Trace, stack)
 //}
 //
 //// Bytes convert the message to the sequence of bytes
@@ -145,7 +145,7 @@ package message
 //		Parameters: key_value.Empty(),
 //		Uuid:       request.Uuid,
 //		conId:  request.conId,
-//		traces:      request.traces,
+//		Trace:      request.Trace,
 //	}
 //
 //	return reply
@@ -156,7 +156,7 @@ package message
 //		Status:     OK,
 //		Message:    "",
 //		Parameters: parameters,
-//		traces:      request.traces,
+//		Trace:      request.Trace,
 //		Uuid:       request.Uuid,
 //		conId:  request.conId,
 //	}

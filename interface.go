@@ -1,7 +1,6 @@
 package message
 
 import (
-	"fmt"
 	"github.com/ahmetson/common-lib/data_type/key_value"
 )
 
@@ -41,24 +40,4 @@ type ReplyInterface interface {
 	// Bytes converts Reply to the sequence of bytes
 	Bytes() ([]byte, error)
 	Traces() []*Stack
-}
-
-// ValidStatus validates the status of the reply.
-// It should be either OK or fail.
-func ValidStatus(status ReplyStatus) error {
-	if status != FAIL && status != OK {
-		return fmt.Errorf("status is either '%s' or '%s', but given: '%s'", OK, FAIL, status)
-	}
-
-	return nil
-}
-
-// ValidFail checks if the reply type is failure, then
-// THe message should be given too
-func ValidFail(status ReplyStatus, msg string) error {
-	if status == FAIL && len(msg) == 0 {
-		return fmt.Errorf("failure should not have an empty message")
-	}
-
-	return nil
 }

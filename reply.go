@@ -20,7 +20,7 @@ const (
 // Reply SDS Service returns the reply. Anyone who sends a request to the SDS Service gets this message.
 type Reply struct {
 	Uuid       string             `json:"uuid,omitempty"`
-	traces     []*Stack           `json:"trace,omitempty"`
+	Trace      []*Stack           `json:"Trace,omitempty"`
 	Status     ReplyStatus        `json:"status"`     // message.OK or message.FAIL
 	Message    string             `json:"message"`    // If Status is fail, then the field will contain an error message.
 	Parameters key_value.KeyValue `json:"parameters"` // If the Status is OK, then the field will contain the parameters.
@@ -32,16 +32,16 @@ func (reply *Reply) ConId() string {
 }
 
 func (reply *Reply) Traces() []*Stack {
-	return reply.traces
+	return reply.Trace
 }
 
 // SetStack adds the current service's server into the reply
 func (reply *Reply) SetStack(serviceUrl string, serverName string, serverInstance string) error {
-	for i, stack := range reply.traces {
+	for i, stack := range reply.Trace {
 		if strings.Compare(stack.ServiceUrl, serviceUrl) == 0 &&
 			strings.Compare(stack.ServerName, serverName) == 0 &&
 			strings.Compare(stack.ServerInstance, serverInstance) == 0 {
-			reply.traces[i].ReplyTime = uint64(time.Now().UnixMicro())
+			reply.Trace[i].ReplyTime = uint64(time.Now().UnixMicro())
 			return nil
 		}
 	}
@@ -49,28 +49,10 @@ func (reply *Reply) SetStack(serviceUrl string, serverName string, serverInstanc
 	return fmt.Errorf("no trace stack for service %s server %s:%s", serviceUrl, serverName, serverInstance)
 }
 
-// Validates the status of the reply.
-// It should be either OK or fail.
-func (reply *Reply) validStatus() error {
-	if reply.Status != FAIL && reply.Status != OK {
-		return fmt.Errorf("status is either '%s' or '%s', but given: '%s'", OK, FAIL, reply.Status)
-	}
-
-	return nil
-}
-
-// If the reply type is failure, then
-// THe message should be given too
-func (reply *Reply) validFail() error {
-	if reply.Status == FAIL && len(reply.Message) == 0 {
-		return fmt.Errorf("failure should not have an empty message")
-	}
-
-	return nil
-}
-
 // IsOK returns the Status of the message.
-func (reply *Reply) IsOK() bool { return reply.Status == OK }
+func (reply *Reply) IsOK() bool {
+	return reply.Status == OK
+}
 
 // String converts the Reply to the string format
 func (reply *Reply) String() (string, error) {
@@ -84,11 +66,11 @@ func (reply *Reply) String() (string, error) {
 
 // Bytes converts Reply to the sequence of bytes
 func (reply *Reply) Bytes() ([]byte, error) {
-	err := reply.validFail()
+	err := ValidFail(reply.Status, reply.Message)
 	if err != nil {
 		return nil, fmt.Errorf("failure validation: %w", err)
 	}
-	err = reply.validStatus()
+	err = ValidStatus(reply.Status)
 	if err != nil {
 		return nil, fmt.Errorf("status validation: %w", err)
 	}
@@ -137,4 +119,24 @@ func ParseJsonReply(dat key_value.KeyValue) (Reply, error) {
 	}
 
 	return reply, nil
+}
+
+// ValidStatus validates the status of the reply.
+// It should be either OK or fail.
+func ValidStatus(status ReplyStatus) error {
+	if status != FAIL && status != OK {
+		return fmt.Errorf("status is either '%s' or '%s', but given: '%s'", OK, FAIL, status)
+	}
+
+	return nil
+}
+
+// ValidFail checks if the reply type is failure, then
+// THe message should be given too
+func ValidFail(status ReplyStatus, msg string) error {
+	if status == FAIL && len(msg) == 0 {
+		return fmt.Errorf("failure should not have an empty message")
+	}
+
+	return nil
 }

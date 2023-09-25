@@ -22,7 +22,7 @@ type Stack struct {
 // Request message sent by Client socket and accepted by ControllerCategory socket.
 type Request struct {
 	Uuid       string             `json:"uuid,omitempty"`
-	traces     []*Stack           `json:"trace,omitempty"`
+	Trace      []*Stack           `json:"Trace,omitempty"`
 	Command    string             `json:"command"`
 	Parameters key_value.KeyValue `json:"parameters"`
 	publicKey  string
@@ -35,14 +35,14 @@ func (request *Request) ConId() string {
 }
 
 func (request *Request) Traces() []*Stack {
-	return request.traces
+	return request.Trace
 }
 
 // IsFirst returns true if the request has no trace,
 //
 // For example, if the proxy inserts it.
 func (request *Request) IsFirst() bool {
-	return len(request.traces) == 0
+	return len(request.Trace) == 0
 }
 
 // SyncTrace is if the reply has more stacks, the request is updated with it.
@@ -51,7 +51,7 @@ func (request *Request) SyncTrace(reply ReplyInterface) {
 	reqTraceLen := len(request.Traces())
 
 	if repTraceLen > reqTraceLen {
-		request.traces = append(request.traces, reply.Traces()[reqTraceLen:]...)
+		request.Trace = append(request.Trace, reply.Traces()[reqTraceLen:]...)
 	}
 }
 
@@ -65,7 +65,7 @@ func (request *Request) AddRequestStack(serviceUrl string, serverName string, se
 		ServerInstance: serverInstance,
 	}
 
-	request.traces = append(request.traces, stack)
+	request.Trace = append(request.Trace, stack)
 }
 
 // Bytes convert the message to the sequence of bytes
@@ -128,7 +128,7 @@ func (request *Request) Fail(message string) ReplyInterface {
 		Parameters: key_value.Empty(),
 		Uuid:       request.Uuid,
 		conId:      request.conId,
-		traces:     request.traces,
+		Trace:      request.Trace,
 	}
 
 	return reply
@@ -139,7 +139,7 @@ func (request *Request) Ok(parameters key_value.KeyValue) ReplyInterface {
 		Status:     OK,
 		Message:    "",
 		Parameters: parameters,
-		traces:     request.traces,
+		Trace:      request.Trace,
 		Uuid:       request.Uuid,
 		conId:      request.conId,
 	}
