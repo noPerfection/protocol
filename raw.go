@@ -156,9 +156,9 @@ func (request *RawRequest) AddRequestStack(serviceUrl string, serverName string,
 
 // Bytes convert the message to the sequence of bytes
 func (request *RawRequest) Bytes() ([]byte, error) {
-	str, err := request.String()
-	if err != nil {
-		return nil, fmt.Errorf("request.String: %w", err)
+	str := request.String()
+	if len(str) == 0 {
+		return nil, fmt.Errorf("request.String returned an empty string. Try to test it with ZmqEnvelope")
 	}
 
 	return []byte(str), nil
@@ -175,16 +175,23 @@ func (request *RawRequest) PublicKey() string {
 }
 
 // String the message
-func (request *RawRequest) String() (string, error) {
-	messages, err := request.Strings()
+func (request *RawRequest) String() string {
+	messages, err := request.ZmqEnvelope()
 	if err != nil {
-		return "", fmt.Errorf("request.Strings: %w", err)
+		return ""
 	}
-	return JoinMessages(messages), nil
+
+	if len(messages) == 1 {
+		return messages[0]
+	} else if len(messages) == 2 {
+		return messages[1]
+	}
+
+	return JoinMessages(messages[2:])
 }
 
-// Strings the message
-func (request *RawRequest) Strings() ([]string, error) {
+// ZmqEnvelope the message
+func (request *RawRequest) ZmqEnvelope() ([]string, error) {
 	msgLen := len(request.messages)
 	messages := make([]string, 3+msgLen)
 
@@ -217,8 +224,8 @@ func (request *RawRequest) SetUuid() {
 
 // Next creates a new request based on the previous one. It uses the Request.
 func (request *RawRequest) Next(command string, parameters key_value.KeyValue) {
-	nextReq, err := (&Request{Command: command, Parameters: parameters}).String()
-	if err != nil {
+	nextReq := (&Request{Command: command, Parameters: parameters}).String()
+	if len(nextReq) == 0 {
 		return
 	}
 	request.messages = []string{nextReq}
@@ -227,7 +234,7 @@ func (request *RawRequest) Next(command string, parameters key_value.KeyValue) {
 // Fail creates a new Reply as a failure
 // It accepts the error message that explains the reason of the failure.
 func (request *RawRequest) Fail(message string) ReplyInterface {
-	defaultReply, _ := (&Reply{Status: FAIL, Message: message, Parameters: key_value.Empty()}).Strings()
+	defaultReply, _ := (&Reply{Status: FAIL, Message: message, Parameters: key_value.Empty()}).ZmqEnvelope()
 
 	reply := &RawReply{
 		Uuid:     request.Uuid,
@@ -240,7 +247,7 @@ func (request *RawRequest) Fail(message string) ReplyInterface {
 }
 
 func (request *RawRequest) Ok(parameters key_value.KeyValue) ReplyInterface {
-	defaultReply, _ := (&Reply{Status: OK, Message: "", Parameters: parameters}).Strings()
+	defaultReply, _ := (&Reply{Status: OK, Message: "", Parameters: parameters}).ZmqEnvelope()
 
 	reply := &RawReply{
 		Uuid:     request.Uuid,
@@ -312,16 +319,21 @@ func (reply *RawReply) ErrorMessage() string {
 }
 
 // String the message
-func (reply *RawReply) String() (string, error) {
-	messages, err := reply.Strings()
+func (reply *RawReply) String() string {
+	messages, err := reply.ZmqEnvelope()
 	if err != nil {
-		return "", fmt.Errorf("request.Strings: %w", err)
+		return ""
 	}
-	return JoinMessages(messages), nil
+	if len(messages) == 2 {
+		return messages[1]
+	} else if len(messages) == 1 {
+		return messages[0]
+	}
+	return JoinMessages(messages[2:])
 }
 
-// Strings the message
-func (reply *RawReply) Strings() ([]string, error) {
+// ZmqEnvelope the message
+func (reply *RawReply) ZmqEnvelope() ([]string, error) {
 	msgLen := len(reply.messages)
 	messages := make([]string, 3+msgLen)
 
@@ -349,9 +361,9 @@ func (reply *RawReply) Strings() ([]string, error) {
 
 // Bytes convert the message to the sequence of bytes
 func (reply *RawReply) Bytes() ([]byte, error) {
-	str, err := reply.String()
-	if err != nil {
-		return nil, fmt.Errorf("request.String: %w", err)
+	str := reply.String()
+	if len(str) == 0 {
+		return nil, fmt.Errorf("request.String returned an empty string try to test it with calling ZmqEnvelope")
 	}
 
 	return []byte(str), nil

@@ -81,20 +81,22 @@ func (reply *Reply) IsOK() bool {
 }
 
 // String converts the Reply to the string format
-func (reply *Reply) String() (string, error) {
+func (reply *Reply) String() string {
 	bytes, err := reply.Bytes()
 	if err != nil {
-		return "", fmt.Errorf("reply.Bytes: %w", err)
+		return ""
 	}
 
-	return string(bytes), nil
+	return string(bytes)
 }
 
-func (reply *Reply) Strings() ([]string, error) {
-	str, err := reply.String()
+func (reply *Reply) ZmqEnvelope() ([]string, error) {
+	bytes, err := reply.Bytes()
 	if err != nil {
-		return nil, fmt.Errorf("request.Strings: %w", err)
+		return nil, fmt.Errorf("request.ZmqEnvelope: %w", err)
 	}
+
+	str := string(bytes)
 
 	if len(reply.conId) > 0 {
 		return []string{reply.conId, "", str}, nil
@@ -116,7 +118,7 @@ func (reply *Reply) Bytes() ([]byte, error) {
 
 	kv, err := key_value.NewFromInterface(reply)
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize Reply to key-value %v: %v", reply, err)
+		return nil, fmt.Errorf("failed to serialize Reply to key-value: %v", err)
 	}
 
 	bytes, err := kv.Bytes()

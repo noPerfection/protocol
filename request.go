@@ -129,7 +129,7 @@ func (request *Request) Bytes() ([]byte, error) {
 
 	kv, err := key_value.NewFromInterface(request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize Request to key-value %v: %v", request, err)
+		return nil, fmt.Errorf("failed to serialize Request to key-value: %v", err)
 	}
 
 	bytes, err := kv.Bytes()
@@ -151,20 +151,21 @@ func (request *Request) PublicKey() string {
 }
 
 // JoinMessages the message
-func (request *Request) String() (string, error) {
+func (request *Request) String() string {
 	bytes, err := request.Bytes()
 	if err != nil {
-		return "", fmt.Errorf("request.Bytes: %w", err)
+		return ""
 	}
 
-	return string(bytes), nil
+	return string(bytes)
 }
 
-func (request *Request) Strings() ([]string, error) {
-	str, err := request.String()
+func (request *Request) ZmqEnvelope() ([]string, error) {
+	bytes, err := request.Bytes()
 	if err != nil {
-		return nil, fmt.Errorf("request.Strings: %w", err)
+		return nil, fmt.Errorf("request.ZmqEnvelope: %w", err)
 	}
+	str := string(bytes)
 
 	if len(request.conId) > 0 {
 		return []string{request.conId, "", str}, nil

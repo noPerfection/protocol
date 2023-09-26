@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-type ReqFunc = func(messages []string) (RequestInterface, error)
-type ReplyFunc = func(messages []string) (ReplyInterface, error)
+type ReqFunc = func(zmqEnvelope []string) (RequestInterface, error)
+type ReplyFunc = func(zmqEnvelope []string) (ReplyInterface, error)
 type NewGenericReq = func() RequestInterface
 type NewGenericReply = func() ReplyInterface
 
