@@ -21,7 +21,7 @@ type TestRequestSuite struct {
 func (suite *TestRequestSuite) SetupTest() {
 	request := &Request{
 		Command:    "some_command",
-		Parameters: key_value.Empty(),
+		Parameters: key_value.New(),
 	}
 	request.SetUuid()
 	request.AddRequestStack("service_1", "name_1", "instance_1")
@@ -60,7 +60,7 @@ func (suite *TestRequestSuite) TestToBytes() {
 
 	// The Failure request can not have an empty message
 	request = Request{
-		Parameters: key_value.Empty(),
+		Parameters: key_value.New(),
 	}
 	_, err = request.Bytes()
 	suite.Error(err)

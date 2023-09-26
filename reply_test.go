@@ -22,12 +22,12 @@ func (suite *TestReplySuite) SetupTest() {
 	reply := Reply{
 		Status:     OK,
 		Message:    "",
-		Parameters: key_value.Empty(),
+		Parameters: key_value.New(),
 	}
 	failReply := Reply{
 		Status:     FAIL,
 		Message:    "failed for testing purpose",
-		Parameters: key_value.Empty(),
+		Parameters: key_value.New(),
 	}
 	suite.ok = &reply
 	suite.fail = &failReply
@@ -63,7 +63,7 @@ func (suite *TestReplySuite) TestToBytes() {
 	// The Failure reply can not have an empty message
 	reply = Reply{
 		Status:     FAIL,
-		Parameters: key_value.Empty(),
+		Parameters: key_value.New(),
 	}
 	_, err = reply.Bytes()
 	suite.Error(err)
@@ -71,7 +71,7 @@ func (suite *TestReplySuite) TestToBytes() {
 	// The Failure reply can not have an empty message
 	reply = Reply{
 		Message:    "",
-		Parameters: key_value.Empty(),
+		Parameters: key_value.New(),
 	}
 	_, err = reply.Bytes()
 	suite.Error(err)

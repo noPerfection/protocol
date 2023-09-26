@@ -191,7 +191,7 @@ func (request *Request) Fail(message string) ReplyInterface {
 	reply := &Reply{
 		Status:     FAIL,
 		Message:    message,
-		Parameters: key_value.Empty(),
+		Parameters: key_value.New(),
 		Uuid:       request.Uuid,
 		conId:      request.conId,
 		Trace:      request.Trace,

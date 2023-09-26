@@ -207,9 +207,9 @@ func (request *RawRequest) ZmqEnvelope() ([]string, error) {
 			return nil, fmt.Errorf("failed to serialize Request to key-value %v: %v", request, err)
 		}
 
-		str, err := kv.String()
-		if err != nil {
-			return nil, fmt.Errorf("kv.Bytes: %w", err)
+		str := kv.String()
+		if len(str) == 0 {
+			return nil, fmt.Errorf("kv.String is nil")
 		}
 		messages[2+msgLen] = str
 	}
@@ -234,7 +234,7 @@ func (request *RawRequest) Next(command string, parameters key_value.KeyValue) {
 // Fail creates a new Reply as a failure
 // It accepts the error message that explains the reason of the failure.
 func (request *RawRequest) Fail(message string) ReplyInterface {
-	defaultReply, _ := (&Reply{Status: FAIL, Message: message, Parameters: key_value.Empty()}).ZmqEnvelope()
+	defaultReply, _ := (&Reply{Status: FAIL, Message: message, Parameters: key_value.New()}).ZmqEnvelope()
 
 	reply := &RawReply{
 		Uuid:     request.Uuid,
@@ -349,8 +349,8 @@ func (reply *RawReply) ZmqEnvelope() ([]string, error) {
 			return nil, fmt.Errorf("failed to serialize Request to key-value %v: %v", reply, err)
 		}
 
-		str, err := kv.String()
-		if err != nil {
+		str := kv.String()
+		if len(str) == 0 {
 			return nil, fmt.Errorf("kv.Bytes: %w", err)
 		}
 		messages[2+msgLen] = str
