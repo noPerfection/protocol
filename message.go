@@ -5,9 +5,22 @@ import (
 	"strings"
 )
 
+type ReqFunc = func(messages []string) (RequestInterface, error)
+type ReplyFunc = func(messages []string) (ReplyInterface, error)
+type NewGenericReq = func() RequestInterface
+type NewGenericReply = func() ReplyInterface
+
 // ReplyStatus can be only as "OK" or "fail"
 // It indicates whether the reply message is correct or not.
 type ReplyStatus string
+
+type Operations struct {
+	Name       string
+	NewReq     ReqFunc
+	NewReply   ReplyFunc
+	EmptyReq   NewGenericReq
+	EmptyReply NewGenericReply
+}
 
 const (
 	OK   ReplyStatus = "OK"

@@ -26,8 +26,22 @@ type RawReply struct {
 }
 
 // RawMessage returns a message for parsing request and parsing reply.
-func RawMessage() (ReqFunc, ReplyFunc) {
-	return NewRawReq, NewRawRep
+func RawMessage() *Operations {
+	return &Operations{
+		Name:       "raw",
+		NewReq:     NewRawReq,
+		NewReply:   NewRawRep,
+		EmptyReq:   NewEmptyRawReq,
+		EmptyReply: NewEmptyRawReply,
+	}
+}
+
+func NewEmptyRawReq() RequestInterface {
+	return &RawRequest{}
+}
+
+func NewEmptyRawReply() ReplyInterface {
+	return &RawReply{}
 }
 
 // NewRawReq from the zeromq messages.

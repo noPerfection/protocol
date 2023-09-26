@@ -48,6 +48,3 @@ type ReplyInterface interface {
 	ErrorMessage() string
 	ReplyParameters() key_value.KeyValue
 }
-
-type ReqFunc = func(messages []string) (RequestInterface, error)
-type ReplyFunc = func(messages []string) (ReplyInterface, error)

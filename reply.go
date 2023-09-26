@@ -18,6 +18,10 @@ type Reply struct {
 	conId      string
 }
 
+func NewEmptyReply() ReplyInterface {
+	return &Reply{}
+}
+
 // NewRep decodes Zeromq messages into Reply.
 func NewRep(messages []string) (ReplyInterface, error) {
 	msg := JoinMessages(messages)
