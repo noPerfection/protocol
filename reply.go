@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ahmetson/common-lib/data_type/key_value"
+	"github.com/ahmetson/datatype-lib/data_type/key_value"
 )
 
 // Reply SDS Service returns the reply. Anyone who sends a request to the SDS Service gets this message.
