@@ -8,6 +8,7 @@ import (
 type RequestInterface interface {
 	// ConId returns a connection id for each sending session.
 	ConId() string
+	SetConId(string)
 	// IsFirst returns true if the request has no trace request or id,
 	IsFirst() bool
 	SyncTrace(ReplyInterface)
@@ -37,6 +38,7 @@ type RequestInterface interface {
 
 type ReplyInterface interface {
 	ConId() string
+	SetConId(string)
 	// SetStack adds the current service's server into the reply
 	SetStack(serviceUrl string, serverName string, serverInstance string) error
 	// IsOK returns the Status of the message.

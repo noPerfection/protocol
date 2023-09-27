@@ -86,6 +86,10 @@ func (request *Request) ConId() string {
 	return request.conId
 }
 
+func (request *Request) SetConId(conId string) {
+	request.conId = conId
+}
+
 func (request *Request) Traces() []*Stack {
 	return request.Trace
 }

@@ -57,6 +57,10 @@ func (reply *Reply) ConId() string {
 	return reply.conId
 }
 
+func (reply *Reply) SetConId(conId string) {
+	reply.conId = conId
+}
+
 func (reply *Reply) Traces() []*Stack {
 	return reply.Trace
 }

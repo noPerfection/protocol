@@ -169,6 +169,10 @@ func (request *RawRequest) ConId() string {
 	return request.conId
 }
 
+func (request *RawRequest) SetConId(conId string) {
+	request.conId = conId
+}
+
 func (request *RawRequest) Traces() []*Stack {
 	return request.trace
 }
@@ -359,6 +363,10 @@ func (request *RawRequest) SetMeta(meta map[string]string) {
 
 func (reply *RawReply) ConId() string {
 	return reply.conId
+}
+
+func (reply *RawReply) SetConId(conId string) {
+	reply.conId = conId
 }
 
 func (reply *RawReply) Traces() []*Stack {
