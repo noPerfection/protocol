@@ -42,11 +42,17 @@ func MultiPart(messages []string) bool {
 	return len(messages) >= 3 && messages[1] == ""
 }
 
-// JoinMessages into the single string the array of zeromq messages
+func SyncReplierEnvelope(messages []string) bool {
+	return len(messages) >= 2 && messages[0] == ""
+}
+
+// JoinMessages into the single string the array of zeromq rawReq
 func JoinMessages(messages []string) string {
 	body := messages[:]
 	if MultiPart(messages) {
 		body = messages[2:]
+	} else if SyncReplierEnvelope(messages) {
+		body = messages[1:]
 	}
 	return strings.Join(body, "")
 }
