@@ -60,14 +60,31 @@ func (test *TestConfigSuite) Test_11_TargetToClient() {
 func (test *TestConfigSuite) Test_12_Url() {
 	require := test.Require
 
-	// No url function was set, url must be empty
 	require().Empty(test.client.Url())
 
-	// Setting up the url function
 	test.client.UrlFunc(Url)
+	require().Equal("inproc://sample", test.client.Url())
+}
 
-	// Url is generated
-	require().NotEmpty(test.client.Url())
+func (test *TestConfigSuite) Test_13_Url_tcp() {
+	require := test.Require
+
+	client := New("github.com/sds-framework/service", "sample", 6000, zmq.REP)
+	require().Equal("tcp://localhost:6000", Url(client))
+}
+
+func (test *TestConfigSuite) Test_14_Url_ipc_tmp() {
+	require := test.Require
+
+	client := New("github.com/sds-framework/service", "tmp-test.sock", 0, zmq.REP)
+	require().Equal("ipc:///tmp-test.sock", Url(client))
+}
+
+func (test *TestConfigSuite) Test_15_Url_inproc_port_zero() {
+	require := test.Require
+
+	client := New("github.com/sds-framework/service", "my-service", 0, zmq.REP)
+	require().Equal("inproc://my-service", Url(client))
 }
 
 // In order for 'go test' to run this suite, we need to create

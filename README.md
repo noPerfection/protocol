@@ -39,6 +39,17 @@ To avoid import cycling the clients are using the target's internal socket type.
 
 For intercommunication SDS framework uses Zeromq sockets. 
 
+### URL
+`config.Url` builds the ZeroMQ endpoint from `config.Client`:
+
+| Condition | Endpoint |
+|-----------|----------|
+| `Port` > 0 | `tcp://localhost:{Port}` |
+| `Port` == 0 and `Id` starts with `tmp` | `ipc:///{Id}` (filesystem IPC socket) |
+| `Port` == 0 otherwise | `inproc://{Id}` (in-process) |
+
+Set `client.UrlFunc(config.Url)` before `client.New(client)` so the socket connects to the generated address.
+
 ### Concurrent
 A client is concurrent with its message queue.
 A client is [thread safe](https://en.wikipedia.org/wiki/Thread_safety).

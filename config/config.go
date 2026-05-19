@@ -3,6 +3,8 @@ package config
 
 import (
 	"fmt"
+	"strings"
+
 	zmq "github.com/pebbe/zmq4"
 )
 
@@ -41,16 +43,19 @@ func (client *Client) Url() string {
 	return client.urlFunc(client)
 }
 
-// Url creates url of the server for the client to connect
+// Url creates the ZeroMQ endpoint for the client to connect to.
 //
-// If the port is 0, then the client will be inproc, not as tcp
-// todo move to context
+// When Port is non-zero, returns tcp://localhost:{Port}.
+// When Port is 0 and Id has the prefix "tmp", returns ipc:///{Id} for a filesystem IPC socket.
+// When Port is 0 otherwise, returns inproc://{Id} for in-process communication.
 func Url(client *Client) string {
 	if client.Port == 0 {
+		if strings.HasPrefix(client.Id, "tmp") {
+			return fmt.Sprintf("ipc:///%s", client.Id)
+		}
 		return fmt.Sprintf("inproc://%s", client.Id)
 	}
-	url := fmt.Sprintf("tcp://localhost:%d", client.Port)
-	return url
+	return fmt.Sprintf("tcp://localhost:%d", client.Port)
 }
 
 // IsTarget checks that given zeromq socket type is the handler type
