@@ -2,7 +2,7 @@ package message
 
 import (
 	"encoding/json"
-	"github.com/ahmetson/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
