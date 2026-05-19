@@ -62,6 +62,20 @@ The `handler_type` file describes the type of the handlers. Remember `SyncReplie
 
 The `internal` file keeps the socket addresses of the various handler parts.
 
+### Handler URLs
+
+`config.ExternalUrl` builds the bind endpoint for the handler's external socket:
+
+| Port | Id | Bind URL |
+|------|-----|----------|
+| non-zero | any | `tcp://*:{Port}` |
+| 0 | starts with `tmp` | `ipc:///{Id}` |
+| 0 | otherwise | `inproc://{Id}` |
+
+Clients use the same `Id` and `Port` with [`client-lib/config.Url`](https://github.com/sds-framework/client-lib) (`tcp://localhost:{Port}` for TCP).
+
+Handler ids with the `tmp` prefix use filesystem IPC sockets (for example, id `tmp/my-handler.sock` binds at `ipc:///tmp/my-handler.sock`). Remove the socket file when the handler stops.
+
 ## Parts
 The handler is split to various parts.
 Each part is a parallel thread.

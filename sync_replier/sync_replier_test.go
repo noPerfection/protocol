@@ -67,7 +67,8 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
 
-	externalClient, err := client.NewRaw(zmq.REP, "inproc://"+test.handlerConfig.Id)
+	externalUrl := config.ExternalUrl(test.handlerConfig.Id, test.handlerConfig.Port)
+	externalClient, err := client.NewRaw(zmq.REP, externalUrl)
 	s.Require().NoError(err)
 	test.externalClient = externalClient
 }

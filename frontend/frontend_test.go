@@ -1,6 +1,8 @@
 package frontend
 
 import (
+	"os"
+
 	"github.com/sds-framework/client-lib"
 	"github.com/sds-framework/datatype-lib/data_type"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
@@ -171,6 +173,51 @@ func (test *TestFrontendSuite) Test_11_External() {
 
 	// clean out the queue
 	test.frontend.queue = data_type.NewQueue()
+}
+
+// Test_11_External_ipc tests the external socket over a filesystem IPC endpoint.
+func (test *TestFrontendSuite) Test_11_External_ipc() {
+	s := &test.Suite
+
+	ipcId := "tmp/handler-lib-frontend.sock"
+	ipcPath := "/" + ipcId
+	_ = os.Remove(ipcPath)
+	defer os.Remove(ipcPath)
+
+	test.handleConfig = &config.Handler{
+		Type: config.SyncReplierType, Category: "test", Id: ipcId, Port: 0, InstanceAmount: 1,
+	}
+	test.frontend = New()
+	test.frontend.SetConfig(test.handleConfig)
+
+	err := test.frontend.queue.SetCap(1)
+	s.Require().NoError(err)
+	err = test.frontend.prepareExternalSocket()
+	s.Require().NoError(err)
+
+	clientUrl := config.ExternalUrl(test.frontend.externalConfig.Id, test.frontend.externalConfig.Port)
+	s.Require().Equal("ipc:///"+ipcId, clientUrl)
+
+	user, err := zmq.NewSocket(zmq.DEALER)
+	s.Require().NoError(err)
+	err = user.Connect(clientUrl)
+	s.Require().NoError(err)
+
+	msg := message.Request{Command: "cmd", Parameters: key_value.New().Set("id", 1)}
+	msgStr, err := msg.ZmqEnvelope()
+	s.Require().NoError(err)
+	_, err = user.SendMessage("", msgStr)
+	s.Require().NoError(err)
+
+	time.Sleep(time.Millisecond * 50)
+	err = test.frontend.handleExternal()
+	s.Require().NoError(err)
+	s.Require().EqualValues(uint(1), test.frontend.queue.Len())
+
+	err = user.Close()
+	s.Require().NoError(err)
+	err = test.frontend.external.Close()
+	s.Require().NoError(err)
 }
 
 // Test_12_Consumer tests the consuming

@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/sds-framework/os-lib/net"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -99,14 +101,21 @@ func SocketType(handlerType HandlerType) zmq.Type {
 	return zmq.Type(-1)
 }
 
-// ExternalUrl creates url of the handler url for binding.
-// For clients to connect to this url, call client.ClientUrl()
+// ExternalUrl creates the ZeroMQ endpoint for the handler to bind.
+//
+// When Port is non-zero, returns tcp://*:{Port}.
+// When Port is 0 and Id has the prefix "tmp", returns ipc:///{Id} for a filesystem IPC socket.
+// When Port is 0 otherwise, returns inproc://{Id} for in-process communication.
+//
+// Clients should connect using the same Id and Port with client-lib/config.Url.
 func ExternalUrl(id string, port uint64) string {
 	if port == 0 {
+		if strings.HasPrefix(id, "tmp") {
+			return fmt.Sprintf("ipc:///%s", id)
+		}
 		return fmt.Sprintf("inproc://%s", id)
 	}
-	url := fmt.Sprintf("tcp://*:%d", port)
-	return url
+	return fmt.Sprintf("tcp://*:%d", port)
 }
 
 // CanReply returns true if the given Handler has to reply back to the user.

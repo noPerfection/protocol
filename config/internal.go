@@ -18,7 +18,7 @@ import (
 //	contextUrl = "orchestra.github.com.ahmetson.sample-service"
 //
 // This url is set as the handler's name in the config.
-// Then the handler package will generate an inproc:// url based on the handler name.
+// Then the handler package will generate an inproc:// or ipc:// url from config.ExternalUrl.
 func UrlToFileName(url string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(url, "/", "."), "\\", ".")
 }
