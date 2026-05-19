@@ -17,7 +17,7 @@ type TestConfigSuite struct {
 // Make sure that Account is set to five
 // before each test
 func (test *TestConfigSuite) SetupTest() {
-	serviceUrl := "github.com/ahmetson/service"
+	serviceUrl := "github.com/sds-framework/service"
 	id := "sample"
 	port := uint64(0)
 	socketType := zmq.REQ

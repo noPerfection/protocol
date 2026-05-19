@@ -1,5 +1,5 @@
 # Client Lib
-The `client` module is to message exchange with [SDS Handlers](https://github.com/ahmetson/handler-lib/).
+The `client` module is to message exchange with [SDS Handlers](https://github.com/sds-framework/handler-lib/).
 
 ## Terminology
 *Transmit* &ndash; any message transfers between a client and handler.

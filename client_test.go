@@ -2,9 +2,9 @@ package client
 
 import (
 	"fmt"
-	"github.com/ahmetson/client-lib/config"
-	"github.com/ahmetson/datatype-lib/data_type/key_value"
-	"github.com/ahmetson/datatype-lib/message"
+	"github.com/sds-framework/client-lib/config"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/message"
 	zmq "github.com/pebbe/zmq4"
 	"testing"
 	"time"
@@ -106,7 +106,7 @@ func (test *TestClientSuite) runBackend(funcName string, url string, zmqType zmq
 func (test *TestClientSuite) Test_10_New() {
 	require := test.Require
 
-	serviceUrl := "github.com/ahmetson/service"
+	serviceUrl := "github.com/sds-framework/service"
 	id := "sample_router"
 	port := uint64(0)
 	socketType := zmq.ROUTER
