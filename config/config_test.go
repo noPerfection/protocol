@@ -34,7 +34,7 @@ func (test *TestConfigSuite) Test_10_IsTarget() {
 	require().True(IsTarget(zmq.REP))
 	require().True(IsTarget(zmq.ROUTER))
 	require().True(IsTarget(zmq.PUB))
-	require().True(IsTarget(zmq.PUSH))
+	require().True(IsTarget(zmq.PAIR))
 	require().True(IsTarget(zmq.PULL))
 
 	// Invalid
@@ -48,7 +48,7 @@ func (test *TestConfigSuite) Test_11_TargetToClient() {
 	require().Equal(zmq.REQ, TargetToClient(zmq.REP))
 	require().Equal(zmq.REQ, TargetToClient(zmq.ROUTER))
 	require().Equal(zmq.SUB, TargetToClient(zmq.PUB))
-	require().Equal(zmq.PULL, TargetToClient(zmq.PUSH))
+	require().Equal(zmq.PAIR, TargetToClient(zmq.PAIR))
 	require().Equal(zmq.PUSH, TargetToClient(zmq.PULL))
 
 	// Invalid socket types return request

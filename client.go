@@ -315,6 +315,7 @@ func (socket *Socket) rawSubmitByTimeout(raw string) error {
 		}
 
 		if !timeout {
+			socket.omitReplyIfPresent()
 			break
 		}
 
@@ -355,16 +356,35 @@ func (socket *Socket) rawSubmit(raw string) (bool, error) {
 	}
 
 	if len(sockets) > 0 {
-		//  We send a request, then we work to get a reply
 		if _, err := socket.zmqSocket.SendMessage(messages); err != nil {
 			return false, fmt.Errorf("zmqSocket.SendMessage: %w", err)
 		}
 
-		// message received without a timeout
 		return false, nil
 	}
 
 	return true, nil
+}
+
+// omitReplyIfPresent drops an inbound reply so REQ submit can complete (see RawSubmit doc).
+func (socket *Socket) omitReplyIfPresent() {
+	if socket.socketType != zmq.REQ {
+		return
+	}
+
+	socket.updateToPollIn()
+
+	drain := socket.timeout
+	if drain > time.Second {
+		drain = time.Second
+	}
+
+	sockets, err := socket.poller.Poll(drain)
+	if err != nil || len(sockets) == 0 {
+		return
+	}
+
+	_, _ = socket.zmqSocket.RecvMessage(0)
 }
 
 //

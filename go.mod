@@ -2,10 +2,7 @@ module github.com/sds-framework/client-lib
 
 go 1.19
 
-require (
-	github.com/sds-framework/datatype-lib v0.0.0-20230825195825-e7b69549b9a1
-	github.com/stretchr/testify v1.8.2
-)
+require github.com/stretchr/testify v1.8.2
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -15,4 +12,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-require github.com/pebbe/zmq4 v1.2.9
+require (
+	github.com/pebbe/zmq4 v1.2.9
+	github.com/sds-framework/datatype-lib v0.0.0-20260519113206-6acc97659255
+)
