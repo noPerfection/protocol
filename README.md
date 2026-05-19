@@ -1,201 +1,391 @@
-# Handler Lib
-The handler is responsible for routing the requests to the user-defined functions.
+# handler-lib
 
-![User and Handler diagram](_assets/Handler.jpg "Handler diagram")
+Route ZeroMQ messages to your Go functions. Part of the [SDS Framework](https://github.com/sds-framework).
 
-*Diagram available on [Source](https://drive.google.com/file/d/1B0JOWbrbby9yUy66pMwWnlf8ic18XOs-/view?usp=sharing)*
+Handlers expose a **command-based API**: clients send a command name and parameters; handler-lib dispatches to the matching route and returns a reply.
 
-There are different types of the handlers. 
-Each type applies a certain behavior to the collection of the routes.
+For architecture, socket layout, and contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**SyncReplier** handles one request from per user at a time. 
-The requests are queued while one request is processing.
+## Requirements
 
-**Replier** handles many requests from multiple users at a time.
-It's a *server* part of classic *client-server* architecture.
-The **Replier** may run multiple instances running on parallel threads. However, it's managed by the service, so don't worry about it.
-Just remember that if more requests are coming, then the **Replier** tries to use more CPU cores.
+- Go 1.19+
+- ZeroMQ 4.x (`libzmq3-dev` on Debian/Ubuntu)
+- SDS modules: [client-lib](https://github.com/sds-framework/client-lib), [datatype-lib](https://github.com/sds-framework/datatype-lib), [log-lib](https://github.com/sds-framework/log-lib)
 
-**Publisher** broadcasts the message from the handler to the connected users. 
-The **publisher** is the trigger-able handler.
-Like that, it has two endpoints. One is for users to subscribe, another endpoint to trigger publishing.
-Usually, the trigger will be called by the handler function in another handler function.
+## Installation
 
+```bash
+go get github.com/sds-framework/handler-lib@latest
+```
 
-**Pusher** submits the message from the handler to the connected users. If multiple users are connected,
-then requests will be submitted in a round-robin algorithm.
+## Handler types
 
-> **Glossary**
-> 
-> *Notice we have two terms for **handler &ndash; user interaction**:*
-> 
-> **Send** &ndash; a handler user interaction.
-> 
-> **Request** &ndash; sender (user or handler) expects a reply from the destination (user or handler).
-> 
-> **Submit** &ndash; a message sent to the destination doesn't expect a reply. 
-> It's fast; however, the sender doesn't know message delivery.
+Pick the handler that matches your concurrency model:
 
-The primary definition of the handler is written in the `base` package. 
-It's composed of the `Handler` structure and `Interface` of the `Handler`.
-The `base` not supposed to be used by itself. Use the derived handlers.
+| Package | Type | Use when |
+|---------|------|----------|
+| [`sync_replier`](sync_replier) | `SyncReplier` | One request at a time per handler; extra requests wait in queue |
+| [`replier`](replier) | `Replier` | Many concurrent clients; scales instances up to CPU count |
+| [`publisher`](publisher) | `Publisher` | Broadcast to subscribers; separate **trigger** endpoint to publish |
+| [`worker`](worker) | `Worker` | Consume messages without replying to the caller (PULL) |
 
-To check the derived handlers against the validness, the `base.Interface` shall be used.
+All handlers implement [`base.Interface`](base/interface.go): `SetConfig`, `SetLogger`, `Route`, `Start`, etc.
 
-# Internal structure
+## Quick start
 
-## Route
-The route defines the user request.
-It's composed of three parts.
-The first part is the `command`.
-The second part is the handle function.
-The third part, which is optional, is the list services that handle function will call.
+Minimal **SyncReplier** — one instance, in-process endpoint:
 
-## Config
-Just like anything in the SDS, the handlers are prepared
-based on the configuration. The handler configuration
-is stored in the *config* package.
+```go
+package main
 
-The `handler` file describes the handler's configuration.
+import (
+	"log"
 
-The `handler_type` file describes the type of the handlers. Remember `SyncReplier`, `Replier`?
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/handler-lib/sync_replier"
+	loglib "github.com/sds-framework/log-lib"
+)
 
-The `internal` file keeps the socket addresses of the various handler parts.
+func main() {
+	handler := sync_replier.New()
 
-### Handler URLs
+	handlerConfig := config.NewInternalHandler(config.SyncReplierType, "my_service")
+	handler.SetConfig(handlerConfig)
 
-`config.ExternalUrl` builds the bind endpoint for the handler's external socket:
+	logger, err := loglib.New("my_service", true)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := handler.SetLogger(logger); err != nil {
+		log.Fatal(err)
+	}
+
+	err = handler.Route("hello", func(req message.RequestInterface) message.ReplyInterface {
+		name, _ := req.RouteParameters().StringValue("name")
+		return req.Ok(key_value.New().Set("greeting", "Hello, "+name))
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := handler.Start(); err != nil {
+		log.Fatal(err)
+	}
+
+	// Handler runs until closed via manager_client or manager socket
+	select {}
+}
+```
+
+Send requests with [client-lib](https://github.com/sds-framework/client-lib) (see [Tutorial: Call a handler](#tutorial-call-a-handler-from-a-client)).
+
+---
+
+## Tutorials
+
+### Tutorial: Your first route
+
+1. Create a handler (`sync_replier.New()` or `replier.New()`).
+2. Build config (`config.NewInternalHandler` for in-process, or `config.NewHandler` for TCP).
+3. `SetConfig` → `SetLogger` → register routes → `Start()`.
+
+**Route handler signature** (`route` package):
+
+```go
+// No dependencies
+func(req message.RequestInterface) message.ReplyInterface
+
+// With one or more service dependencies (see Tutorial: Dependencies)
+func(req message.RequestInterface, dep *client.Socket) message.ReplyInterface
+```
+
+**Success / failure replies:**
+
+```go
+return req.Ok(key_value.New().Set("key", "value"))
+return req.Fail("something went wrong")
+```
+
+**Register a route:**
+
+```go
+err := handler.Route("my_command", myHandler)
+// With dependencies:
+err := handler.Route("other_command", myHandler, "dep_service_id")
+```
+
+---
+
+### Tutorial: Configuration and endpoints
+
+`config.Handler` fields:
+
+| Field | Description |
+|-------|-------------|
+| `Id` | Endpoint identity (used in ZMQ URL) |
+| `Port` | `0` = local (inproc or ipc); non-zero = TCP |
+| `Type` | Set automatically by `sync_replier`, `replier`, etc. |
+| `Category` | Logical grouping / default id prefix |
+| `InstanceAmount` | Hint for instance count (service may manage instances) |
+
+**Helpers:**
+
+```go
+// In-process (same process), id "my_service" → inproc://my_service
+cfg := config.NewInternalHandler(config.SyncReplierType, "my_service")
+
+// TCP on a free port
+cfg, err := config.NewHandler(config.ReplierType, "api")
+
+// Manual config
+cfg := &config.Handler{
+	Type:     config.ReplierType,
+	Category: "api",
+	Id:       "api_1",
+	Port:     5555,
+}
+```
+
+**External URL** (`config.ExternalUrl`) — where the handler **binds**:
 
 | Port | Id | Bind URL |
 |------|-----|----------|
 | non-zero | any | `tcp://*:{Port}` |
-| 0 | starts with `tmp` | `ipc:///{Id}` |
+| 0 | starts with `tmp` | `ipc:///{Id}` (filesystem socket) |
 | 0 | otherwise | `inproc://{Id}` |
 
-Clients use the same `Id` and `Port` with [`client-lib/config.Url`](https://github.com/sds-framework/client-lib) (`tcp://localhost:{Port}` for TCP).
+Clients use the same `Id` and `Port` with `client-lib/config.Url` (`tcp://localhost:{Port}` for TCP).
 
-Handler ids with the `tmp` prefix use filesystem IPC sockets (for example, id `tmp/my-handler.sock` binds at `ipc:///tmp/my-handler.sock`). Remove the socket file when the handler stops.
+**IPC example** — use an id under `/tmp/`:
 
-## Parts
-The handler is split to various parts.
-Each part is a parallel thread.
+```go
+cfg := &config.Handler{
+	Type:     config.SyncReplierType,
+	Category: "worker",
+	Id:       "tmp/my-worker.sock", // binds ipc:///tmp/my-worker.sock
+	Port:     0,
+}
+```
 
-### Instance manager
-Instance manager is the thread that manages the instances.
-
-The operations to manage the instances are the direct methods:
-* `AddInstance`
-* `DeleteInstance`
-
-However, these operations are asynchronous.
-Therefore, the call of the methods doesn't indicate the operation was successful.
-
-The instance manager exposes two types of the sockets.
-One is the puller, and another one is the publisher.
-
-The threads that work with instance manager must subscribe for the events.
-There is an option to check for the operation status.
-
-The puller is receiving the messages from the instances.
-The instances are pushing the notifications about being their status.
-
-When the puller receives the message, it broadcasts
-it to the publisher socket as well.
-
-### Instance
-Instances are the threads that keep the routes and handle functions.
-For any incoming requests by the route, the instances are calling the handle functions.
-
-Instances have two sockets. The first socket is
-to manage the instance. The second socket is to
-receive a user request.
-
-#### Instance and Instance Manager relationship
-The instances are creating a pusher socket connected to the instance manager's puller socket.
-
-The instance managers are creating two client sockets.
-The one client is connected to the handler of the instance.
-Another client is connected to the manager of the instance.
-
-> The instance handler client and instance manager client
-> are passed from instance manager to other threads.
-
-### Frontend
-The **frontend** package defines the external socket that receives data from users.
-This package depends on the *instance_manager*.
-
-The frontend exposes an `external` socket.
-The messages that the handler has to receive are accepted by `external` socket.
-The frontend keeps all incoming messages in the internal `queue`.
-It also has the `consumer` that checks the `queue` as fast as it could.
-Consumer forwards the messages to the ready instances.
-
-### Manager
-The last part is a `handler_manager` package.
-The handler manager is the only way how the external sockets
-can manage the handler parts such as instances, frontend.
+Remove the socket file when the handler stops.
 
 ---
 
-Even though the zeromq sockets are not thread safe.
-The instance manager, frontend or handler manager are not closing the sockets.
-They send the signal to the responsible thread that closes the sockets.
+### Tutorial: Call a handler from a client
 
-### Recap
-* instance manager
-* handler manager
-* frontend
-* instance
+After `handler.Start()`, connect with **client-lib**:
 
-## Overwriting
-The aspects of the handlers are over-writable.
-However, it won't over-write the part. 
-For each part, it could change some aspects.
-Usually, there are two cases when over-writing is necessary.
-The first case is when you write the custom handler.
-The second case is services will over-write some parts of the handler.
+```go
+import (
+	"fmt"
 
-Here are the aspects of each part for over-writing.
+	"github.com/pebbe/zmq4"
+	"github.com/sds-framework/client-lib"
+	clientConfig "github.com/sds-framework/client-lib/config"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/handler-lib/config"
+)
 
-### Handler Manager
-You may over-write the routes that manage the handler.
-However, it doesn't support adding a new route.
+func callHello(handlerCfg *config.Handler) error {
+	cfg := clientConfig.New(
+		"github.com/sds-framework/my-service",
+		handlerCfg.Id,
+		handlerCfg.Port,
+		zmq.REQ, // client side of REQ/REP (SyncReplier, Replier)
+	)
+	cfg.UrlFunc(clientConfig.Url)
 
-### Frontend
-The Over-writing happens to the external socket only.
-The over-writing means a set-up of the new layer then pair it to the frontend.
+	sock, err := client.New(cfg)
+	if err != nil {
+		return err
+	}
 
-![User and Handler diagram](_assets/PairExternal.jpg "Add another layer over external diagram")
+	req := message.Request{
+		Command:    "hello",
+		Parameters: key_value.New().Set("name", "world"),
+	}
+	reply, err := sock.Request(&req)
+	if err != nil {
+		return err
+	}
+	if !reply.IsOK() {
+		return fmt.Errorf(reply.ErrorMessage())
+	}
+	greeting, _ := reply.ReplyParameters().StringValue("greeting")
+	fmt.Println(greeting)
+	return nil
+}
+```
 
-*Diagram available on [Source](https://drive.google.com/file/d/1B0JOWbrbby9yUy66pMwWnlf8ic18XOs-/view?usp=sharing)*
+Use the same `Id` and `Port` as the handler config so bind and connect URLs match.
 
-As seen in the diagram, user requests go to the frontend through a paired socket.
+---
 
-Create a server that has infinite loop.
-Use the `config.Handler` parameters to occupy a port.
-Then, get the `pair.Client`.
-When a server receives a request, submit the request to the client.
-Client will send it to the external service.
+### Tutorial: Replier (concurrent requests)
 
-The pair client is available from `handler.Frontend.PairClient`.
-In order to enable the pair client, you must return call `handler.Frontend.PairExternal()`
-This function is available only after setting up the configuration.
+`replier` allows multiple instances (up to `runtime.NumCPU()`). The service or manager can add instances with the `add-instance` command.
 
-Then, create a pair.Client().
-For any request that comes in your server,
-pass them to the pair.
+```go
+handler := replier.New()
 
-There are two available functions as well:
-`PairConfig` and `PairClient`.
+cfg, err := config.NewHandler(config.ReplierType, "api")
+if err != nil {
+	log.Fatal(err)
+}
+handler.SetConfig(cfg)
+// SetLogger, Route, Start — same as SyncReplier
 
-Use the configuration for creating your own protocol.
-And the pair client in the protocol, to forward a message to the handler's frontend.
+if err := handler.Start(); err != nil {
+	log.Fatal(err)
+}
+```
 
-Example is implemented in [web-lib](https://github.com/sds-framework/web-lib) &ndash; a support of the HTTP protocol.
+Scale instances via **manager_client**:
 
-### Instance Manager
-In instance manager, it's possible to change the message type.
-Any message has to implement two interfaces
-`message.RequestInterface` and `message.ReplyInterface`.
+```go
+import "github.com/sds-framework/handler-lib/manager_client"
 
-By default, the messages are parsed as `message.Request` and `message.Reply`
+mc, err := manager_client.New(cfg)
+if err != nil {
+	log.Fatal(err)
+}
+instanceId, err := mc.AddInstance()
+```
+
+---
+
+### Tutorial: Dependencies (call other services)
+
+Routes can depend on other SDS services. Declare dependency IDs on the route; the service calls `AddDepByService` before `Start()`.
+
+```go
+import "github.com/sds-framework/client-lib"
+
+// Route: needs two dependency sockets
+err := handler.Route("aggregate", aggregateHandler, "users", "orders")
+
+func aggregateHandler(
+	req message.RequestInterface,
+	users *client.Socket,
+	orders *client.Socket,
+) message.ReplyInterface {
+	// use users.Request(...), orders.Request(...)
+	return req.Ok(key_value.New())
+}
+```
+
+Register configs (typically from your service bootstrap):
+
+```go
+usersCfg := clientConfig.New("github.com/sds-framework/users", "users", 0, zmq.REQ)
+usersCfg.UrlFunc(clientConfig.Url)
+handler.AddDepByService(usersCfg)
+
+ordersCfg := clientConfig.New("github.com/sds-framework/orders", "orders", 0, zmq.REQ)
+ordersCfg.UrlFunc(clientConfig.Url)
+handler.AddDepByService(ordersCfg)
+```
+
+`Start()` fails if a route references a dependency that was not registered.
+
+---
+
+### Tutorial: Publisher (broadcast + trigger)
+
+A **Publisher** has:
+
+- **Broadcast socket** — subscribers connect (SUB)
+- **Trigger socket** — send a message to publish (via `TriggerClient()`)
+
+```go
+pub := publisher.New()
+
+baseCfg := config.NewInternalHandler(config.SyncReplierType, "events")
+triggerCfg, err := config.InternalTriggerAble(baseCfg, config.PublisherType)
+if err != nil {
+	log.Fatal(err)
+}
+
+pub.SetConfig(triggerCfg)
+pub.SetLogger(logger)
+pub.Start()
+
+// Client that triggers a broadcast
+triggerClientCfg := pub.TriggerClient()
+trigger, _ := client.New(triggerClientCfg)
+
+req := message.Request{Command: "publish", Parameters: key_value.New().Set("event", "updated")}
+reply, err := trigger.Request(&req)
+```
+
+Subscribers connect to `config.ExternalUrl(triggerCfg.BroadcastId, triggerCfg.BroadcastPort)` with a ZMQ SUB socket (or use `client-lib` with SUB).
+
+---
+
+### Tutorial: Manage a running handler
+
+Use [`manager_client`](manager_client) from your service process:
+
+```go
+mc, err := manager_client.New(handlerConfig)
+if err != nil {
+	log.Fatal(err)
+}
+
+status, parts, err := mc.HandlerStatus()
+instances, err := mc.InstanceAmount()
+err = mc.Close()
+```
+
+Manager routes are defined in `config` (`status`, `close`, `add-instance`, `delete-instance`, `instance-amount`, etc.).
+
+---
+
+### Tutorial: HTTP or custom protocols
+
+To expose a handler over HTTP or another protocol, add a **pair** layer on the frontend. See [CONTRIBUTING.md — Frontend (pair layer)](CONTRIBUTING.md#frontend-pair-layer) and [web-lib](https://github.com/sds-framework/web-lib).
+
+---
+
+## Typical lifecycle
+
+```
+New() → SetConfig() → SetLogger() → Route(...) → [AddDepByService(...)] → Start()
+```
+
+| Step | Notes |
+|------|--------|
+| `SetConfig` | Required before `SetLogger` |
+| `SetLogger` | Child logger per handler id |
+| `Route` | Command name must be unique |
+| `AddDepByService` | Called by service, not inside handler-lib |
+| `Start` | Starts frontend, instance manager, handler manager; blocks until parts are ready |
+
+Check health: `handler.Status()` (empty string = running) or `manager_client.HandlerStatus()`.
+
+## Project layout
+
+| Path | Purpose |
+|------|---------|
+| `sync_replier/`, `replier/`, `publisher/`, `worker/` | Handler implementations |
+| `config/` | Handler config and URL helpers |
+| `route/` | Route types and dispatch |
+| `manager_client/` | Service-side control client |
+| `pair/` | External protocol pairing |
+
+## Related projects
+
+| Repo | Role |
+|------|------|
+| [client-lib](https://github.com/sds-framework/client-lib) | Connect and send requests |
+| [datatype-lib](https://github.com/sds-framework/datatype-lib) | `message.Request` / `message.Reply` |
+| [log-lib](https://github.com/sds-framework/log-lib) | Logging |
+| [service-lib](https://github.com/sds-framework/service-lib) | Run handlers inside a service |
+| [web-lib](https://github.com/sds-framework/web-lib) | HTTP frontend example |
+
+## License
+
+See [LICENSE](LICENSE).
