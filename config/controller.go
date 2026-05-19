@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"github.com/ahmetson/os-lib/net"
+	"github.com/sds-framework/os-lib/net"
 	zmq "github.com/pebbe/zmq4"
 )
 

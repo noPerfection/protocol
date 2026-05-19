@@ -1,11 +1,11 @@
 package route
 
 import (
-	"github.com/ahmetson/datatype-lib/data_type/key_value"
-	"github.com/ahmetson/datatype-lib/message"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/message"
 	"testing"
 
-	"github.com/ahmetson/client-lib"
+	"github.com/sds-framework/client-lib"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
 )

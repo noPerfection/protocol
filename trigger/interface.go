@@ -1,8 +1,8 @@
 package trigger
 
 import (
-	clientConfig "github.com/ahmetson/client-lib/config"
-	"github.com/ahmetson/handler-lib/config"
+	clientConfig "github.com/sds-framework/client-lib/config"
+	"github.com/sds-framework/handler-lib/config"
 )
 
 type Interface interface {

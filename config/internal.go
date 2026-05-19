@@ -14,7 +14,7 @@ import (
 //
 // For example:
 //
-//	serviceUrl = "github.com/ahmetson/sample-service"
+//	serviceUrl = "github.com/sds-framework/sample-service"
 //	contextUrl = "orchestra.github.com.ahmetson.sample-service"
 //
 // This url is set as the handler's name in the config.

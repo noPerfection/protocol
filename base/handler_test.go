@@ -1,14 +1,14 @@
 package base
 
 import (
-	"github.com/ahmetson/client-lib"
-	clientConfig "github.com/ahmetson/client-lib/config"
-	"github.com/ahmetson/datatype-lib/message"
-	"github.com/ahmetson/handler-lib/config"
-	"github.com/ahmetson/handler-lib/frontend"
-	"github.com/ahmetson/handler-lib/instance_manager"
-	"github.com/ahmetson/handler-lib/manager_client"
-	"github.com/ahmetson/log-lib"
+	"github.com/sds-framework/client-lib"
+	clientConfig "github.com/sds-framework/client-lib/config"
+	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/handler-lib/frontend"
+	"github.com/sds-framework/handler-lib/instance_manager"
+	"github.com/sds-framework/handler-lib/manager_client"
+	"github.com/sds-framework/log-lib"
 	"github.com/stretchr/testify/suite"
 	"slices"
 	"testing"
@@ -159,7 +159,7 @@ func (test *TestBaseHandlerSuite) Test_12_DepConfig() {
 	for _, id := range depIds {
 		depConfig := &clientConfig.Client{
 			Id:         id,
-			ServiceUrl: "github.com/ahmetson/" + id,
+			ServiceUrl: "github.com/sds-framework/" + id,
 			Port:       0,
 		}
 
@@ -179,7 +179,7 @@ func (test *TestBaseHandlerSuite) Test_12_DepConfig() {
 	s.Require().False(slices.Contains(depIds, depId))
 	depConfig := &clientConfig.Client{
 		Id:         depId,
-		ServiceUrl: "github.com/ahmetson/" + depId,
+		ServiceUrl: "github.com/sds-framework/" + depId,
 		Port:       0,
 	}
 	s.Require().Error(test.inprocHandler.AddDepByService(depConfig))
@@ -188,7 +188,7 @@ func (test *TestBaseHandlerSuite) Test_12_DepConfig() {
 	depId = depIds[0]
 	depConfig = &clientConfig.Client{
 		Id:         depId,
-		ServiceUrl: "github.com/ahmetson/" + depId,
+		ServiceUrl: "github.com/sds-framework/" + depId,
 		Port:       0,
 	}
 	s.Require().Error(test.inprocHandler.AddDepByService(depConfig))

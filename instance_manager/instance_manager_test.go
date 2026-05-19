@@ -1,12 +1,12 @@
 package instance_manager
 
 import (
-	"github.com/ahmetson/client-lib"
-	"github.com/ahmetson/datatype-lib/data_type/key_value"
-	"github.com/ahmetson/datatype-lib/message"
-	"github.com/ahmetson/handler-lib/config"
-	"github.com/ahmetson/handler-lib/instance"
-	"github.com/ahmetson/log-lib"
+	"github.com/sds-framework/client-lib"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/handler-lib/instance"
+	"github.com/sds-framework/log-lib"
 	"testing"
 	"time"
 
@@ -171,7 +171,7 @@ func (test *TestInstanceSuite) Test_12_Ready() {
 
 	// Waiting the instance will notify instance manager that it's busy
 	// Since, we are sending messages without waiting their update
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(instance.HANDLING, test.parent.instances[instanceId].status)
 
 	// Get the second ready worker

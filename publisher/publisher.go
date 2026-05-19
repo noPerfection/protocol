@@ -1,8 +1,8 @@
 package publisher
 
 import (
-	"github.com/ahmetson/handler-lib/config"
-	"github.com/ahmetson/handler-lib/trigger"
+	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/handler-lib/trigger"
 )
 
 type Publisher struct {

@@ -3,12 +3,12 @@ package frontend
 
 import (
 	"fmt"
-	"github.com/ahmetson/datatype-lib/data_type"
-	"github.com/ahmetson/datatype-lib/data_type/key_value"
-	"github.com/ahmetson/datatype-lib/message"
-	"github.com/ahmetson/handler-lib/config"
-	"github.com/ahmetson/handler-lib/instance_manager"
-	"github.com/ahmetson/handler-lib/pair"
+	"github.com/sds-framework/datatype-lib/data_type"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/handler-lib/instance_manager"
+	"github.com/sds-framework/handler-lib/pair"
 	zmq "github.com/pebbe/zmq4"
 	"time"
 )

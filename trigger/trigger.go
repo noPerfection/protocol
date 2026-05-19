@@ -2,17 +2,17 @@ package trigger
 
 import (
 	"fmt"
-	clientConfig "github.com/ahmetson/client-lib/config"
-	"github.com/ahmetson/datatype-lib/data_type"
-	"github.com/ahmetson/datatype-lib/data_type/key_value"
-	"github.com/ahmetson/datatype-lib/message"
-	"github.com/ahmetson/handler-lib/base"
-	"github.com/ahmetson/handler-lib/config"
-	"github.com/ahmetson/handler-lib/frontend"
-	"github.com/ahmetson/handler-lib/handler_manager"
-	instances "github.com/ahmetson/handler-lib/instance_manager"
-	"github.com/ahmetson/handler-lib/route"
-	"github.com/ahmetson/log-lib"
+	clientConfig "github.com/sds-framework/client-lib/config"
+	"github.com/sds-framework/datatype-lib/data_type"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/handler-lib/base"
+	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/handler-lib/frontend"
+	"github.com/sds-framework/handler-lib/handler_manager"
+	instances "github.com/sds-framework/handler-lib/instance_manager"
+	"github.com/sds-framework/handler-lib/route"
+	"github.com/sds-framework/log-lib"
 	zmq "github.com/pebbe/zmq4"
 )
 

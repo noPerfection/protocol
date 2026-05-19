@@ -1,7 +1,7 @@
 package pair
 
 import (
-	"github.com/ahmetson/handler-lib/config"
+	"github.com/sds-framework/handler-lib/config"
 	"testing"
 
 	"github.com/stretchr/testify/suite"

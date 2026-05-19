@@ -5,18 +5,18 @@ package base
 
 import (
 	"fmt"
-	"github.com/ahmetson/client-lib"
-	clientConfig "github.com/ahmetson/client-lib/config"
-	"github.com/ahmetson/datatype-lib/data_type/key_value"
-	"github.com/ahmetson/handler-lib/config"
-	"github.com/ahmetson/handler-lib/frontend"
-	"github.com/ahmetson/handler-lib/handler_manager"
-	"github.com/ahmetson/handler-lib/instance_manager"
-	"github.com/ahmetson/handler-lib/route"
-	"github.com/ahmetson/log-lib"
+	"github.com/sds-framework/client-lib"
+	clientConfig "github.com/sds-framework/client-lib/config"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/handler-lib/frontend"
+	"github.com/sds-framework/handler-lib/handler_manager"
+	"github.com/sds-framework/handler-lib/instance_manager"
+	"github.com/sds-framework/handler-lib/route"
+	"github.com/sds-framework/log-lib"
 	"slices"
 
-	"github.com/ahmetson/datatype-lib/message"
+	"github.com/sds-framework/datatype-lib/message"
 	zmq "github.com/pebbe/zmq4"
 )
 

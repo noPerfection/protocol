@@ -3,9 +3,9 @@ package pair
 
 import (
 	"fmt"
-	"github.com/ahmetson/client-lib"
-	clientConfig "github.com/ahmetson/client-lib/config"
-	"github.com/ahmetson/handler-lib/config"
+	"github.com/sds-framework/client-lib"
+	clientConfig "github.com/sds-framework/client-lib/config"
+	"github.com/sds-framework/handler-lib/config"
 )
 
 // Config converts the external handler config into the paired one

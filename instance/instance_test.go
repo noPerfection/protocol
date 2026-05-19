@@ -2,11 +2,11 @@ package instance
 
 import (
 	"fmt"
-	"github.com/ahmetson/client-lib"
-	"github.com/ahmetson/datatype-lib/data_type/key_value"
-	"github.com/ahmetson/datatype-lib/message"
-	"github.com/ahmetson/handler-lib/config"
-	"github.com/ahmetson/log-lib"
+	"github.com/sds-framework/client-lib"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/log-lib"
 	zmq "github.com/pebbe/zmq4"
 	"testing"
 	"time"

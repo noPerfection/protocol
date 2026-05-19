@@ -2,10 +2,10 @@ package sync_replier
 
 import (
 	"fmt"
-	"github.com/ahmetson/datatype-lib/data_type/key_value"
-	"github.com/ahmetson/datatype-lib/message"
-	"github.com/ahmetson/handler-lib/base"
-	"github.com/ahmetson/handler-lib/config"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/handler-lib/base"
+	"github.com/sds-framework/handler-lib/config"
 )
 
 type SyncReplier struct {

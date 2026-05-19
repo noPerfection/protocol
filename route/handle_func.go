@@ -2,8 +2,8 @@ package route
 
 import (
 	"fmt"
-	"github.com/ahmetson/client-lib"
-	"github.com/ahmetson/datatype-lib/message"
+	"github.com/sds-framework/client-lib"
+	"github.com/sds-framework/datatype-lib/message"
 )
 
 type depSock = *client.Socket
