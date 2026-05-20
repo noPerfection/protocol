@@ -2,6 +2,7 @@ package sync_replier
 
 import (
 	"fmt"
+
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
 	"github.com/sds-framework/datatype-lib/message"
 	"github.com/sds-framework/handler-lib/base"
@@ -37,7 +38,7 @@ func (c *SyncReplier) Type() config.HandlerType {
 func (c *SyncReplier) Start() error {
 	onAddInstance := func(req message.RequestInterface) message.ReplyInterface {
 		if len(c.InstanceManager.Instances()) != 0 {
-			return req.Fail(fmt.Sprintf("only one instance allowed in sync replier"))
+			return req.Fail("only one instance allowed in sync replier")
 		}
 
 		instanceId, err := c.InstanceManager.AddInstance(c.Config().Type, &c.Routes, &c.RouteDeps, &c.DepClients)

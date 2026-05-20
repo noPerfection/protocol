@@ -27,6 +27,7 @@ Pick the handler that matches your concurrency model:
 | [`sync_replier`](sync_replier) | `SyncReplier` | One request at a time per handler; extra requests wait in queue |
 | [`replier`](replier) | `Replier` | Many concurrent clients; scales instances up to CPU count |
 | [`publisher`](publisher) | `Publisher` | Broadcast to subscribers; separate **trigger** endpoint to publish |
+| [`sdsin`](sdsin) | `Publisher` | Send `io.Writer` output into SDS |
 | [`worker`](worker) | `Worker` | Consume messages without replying to the caller (PULL) |
 
 All handlers implement [`base.Interface`](base/interface.go): `SetConfig`, `SetLogger`, `Route`, `Start`, etc.
@@ -322,6 +323,101 @@ reply, err := trigger.Request(&req)
 ```
 
 Subscribers connect to `config.ExternalUrl(triggerCfg.BroadcastId, triggerCfg.BroadcastPort)` with a ZMQ SUB socket (or use `client-lib` with SUB).
+
+---
+
+### Tutorial: SDSIn (io.Writer input)
+
+Use **SDSIn** when some Go code wants an `io.Writer`, but you want the output to go to another SDS place instead of stdout. For example, write terminal logs into `sdsin`, then read them in another terminal with `client-lib/sdsout`.
+
+Each `Write(p)` broadcasts an SDS `message.Request`:
+
+- `Command`: `"io"`
+- `Parameters["row"]`: `string(p)`
+
+```go
+import (
+	"fmt"
+	"log"
+
+	zmq "github.com/pebbe/zmq4"
+	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/handler-lib/sdsin"
+	loglib "github.com/sds-framework/log-lib"
+)
+
+logger, err := loglib.New("events", false)
+if err != nil {
+	log.Fatal(err)
+}
+
+in := sdsin.New()
+cfg := config.NewInternalHandler(config.PublisherType, "events")
+cfg.Id = "tmp/events_sdsin" // Port 0 + "tmp" prefix binds ipc:///tmp/events_sdsin.
+
+// TCP version, for subscribers in another process or host:
+// cfg, err := config.NewHandler(config.PublisherType, "events")
+// if err != nil {
+// 	log.Fatal(err)
+// }
+//
+// In-process version, for subscribers in the same process:
+// cfg := config.NewInternalHandler(config.PublisherType, "events")
+// This binds inproc://events_1 when the ID does not start with "tmp".
+
+in.SetConfig(cfg)
+if err := in.SetLogger(logger); err != nil {
+	log.Fatal(err)
+}
+
+// StartInBg returns only after the PUB socket and manager are ready.
+if err := in.StartInBg(); err != nil {
+	log.Fatal(err)
+}
+
+fmt.Fprintln(in, "terminal log line")
+```
+
+Subscribers connect to the publisher URL and parse the received message as an SDS request:
+
+```go
+sub, err := zmq.NewSocket(zmq.SUB)
+if err != nil {
+	log.Fatal(err)
+}
+defer sub.Close()
+
+if err := sub.SetSubscribe(""); err != nil {
+	log.Fatal(err)
+}
+
+subscriberURL := config.ExternalUrl(cfg.Id, cfg.Port)
+// IPC example from above: ipc:///tmp/events_sdsin
+// TCP subscriber URL: use tcp://localhost:{cfg.Port}; client-lib/config.Url uses that form.
+// In-process subscriber URL: inproc://events_1, and it must be in the same process.
+if err := sub.Connect(subscriberURL); err != nil {
+	log.Fatal(err)
+}
+
+raw, err := sub.RecvMessage(0)
+if err != nil {
+	log.Fatal(err)
+}
+
+req, err := message.NewReq(raw)
+if err != nil {
+	log.Fatal(err)
+}
+
+row, err := req.RouteParameters().StringValue("row")
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(row)
+```
+
+For TCP, publishers bind with `config.ExternalUrl(cfg.Id, cfg.Port)` (`tcp://*:{port}`), while subscribers connect with `tcp://localhost:{port}` or the remote host name. For in-process subscribers, keep `Port` as `0` and use an ID without the `tmp` prefix so the URL is `inproc://{id}`.
 
 ---
 

@@ -2,6 +2,8 @@ package trigger
 
 import (
 	"fmt"
+
+	zmq "github.com/pebbe/zmq4"
 	clientConfig "github.com/sds-framework/client-lib/config"
 	"github.com/sds-framework/datatype-lib/data_type"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
@@ -13,7 +15,6 @@ import (
 	instances "github.com/sds-framework/handler-lib/instance_manager"
 	"github.com/sds-framework/handler-lib/route"
 	"github.com/sds-framework/log-lib"
-	zmq "github.com/pebbe/zmq4"
 )
 
 const (
@@ -217,7 +218,7 @@ func (handler *Trigger) Start() error {
 	// add a routing that redirects the messages to the trigger
 	onAddInstance := func(req message.RequestInterface) message.ReplyInterface {
 		if len(m.InstanceManager.Instances()) != 0 {
-			return req.Fail(fmt.Sprintf("only one instance allowed in sync replier"))
+			return req.Fail("only one instance allowed in sync replier")
 		}
 
 		instanceId, err := m.InstanceManager.AddInstance(m.Config().Type, &m.Routes, &m.RouteDeps, &m.DepClients)
@@ -234,7 +235,8 @@ func (handler *Trigger) Start() error {
 			return req.Fail(fmt.Sprintf("req.Parameters.GetString('part'): %v", err))
 		}
 
-		if part == "frontend" {
+		switch part {
+		case "frontend":
 			if m.Frontend.Status() != frontend.RUNNING {
 				return req.Fail("frontend not running")
 			} else {
@@ -243,17 +245,17 @@ func (handler *Trigger) Start() error {
 				}
 				return req.Ok(key_value.New())
 			}
-		} else if part == "instance_manager" {
+		case "instance_manager":
 			if m.InstanceManager.Status() != instances.Running {
 				return req.Fail("instance manager not running")
 			} else {
 				m.InstanceManager.Close()
 				return req.Ok(key_value.New())
 			}
-		} else if part == "broadcaster" {
+		case "broadcaster":
 			handler.closePub = true
 			return req.Ok(key_value.New())
-		} else {
+		default:
 			return req.Fail(fmt.Sprintf("unknown part '%s' to stop", part))
 		}
 	}
