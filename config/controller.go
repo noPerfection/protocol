@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sds-framework/os-lib/net"
 	zmq "github.com/pebbe/zmq4"
+	"github.com/sds-framework/os-lib/net"
 )
 
 const (
@@ -116,6 +116,21 @@ func ExternalUrl(id string, port uint64) string {
 		return fmt.Sprintf("inproc://%s", id)
 	}
 	return fmt.Sprintf("tcp://*:%d", port)
+}
+
+// ConnectUrl creates the ZeroMQ endpoint for a subscriber to connect.
+//
+// When Port is non-zero, returns tcp://localhost:{Port}.
+// When Port is 0 and Id has the prefix "tmp", returns ipc:///{Id}.
+// When Port is 0 otherwise, returns inproc://{Id}.
+func ConnectUrl(id string, port uint64) string {
+	if port == 0 {
+		if strings.HasPrefix(id, "tmp") {
+			return fmt.Sprintf("ipc:///%s", id)
+		}
+		return fmt.Sprintf("inproc://%s", id)
+	}
+	return fmt.Sprintf("tcp://localhost:%d", port)
 }
 
 // CanReply returns true if the given Handler has to reply back to the user.

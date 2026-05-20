@@ -3,6 +3,7 @@ package frontend
 import (
 	"os"
 
+	zmq "github.com/pebbe/zmq4"
 	"github.com/sds-framework/client-lib"
 	"github.com/sds-framework/datatype-lib/data_type"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
@@ -11,7 +12,6 @@ import (
 	"github.com/sds-framework/handler-lib/instance_manager"
 	"github.com/sds-framework/handler-lib/pair"
 	"github.com/sds-framework/log-lib"
-	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
 	"testing"
 	"time"
@@ -80,6 +80,7 @@ func (test *TestFrontendSuite) customExternal() *CustomExternal {
 
 func (test *TestFrontendSuite) SetupTest() {
 	test.handleConfig = &config.Handler{Type: config.SyncReplierType, Category: "test", Id: "sample", Port: 0, InstanceAmount: 1}
+	test.frontend = New()
 }
 
 func (test *TestFrontendSuite) Test_0_New() {
@@ -103,6 +104,8 @@ func (test *TestFrontendSuite) Test_10_SetConfig() {
 // It doesn't send the messages to the consumer.
 func (test *TestFrontendSuite) Test_11_External() {
 	s := &test.Suite
+
+	test.frontend.SetConfig(test.handleConfig)
 
 	// Queue is populated by External socket, so let's test it.
 	err := test.frontend.queue.SetCap(2)
@@ -285,6 +288,8 @@ func (test *TestFrontendSuite) Test_12_Consumer() {
 // Test_13_Run runs the Frontend
 func (test *TestFrontendSuite) Test_13_Run() {
 	s := &test.Suite
+
+	test.frontend.SetConfig(test.handleConfig)
 
 	// Queue is populated by External socket, so let's test it.
 	err := test.frontend.queue.SetCap(1)

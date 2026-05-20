@@ -62,6 +62,18 @@ func (test *TestConfigSuite) Test_14_ExternalUrl_ipc_tmp() {
 	test.Require().Equal("ipc:///tmp-test.sock", ExternalUrl("tmp-test.sock", 0))
 }
 
+func (test *TestConfigSuite) Test_15_ConnectUrl_tcp() {
+	test.Require().Equal("tcp://localhost:6000", ConnectUrl("sample", 6000))
+}
+
+func (test *TestConfigSuite) Test_16_ConnectUrl_inproc() {
+	test.Require().Equal("inproc://my-service", ConnectUrl("my-service", 0))
+}
+
+func (test *TestConfigSuite) Test_17_ConnectUrl_ipc_tmp() {
+	test.Require().Equal("ipc:///tmp-test.sock", ConnectUrl("tmp-test.sock", 0))
+}
+
 // a normal test function and pass our suite to suite.Run
 func TestConfig(t *testing.T) {
 	suite.Run(t, new(TestConfigSuite))

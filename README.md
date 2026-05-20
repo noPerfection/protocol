@@ -28,6 +28,7 @@ Pick the handler that matches your concurrency model:
 | [`replier`](replier) | `Replier` | Many concurrent clients; scales instances up to CPU count |
 | [`publisher`](publisher) | `Publisher` | Broadcast to subscribers; separate **trigger** endpoint to publish |
 | [`sdsin`](sdsin) | `Publisher` | Send `io.Writer` output into SDS |
+| [`sdsout`](sdsout) | Subscriber | Receive SDSIn output into an `io.Writer` |
 | [`worker`](worker) | `Worker` | Consume messages without replying to the caller (PULL) |
 
 All handlers implement [`base.Interface`](base/interface.go): `SetConfig`, `SetLogger`, `Route`, `Start`, etc.
@@ -344,6 +345,7 @@ import (
 	"github.com/sds-framework/datatype-lib/message"
 	"github.com/sds-framework/handler-lib/config"
 	"github.com/sds-framework/handler-lib/sdsin"
+	"github.com/sds-framework/handler-lib/sdsout"
 	loglib "github.com/sds-framework/log-lib"
 )
 
@@ -379,7 +381,18 @@ if err := in.StartInBg(); err != nil {
 fmt.Fprintln(in, "terminal log line")
 ```
 
-Subscribers connect to the publisher URL and parse the received message as an SDS request:
+Use **SDSOut** to receive those rows and write them somewhere else. If no writer is passed, it writes to `os.Stdout`.
+
+```go
+out := sdsout.New()
+out.SetConfig(cfg) // optional second arg: any io.Writer; defaults to os.Stdout
+if err := out.StartInBg(); err != nil {
+	log.Fatal(err)
+}
+defer out.Close()
+```
+
+Under the hood, subscribers connect to the publisher URL and parse the received message as an SDS request:
 
 ```go
 sub, err := zmq.NewSocket(zmq.SUB)
@@ -392,9 +405,9 @@ if err := sub.SetSubscribe(""); err != nil {
 	log.Fatal(err)
 }
 
-subscriberURL := config.ExternalUrl(cfg.Id, cfg.Port)
+subscriberURL := config.ConnectUrl(cfg.Id, cfg.Port)
 // IPC example from above: ipc:///tmp/events_sdsin
-// TCP subscriber URL: use tcp://localhost:{cfg.Port}; client-lib/config.Url uses that form.
+// TCP subscriber URL: tcp://localhost:{cfg.Port}
 // In-process subscriber URL: inproc://events_1, and it must be in the same process.
 if err := sub.Connect(subscriberURL); err != nil {
 	log.Fatal(err)
@@ -417,7 +430,7 @@ if err != nil {
 fmt.Println(row)
 ```
 
-For TCP, publishers bind with `config.ExternalUrl(cfg.Id, cfg.Port)` (`tcp://*:{port}`), while subscribers connect with `tcp://localhost:{port}` or the remote host name. For in-process subscribers, keep `Port` as `0` and use an ID without the `tmp` prefix so the URL is `inproc://{id}`.
+For TCP, publishers bind with `config.ExternalUrl(cfg.Id, cfg.Port)` (`tcp://*:{port}`), while subscribers connect with `config.ConnectUrl(cfg.Id, cfg.Port)` (`tcp://localhost:{port}`). For in-process subscribers, keep `Port` as `0` and use an ID without the `tmp` prefix so the URL is `inproc://{id}`.
 
 ---
 
