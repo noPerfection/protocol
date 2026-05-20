@@ -12,6 +12,11 @@ import (
 	"github.com/sds-framework/handler-lib/config"
 )
 
+const (
+	commandIO  = "io"
+	commandEOF = "eof"
+)
+
 // SDSOut subscribes to SDSIn messages and writes received rows to an io.Writer.
 type SDSOut struct {
 	mu      sync.RWMutex
@@ -138,18 +143,31 @@ func (out *SDSOut) run(url string, writer io.Writer, done <-chan struct{}, ready
 		if err != nil {
 			continue
 		}
-		out.writeRow(writer, raw)
+		if !out.handleMessage(writer, raw) {
+			out.closeSocket(socket)
+			out.clearRunState()
+			return
+		}
 	}
 }
 
-func (out *SDSOut) writeRow(writer io.Writer, raw []string) {
+func (out *SDSOut) handleMessage(writer io.Writer, raw []string) bool {
 	req, err := message.NewReq(raw)
 	if err != nil {
-		return
+		return true
 	}
-	if req.CommandName() != "io" {
-		return
+
+	switch req.CommandName() {
+	case commandIO:
+		out.writeRow(writer, req)
+	case commandEOF:
+		return false
 	}
+
+	return true
+}
+
+func (out *SDSOut) writeRow(writer io.Writer, req message.RequestInterface) {
 
 	row, err := req.RouteParameters().StringValue("row")
 	if err != nil {
@@ -170,12 +188,20 @@ func (out *SDSOut) closeSocket(socket *zmq.Socket) {
 	out.socket = nil
 }
 
+func (out *SDSOut) clearRunState() {
+	out.mu.Lock()
+	defer out.mu.Unlock()
+
+	out.done = nil
+	out.stopped = nil
+}
+
 // Close stops the subscriber and closes the ZMQ socket.
 func (out *SDSOut) Close() error {
 	out.mu.Lock()
 	if out.socket == nil || out.done == nil {
 		out.mu.Unlock()
-		return fmt.Errorf("sdsout not running")
+		return nil
 	}
 
 	done := out.done

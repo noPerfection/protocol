@@ -125,6 +125,27 @@ func (test *TestSDSInSuite) Test_40_CloseStopsPublisher() {
 	s.Require().Zero(written)
 }
 
+func (test *TestSDSInSuite) Test_50_ClosePublishesEOF() {
+	s := &test.Suite
+
+	s.Require().NoError(test.publisher.Start())
+	test.subscribe()
+	time.Sleep(time.Millisecond * 100)
+
+	s.Require().NoError(test.publisher.Close())
+	s.Require().Nil(test.publisher.socket)
+
+	polled, err := test.poller.Poll(time.Second * 2)
+	s.Require().NoError(err)
+	s.Require().Len(polled, 1, "timeout for eof")
+
+	received, err := test.sub.RecvMessage(0)
+	s.Require().NoError(err)
+	req, err := message.NewReq(received)
+	s.Require().NoError(err)
+	s.Require().Equal("eof", req.CommandName())
+}
+
 func TestSDSIn(t *testing.T) {
 	suite.Run(t, new(TestSDSInSuite))
 }

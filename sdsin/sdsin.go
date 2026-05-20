@@ -19,6 +19,8 @@ const (
 	partPublisher    = "publisher"
 	publisherIdle    = "idle"
 	publisherRunning = "running"
+	commandIO        = "io"
+	commandEOF       = "eof"
 )
 
 // SDSIn publishes data written through io.Writer as SDS request messages to a ZMQ PUB socket.
@@ -278,18 +280,23 @@ func (publisher *SDSIn) run(handlerConfig *config.Handler, queue <-chan message.
 	for {
 		select {
 		case <-done:
+			publisher.sendRequest(socket, &message.Request{Command: commandEOF, Parameters: key_value.New()})
 			publisher.closeSocket(socket)
 			return
 		case req := <-queue:
-			reqStr, err := req.ZmqEnvelope()
-			if err != nil {
-				publisher.logger.Error("req.ZmqEnvelope", "error", err)
-				continue
-			}
-			if _, err := socket.SendMessageDontwait(reqStr); err != nil {
-				publisher.logger.Error("socket.SendMessageDontwait", "request", reqStr, "error", err)
-			}
+			publisher.sendRequest(socket, req)
 		}
+	}
+}
+
+func (publisher *SDSIn) sendRequest(socket *zmq.Socket, req message.RequestInterface) {
+	reqStr, err := req.ZmqEnvelope()
+	if err != nil {
+		publisher.logger.Error("req.ZmqEnvelope", "error", err)
+		return
+	}
+	if _, err := socket.SendMessageDontwait(reqStr); err != nil {
+		publisher.logger.Error("socket.SendMessageDontwait", "request", reqStr, "error", err)
 	}
 }
 
@@ -329,7 +336,7 @@ func (publisher *SDSIn) Close() error {
 // Write publishes p as an SDS Request with command "io" and parameter "row".
 func (publisher *SDSIn) Write(p []byte) (int, error) {
 	req := &message.Request{
-		Command:    "io",
+		Command:    commandIO,
 		Parameters: key_value.New().Set("row", string(p)),
 	}
 

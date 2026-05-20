@@ -107,6 +107,25 @@ func (test *TestSDSOutSuite) Test_40_CloseStopsSubscriber() {
 	s.Require().Nil(test.out.socket)
 }
 
+func (test *TestSDSOutSuite) Test_50_EOFCloseStopsSubscriber() {
+	s := &test.Suite
+
+	test.startPublisher()
+
+	var output bytes.Buffer
+	test.out.SetConfig(test.config, &output)
+	s.Require().NoError(test.out.StartInBg())
+
+	time.Sleep(time.Millisecond * 100)
+	test.publish("eof", key_value.New())
+
+	s.Eventually(func() bool {
+		return test.out.socket == nil
+	}, time.Second*2, time.Millisecond*10)
+
+	s.Require().NoError(test.out.Close())
+}
+
 func TestSDSOut(t *testing.T) {
 	suite.Run(t, new(TestSDSOutSuite))
 }
