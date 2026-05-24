@@ -23,11 +23,6 @@ func UrlToFileName(url string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(url, "/", "."), "\\", ".")
 }
 
-// ManagerUrl returns the handler manager socket
-func ManagerUrl(handlerId string) string {
-	return fmt.Sprintf("inproc://manager_%s", handlerId)
-}
-
 // ParentUrl returns the url of the instance manager
 func ParentUrl(handlerId string) string {
 	return fmt.Sprintf("inproc://handler_%s", handlerId)
@@ -48,14 +43,16 @@ func InstanceManagerEventUrl(handlerId string) string {
 	return fmt.Sprintf("inproc://inst_manage_stat_%s", handlerId)
 }
 
-// NewInternalHandler returns the configuration with the default parameters
-func NewInternalHandler(as HandlerType, cat string) *Handler {
+// NewInternalHandler returns the configuration with the default parameters.
+func NewInternalHandler(as HandlerType, id string, category string) *Handler {
 	return &Handler{
 		Type:           as,
-		Category:       cat,
-		Id:             cat + "_1",
+		Category:       category,
+		Id:             id,
 		InstanceAmount: 1,
 		Port:           0,
+		ManagerId:      DefaultManagerId(id),
+		ManagerPort:    0,
 	}
 }
 

@@ -53,7 +53,7 @@ import (
 func main() {
 	handler := sync_replier.New()
 
-	handlerConfig := config.NewInternalHandler(config.SyncReplierType, "my_service")
+	handlerConfig := config.NewInternalHandler(config.SyncReplierType, "my_service", "my_service")
 	handler.SetConfig(handlerConfig)
 
 	logger, err := loglib.New("my_service", true)
@@ -129,17 +129,19 @@ err := handler.Route("other_command", myHandler, "dep_service_id")
 | `Id` | Endpoint identity (used in ZMQ URL) |
 | `Port` | `0` = local (inproc or ipc); non-zero = TCP |
 | `Type` | Set automatically by `sync_replier`, `replier`, etc. |
-| `Category` | Logical grouping / default id prefix |
+| `Category` | Logical grouping |
 | `InstanceAmount` | Hint for instance count (service may manage instances) |
+| `ManagerId` | Manager endpoint identity |
+| `ManagerPort` | `0` = local manager; non-zero = TCP manager |
 
 **Helpers:**
 
 ```go
-// In-process (same process), id "my_service" → inproc://my_service
-cfg := config.NewInternalHandler(config.SyncReplierType, "my_service")
+// In-process (same process), id "my_service" -> inproc://my_service
+cfg := config.NewInternalHandler(config.SyncReplierType, "my_service", "my_service")
 
-// TCP on a free port
-cfg, err := config.NewHandler(config.ReplierType, "api")
+// TCP on an explicit port. Local IDs bind on all interfaces.
+cfg := config.NewHandler(config.ReplierType, "localhost", "api", 5555)
 
 // Manual config
 cfg := &config.Handler{
@@ -154,11 +156,14 @@ cfg := &config.Handler{
 
 | Port | Id | Bind URL |
 |------|-----|----------|
-| non-zero | any | `tcp://*:{Port}` |
+| non-zero | `localhost` or `127.0.0.*` | `tcp://*:{Port}` |
+| non-zero | anything else | `tcp://{Id}:{Port}` |
 | 0 | starts with `tmp` | `ipc:///{Id}` (filesystem socket) |
 | 0 | otherwise | `inproc://{Id}` |
 
-Clients use the same `Id` and `Port` with `client-lib/config.Url` (`tcp://localhost:{Port}` for TCP).
+Clients use the same `Id` and `Port` with `config.ConnectUrl` (`tcp://{Id}:{Port}` for TCP).
+
+Manager endpoints use the same URL rules through `handlerCfg.ManagerExternalUrl()` and `handlerCfg.ManagerConnectUrl()`. By default constructors set the manager to `inproc://manager_{Id}` with category `config.ManagerCategory` (`"handler_manager"`); set `ManagerId` and `ManagerPort` when the manager must be reachable outside the process.
 
 **IPC example** — use an id under `/tmp/`:
 
@@ -233,10 +238,7 @@ Use the same `Id` and `Port` as the handler config so bind and connect URLs matc
 ```go
 handler := replier.New()
 
-cfg, err := config.NewHandler(config.ReplierType, "api")
-if err != nil {
-	log.Fatal(err)
-}
+cfg := config.NewHandler(config.ReplierType, "localhost", "api", 5555)
 handler.SetConfig(cfg)
 // SetLogger, Route, Start — same as SyncReplier
 
@@ -305,7 +307,7 @@ A **Publisher** has:
 ```go
 pub := publisher.New()
 
-baseCfg := config.NewInternalHandler(config.SyncReplierType, "events")
+baseCfg := config.NewInternalHandler(config.SyncReplierType, "events", "events")
 triggerCfg, err := config.InternalTriggerAble(baseCfg, config.PublisherType)
 if err != nil {
 	log.Fatal(err)
@@ -355,18 +357,15 @@ if err != nil {
 }
 
 in := sdsin.New()
-cfg := config.NewInternalHandler(config.PublisherType, "events")
+cfg := config.NewInternalHandler(config.PublisherType, "events", "events")
 cfg.Id = "tmp/events_sdsin" // Port 0 + "tmp" prefix binds ipc:///tmp/events_sdsin.
 
 // TCP version, for subscribers in another process or host:
-// cfg, err := config.NewHandler(config.PublisherType, "events")
-// if err != nil {
-// 	log.Fatal(err)
-// }
+// cfg := config.NewHandler(config.PublisherType, "events", "events", 5555)
 //
 // In-process version, for subscribers in the same process:
-// cfg := config.NewInternalHandler(config.PublisherType, "events")
-// This binds inproc://events_1 when the ID does not start with "tmp".
+// cfg := config.NewInternalHandler(config.PublisherType, "events", "events")
+// This binds inproc://events when the ID does not start with "tmp".
 
 in.SetConfig(cfg)
 if err := in.SetLogger(logger); err != nil {
@@ -407,8 +406,8 @@ if err := sub.SetSubscribe(""); err != nil {
 
 subscriberURL := config.ConnectUrl(cfg.Id, cfg.Port)
 // IPC example from above: ipc:///tmp/events_sdsin
-// TCP subscriber URL: tcp://localhost:{cfg.Port}
-// In-process subscriber URL: inproc://events_1, and it must be in the same process.
+// TCP subscriber URL: tcp://{cfg.Id}:{cfg.Port}
+// In-process subscriber URL: inproc://{cfg.Id}, and it must be in the same process.
 if err := sub.Connect(subscriberURL); err != nil {
 	log.Fatal(err)
 }
@@ -430,7 +429,7 @@ if err != nil {
 fmt.Println(row)
 ```
 
-For TCP, publishers bind with `config.ExternalUrl(cfg.Id, cfg.Port)` (`tcp://*:{port}`), while subscribers connect with `config.ConnectUrl(cfg.Id, cfg.Port)` (`tcp://localhost:{port}`). For in-process subscribers, keep `Port` as `0` and use an ID without the `tmp` prefix so the URL is `inproc://{id}`.
+For TCP, publishers bind with `config.ExternalUrl(cfg.Id, cfg.Port)`. Local IDs (`localhost` or `127.0.0.*`) bind to `tcp://*:{port}`; other IDs bind to `tcp://{id}:{port}`. Subscribers connect with `config.ConnectUrl(cfg.Id, cfg.Port)` (`tcp://{id}:{port}`). For in-process subscribers, keep `Port` as `0` and use an ID without the `tmp` prefix so the URL is `inproc://{id}`.
 
 ---
 

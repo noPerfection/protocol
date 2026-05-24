@@ -3,6 +3,7 @@ package handler_manager
 
 import (
 	"fmt"
+	zmq "github.com/pebbe/zmq4"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
 	"github.com/sds-framework/datatype-lib/message"
 	"github.com/sds-framework/handler-lib/config"
@@ -10,7 +11,6 @@ import (
 	instances "github.com/sds-framework/handler-lib/instance_manager"
 	"github.com/sds-framework/handler-lib/route"
 	"github.com/sds-framework/log-lib"
-	zmq "github.com/pebbe/zmq4"
 	"time"
 )
 
@@ -272,7 +272,7 @@ func (m *HandlerManager) Start() error {
 			return
 		}
 
-		url := config.ManagerUrl(m.config.Id)
+		url := m.config.ManagerExternalUrl()
 		err = socket.Bind(url)
 		if err != nil {
 			ready <- fmt.Errorf("socket.Bind('%s'): %w", url, err)

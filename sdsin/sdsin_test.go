@@ -31,7 +31,7 @@ func (test *TestSDSInSuite) SetupTest() {
 
 	test.publisher = New()
 	category := strings.ReplaceAll(s.T().Name(), "/", "_")
-	test.config = config.NewInternalHandler(config.PublisherType, category)
+	test.config = config.NewInternalHandler(config.PublisherType, category, category)
 
 	s.Require().Error(test.publisher.SetLogger(test.logger))
 	test.publisher.SetConfig(test.config)

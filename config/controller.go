@@ -5,20 +5,20 @@ import (
 	"strings"
 
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/os-lib/net"
 )
 
 const (
-	HandlerStatus  = "status"
-	ClosePart      = "close_part"
-	RunPart        = "run-part"
-	InstanceAmount = "instance-amount"
-	MessageAmount  = "message-amount"
-	AddInstance    = "add-instance"
-	DeleteInstance = "delete-instance"
-	Parts          = "parts"
-	HandlerClose   = "close"  // Close the handler
-	HandlerConfig  = "config" // Returns the handler configuration
+	HandlerStatus   = "status"
+	ClosePart       = "close_part"
+	RunPart         = "run-part"
+	InstanceAmount  = "instance-amount"
+	MessageAmount   = "message-amount"
+	AddInstance     = "add-instance"
+	DeleteInstance  = "delete-instance"
+	Parts           = "parts"
+	HandlerClose    = "close"  // Close the handler
+	HandlerConfig   = "config" // Returns the handler configuration
+	ManagerCategory = "handler_manager"
 )
 
 type Handler struct {
@@ -27,6 +27,8 @@ type Handler struct {
 	InstanceAmount uint64      `json:"instance_amount" yaml:"instance_amount"`
 	Port           uint64      `json:"port" yaml:"port"`
 	Id             string      `json:"id" yaml:"id"`
+	ManagerId      string      `json:"manager_id" yaml:"manager_id"`
+	ManagerPort    uint64      `json:"manager_port" yaml:"manager_port"`
 }
 
 type Trigger struct {
@@ -36,49 +38,55 @@ type Trigger struct {
 	BroadcastType HandlerType `json:"broadcast_type" yaml:"broadcast_type"`
 }
 
-// NewHandler configuration of the HandlerType and category.
-// It generates the ID of the handler, as well as gets the free port.
-//
-// If not possible to get the port, it returns an error.
-func NewHandler(as HandlerType, cat string) (*Handler, error) {
-	port := net.GetFreePort()
-	if port == 0 {
-		return nil, fmt.Errorf("net.GetFreePort: no free port")
-	}
-
-	control := &Handler{
+// NewHandler returns a Handler configuration with the given HandlerType, ID, category, and port.
+func NewHandler(as HandlerType, id string, category string, port uint64) *Handler {
+	return &Handler{
 		Type:           as,
-		Category:       cat,
-		Id:             cat + "_1",
+		Category:       category,
+		Id:             id,
 		InstanceAmount: 1,
-		Port:           uint64(port),
+		Port:           port,
+		ManagerId:      DefaultManagerId(id),
+		ManagerPort:    0,
 	}
-
-	return control, nil
 }
 
-// TriggerAble Converts the Handler to Trigger of the given type.
-//
-// The trigger's type defines the broadcasting parameter.
-// If trigger is remote, then broadcast is remote as well.
-func TriggerAble(handler *Handler, as HandlerType) (*Trigger, error) {
-	if !CanTrigger(as) {
-		return nil, fmt.Errorf("the '%s' handler type is not trigger-able", as)
+func DefaultManagerId(handlerId string) string {
+	return "manager_" + handlerId
+}
+
+func (handler *Handler) ManagerHandler() *Handler {
+	managerId := handler.ManagerId
+	if managerId == "" {
+		managerId = DefaultManagerId(handler.Id)
 	}
 
-	port := 0
-	if !handler.IsInproc() {
-		port = net.GetFreePort()
-		if port == 0 {
-			return nil, fmt.Errorf("net.GetFreePort: no free port")
-		}
+	return NewHandler(handler.Type, managerId, ManagerCategory, handler.ManagerPort)
+}
+
+func (handler *Handler) ManagerExternalUrl() string {
+	manager := handler.ManagerHandler()
+	return ExternalUrl(manager.Id, manager.Port)
+}
+
+func (handler *Handler) ManagerConnectUrl() string {
+	manager := handler.ManagerHandler()
+	return ConnectUrl(manager.Id, manager.Port)
+}
+
+// TriggerAble returns a Trigger configuration with the given handler and broadcast fields.
+//
+// The broadcast type defines the publishing parameter.
+func TriggerAble(handlerType HandlerType, id string, category string, port uint64, broadcastType HandlerType, broadcastId string, broadcastPort uint64) (*Trigger, error) {
+	if !CanTrigger(broadcastType) {
+		return nil, fmt.Errorf("the '%s' handler type is not trigger-able", broadcastType)
 	}
 
 	trigger := &Trigger{
-		Handler:       handler,
-		BroadcastPort: uint64(port),
-		BroadcastType: as,
-		BroadcastId:   "broadcast_" + handler.Id,
+		Handler:       NewHandler(handlerType, id, category, port),
+		BroadcastPort: broadcastPort,
+		BroadcastType: broadcastType,
+		BroadcastId:   broadcastId,
 	}
 
 	return trigger, nil
@@ -103,11 +111,12 @@ func SocketType(handlerType HandlerType) zmq.Type {
 
 // ExternalUrl creates the ZeroMQ endpoint for the handler to bind.
 //
-// When Port is non-zero, returns tcp://*:{Port}.
+// When Port is non-zero and Id is localhost or a 127.0.0.* address, returns tcp://*:{Port}.
+// When Port is non-zero otherwise, returns tcp://{Id}:{Port}.
 // When Port is 0 and Id has the prefix "tmp", returns ipc:///{Id} for a filesystem IPC socket.
 // When Port is 0 otherwise, returns inproc://{Id} for in-process communication.
 //
-// Clients should connect using the same Id and Port with client-lib/config.Url.
+// Clients should connect using the same Id and Port with ConnectUrl.
 func ExternalUrl(id string, port uint64) string {
 	if port == 0 {
 		if strings.HasPrefix(id, "tmp") {
@@ -115,12 +124,19 @@ func ExternalUrl(id string, port uint64) string {
 		}
 		return fmt.Sprintf("inproc://%s", id)
 	}
-	return fmt.Sprintf("tcp://*:%d", port)
+	if isLocalhost(id) {
+		return fmt.Sprintf("tcp://*:%d", port)
+	}
+	return fmt.Sprintf("tcp://%s:%d", id, port)
+}
+
+func isLocalhost(id string) bool {
+	return id == "localhost" || strings.HasPrefix(id, "127.0.0.")
 }
 
 // ConnectUrl creates the ZeroMQ endpoint for a subscriber to connect.
 //
-// When Port is non-zero, returns tcp://localhost:{Port}.
+// When Port is non-zero, returns tcp://{Id}:{Port}.
 // When Port is 0 and Id has the prefix "tmp", returns ipc:///{Id}.
 // When Port is 0 otherwise, returns inproc://{Id}.
 func ConnectUrl(id string, port uint64) string {
@@ -130,7 +146,7 @@ func ConnectUrl(id string, port uint64) string {
 		}
 		return fmt.Sprintf("inproc://%s", id)
 	}
-	return fmt.Sprintf("tcp://localhost:%d", port)
+	return fmt.Sprintf("tcp://%s:%d", id, port)
 }
 
 // CanReply returns true if the given Handler has to reply back to the user.

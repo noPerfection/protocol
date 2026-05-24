@@ -41,7 +41,7 @@ func (test *TestPublisherSuite) SetupTest() {
 
 	test.pub = New()
 
-	handlerConfig := config.NewInternalHandler(config.SyncReplierType, "test")
+	handlerConfig := config.NewInternalHandler(config.SyncReplierType, "test", "test")
 	triggerConfig, err := config.InternalTriggerAble(handlerConfig, config.PublisherType)
 	s.Require().NoError(err)
 	test.config = triggerConfig

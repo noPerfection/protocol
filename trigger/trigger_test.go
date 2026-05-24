@@ -1,6 +1,7 @@
 package trigger
 
 import (
+	zmq "github.com/pebbe/zmq4"
 	"github.com/sds-framework/client-lib"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
 	"github.com/sds-framework/datatype-lib/message"
@@ -9,7 +10,6 @@ import (
 	"github.com/sds-framework/handler-lib/instance_manager"
 	"github.com/sds-framework/handler-lib/manager_client"
 	"github.com/sds-framework/log-lib"
-	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
 	"sync"
 	"testing"
@@ -45,7 +45,7 @@ func (test *TestTriggerSuite) SetupTest() {
 	test.handler = New()
 
 	// Socket to talk to clients
-	handlerConfig := config.NewInternalHandler(config.SyncReplierType, "test")
+	handlerConfig := config.NewInternalHandler(config.SyncReplierType, "test", "test")
 	triggerConfig, err := config.InternalTriggerAble(handlerConfig, config.PublisherType)
 	s.Require().NoError(err)
 	test.config = triggerConfig
@@ -125,9 +125,7 @@ func (test *TestTriggerSuite) Test_10_Config() {
 	s := &test.Suite
 
 	// Testing config trigger-able
-	handlerConfig, err := config.NewHandler(config.SyncReplierType, "test")
-	s.Require().NoError(err)
-	_, err = config.TriggerAble(handlerConfig, config.PublisherType)
+	_, err := config.TriggerAble(config.SyncReplierType, "localhost", "test", 6000, config.PublisherType, "localhost", 6001)
 	s.Require().NoError(err)
 }
 

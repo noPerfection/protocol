@@ -1,13 +1,13 @@
 package sync_replier
 
 import (
+	zmq "github.com/pebbe/zmq4"
 	"github.com/sds-framework/client-lib"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
 	"github.com/sds-framework/datatype-lib/message"
 	"github.com/sds-framework/handler-lib/config"
 	"github.com/sds-framework/handler-lib/handler_manager"
 	"github.com/sds-framework/log-lib"
-	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
 	"testing"
 	"time"
@@ -51,7 +51,7 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	err = test.syncReplier.Route("command_2", test.routes["command_2"])
 	s.Require().NoError(err)
 
-	test.handlerConfig = config.NewInternalHandler(config.SyncReplierType, "test")
+	test.handlerConfig = config.NewInternalHandler(config.SyncReplierType, "test", "test")
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.syncReplier.SetLogger(test.logger))
@@ -63,7 +63,7 @@ func (test *TestSyncReplierSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerUrl := config.ManagerUrl(test.handlerConfig.Id)
+	managerUrl := test.handlerConfig.ManagerConnectUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
 

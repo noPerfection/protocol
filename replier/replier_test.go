@@ -1,12 +1,12 @@
 package replier
 
 import (
+	zmq "github.com/pebbe/zmq4"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
 	"github.com/sds-framework/datatype-lib/message"
 	"github.com/sds-framework/handler-lib/config"
 	"github.com/sds-framework/handler-lib/handler_manager"
 	"github.com/sds-framework/log-lib"
-	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
 	"testing"
 	"time"
@@ -48,7 +48,7 @@ func (test *TestReplierSuite) SetupTest() {
 	err = test.replier.Route("command_2", test.routes["command_2"])
 	s.Require().NoError(err)
 
-	test.handlerConfig = config.NewInternalHandler(config.ReplierType, "test")
+	test.handlerConfig = config.NewInternalHandler(config.ReplierType, "test", "test")
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.replier.SetLogger(test.logger))
@@ -60,7 +60,7 @@ func (test *TestReplierSuite) SetupTest() {
 
 	test.managingClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerUrl := config.ManagerUrl(test.handlerConfig.Id)
+	managerUrl := test.handlerConfig.ManagerConnectUrl()
 	err = test.managingClient.Connect(managerUrl)
 	s.Require().NoError(err)
 }

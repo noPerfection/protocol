@@ -1,6 +1,7 @@
 package handler_manager
 
 import (
+	zmq "github.com/pebbe/zmq4"
 	clientConfig "github.com/sds-framework/client-lib/config"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
 	"github.com/sds-framework/datatype-lib/message"
@@ -8,7 +9,6 @@ import (
 	"github.com/sds-framework/handler-lib/frontend"
 	"github.com/sds-framework/handler-lib/instance_manager"
 	"github.com/sds-framework/log-lib"
-	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
 	"testing"
 	"time"
@@ -37,7 +37,7 @@ type TestHandlerManagerSuite struct {
 func (test *TestHandlerManagerSuite) SetupTest() {
 	s := &test.Suite
 
-	test.inprocConfig = config.NewInternalHandler(config.SyncReplierType, "test")
+	test.inprocConfig = config.NewInternalHandler(config.SyncReplierType, "test", "test")
 
 	logger, err := log.New("handler", false)
 	test.Suite.Require().NoError(err, "failed to create logger")
@@ -84,7 +84,7 @@ func (test *TestHandlerManagerSuite) SetupTest() {
 	// Client that will imitate the service
 	inprocClient, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	err = inprocClient.Connect(config.ManagerUrl(test.inprocConfig.Id))
+	err = inprocClient.Connect(test.inprocConfig.ManagerConnectUrl())
 	s.Require().NoError(err)
 	test.inprocClient = inprocClient
 }
@@ -92,7 +92,7 @@ func (test *TestHandlerManagerSuite) SetupTest() {
 // Limitation of Zeromq, the inproc client can not reconnect if the backend restarted
 func (test *TestHandlerManagerSuite) reconnectClient() {
 	s := &test.Suite
-	url := config.ManagerUrl(test.inprocConfig.Id)
+	url := test.inprocConfig.ManagerConnectUrl()
 
 	err := test.inprocClient.Disconnect(url)
 	s.Require().NoError(err)

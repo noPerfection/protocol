@@ -22,7 +22,7 @@ type TestSDSOutSuite struct {
 
 func (test *TestSDSOutSuite) SetupTest() {
 	category := strings.ReplaceAll(test.T().Name(), "/", "_")
-	test.config = config.NewInternalHandler(config.PublisherType, category)
+	test.config = config.NewInternalHandler(config.PublisherType, category, category)
 	test.out = New()
 }
 

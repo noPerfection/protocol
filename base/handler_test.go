@@ -58,9 +58,8 @@ func (test *TestBaseHandlerSuite) SetupTest() {
 	err = test.inprocHandler.Route("command_2", test.routes["command_2"])
 	s.Require().NoError(err)
 
-	test.inprocConfig = config.NewInternalHandler(config.SyncReplierType, "test")
-	test.tcpConfig, err = config.NewHandler(config.SyncReplierType, "test")
-	s.Require().NoError(err)
+	test.inprocConfig = config.NewInternalHandler(config.SyncReplierType, "test", "test")
+	test.tcpConfig = config.NewHandler(config.SyncReplierType, "localhost", "test", 6000)
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.inprocHandler.SetLogger(test.logger))

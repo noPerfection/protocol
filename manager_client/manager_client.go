@@ -60,7 +60,7 @@ type Interface interface {
 // New client that's connected to the handler
 func New(configHandler *handlerConfig.Handler) (Interface, error) {
 	socketType := handlerConfig.SocketType(configHandler.Type)
-	url := handlerConfig.ManagerUrl(configHandler.Id)
+	url := configHandler.ManagerConnectUrl()
 	socket, err := client.NewRaw(socketType, url)
 	if err != nil {
 		return nil, fmt.Errorf("client.New: %w", err)
