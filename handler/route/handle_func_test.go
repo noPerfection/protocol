@@ -1,9 +1,9 @@
 package route
 
 import (
-	"github.com/sds-framework/client-lib"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/protocol/client"
+	"github.com/sds-framework/protocol/message"
 	"testing"
 
 	"github.com/stretchr/testify/suite"

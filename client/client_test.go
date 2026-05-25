@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sds-framework/client-lib/config"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
 	zmq "github.com/pebbe/zmq4"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/protocol/client/config"
+	"github.com/sds-framework/protocol/message"
 	"github.com/stretchr/testify/suite"
 )
 

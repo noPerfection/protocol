@@ -3,10 +3,10 @@ package instance_manager
 
 import (
 	"fmt"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
-	"github.com/sds-framework/handler-lib/config"
 	zmq "github.com/pebbe/zmq4"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/sds-framework/protocol/handler/config"
+	"github.com/sds-framework/protocol/message"
 )
 
 const (

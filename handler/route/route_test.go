@@ -2,11 +2,11 @@ package route
 
 import (
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/protocol/message"
 	"testing"
 
-	"github.com/sds-framework/client-lib"
 	zmq "github.com/pebbe/zmq4"
+	"github.com/sds-framework/protocol/client"
 	"github.com/stretchr/testify/suite"
 )
 

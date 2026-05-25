@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
 	"github.com/google/uuid"
+	"github.com/sds-framework/datatype-lib/data_type/key_value"
 )
 
 // Stack keeps the parameters of the message in the service.

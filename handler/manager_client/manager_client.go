@@ -4,11 +4,11 @@ package manager_client
 
 import (
 	"fmt"
-	"github.com/sds-framework/client-lib"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
-	handlerConfig "github.com/sds-framework/handler-lib/config"
-	"github.com/sds-framework/handler-lib/handler_manager"
+	"github.com/sds-framework/protocol/client"
+	handlerConfig "github.com/sds-framework/protocol/handler/config"
+	"github.com/sds-framework/protocol/handler/handler_manager"
+	"github.com/sds-framework/protocol/message"
 	"time"
 )
 

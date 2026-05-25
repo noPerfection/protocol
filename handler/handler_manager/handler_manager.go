@@ -5,12 +5,12 @@ import (
 	"fmt"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
-	"github.com/sds-framework/handler-lib/config"
-	"github.com/sds-framework/handler-lib/frontend"
-	instances "github.com/sds-framework/handler-lib/instance_manager"
-	"github.com/sds-framework/handler-lib/route"
 	"github.com/sds-framework/log-lib"
+	"github.com/sds-framework/protocol/handler/config"
+	"github.com/sds-framework/protocol/handler/frontend"
+	instances "github.com/sds-framework/protocol/handler/instance_manager"
+	"github.com/sds-framework/protocol/handler/route"
+	"github.com/sds-framework/protocol/message"
 	"time"
 )
 

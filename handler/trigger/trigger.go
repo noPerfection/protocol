@@ -4,17 +4,17 @@ import (
 	"fmt"
 
 	zmq "github.com/pebbe/zmq4"
-	clientConfig "github.com/sds-framework/client-lib/config"
 	"github.com/sds-framework/datatype-lib/data_type"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
-	"github.com/sds-framework/handler-lib/base"
-	"github.com/sds-framework/handler-lib/config"
-	"github.com/sds-framework/handler-lib/frontend"
-	"github.com/sds-framework/handler-lib/handler_manager"
-	instances "github.com/sds-framework/handler-lib/instance_manager"
-	"github.com/sds-framework/handler-lib/route"
 	"github.com/sds-framework/log-lib"
+	clientConfig "github.com/sds-framework/protocol/client/config"
+	"github.com/sds-framework/protocol/handler/base"
+	"github.com/sds-framework/protocol/handler/config"
+	"github.com/sds-framework/protocol/handler/frontend"
+	"github.com/sds-framework/protocol/handler/handler_manager"
+	instances "github.com/sds-framework/protocol/handler/instance_manager"
+	"github.com/sds-framework/protocol/handler/route"
+	"github.com/sds-framework/protocol/message"
 )
 
 const (

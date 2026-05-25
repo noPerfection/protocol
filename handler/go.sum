@@ -33,8 +33,6 @@ github.com/muesli/termenv v0.15.2 h1:GohcuySI0QmI3wN8Ok9PtKGkgkFIk7y6Vpb5PvrY+Wo
 github.com/muesli/termenv v0.15.2/go.mod h1:Epx+iuz8sNs7mNKhxzH4fWXGNpZwUaJKRS1noLXviQ8=
 github.com/pebbe/zmq4 v1.2.10 h1:wQkqRZ3CZeABIeidr3e8uQZMMH5YAykA/WN0L5zkd1c=
 github.com/pebbe/zmq4 v1.2.10/go.mod h1:nqnPueOapVhE2wItZ0uOErngczsJdLOGkebMxaO8r48=
-github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5 h1:Ii+DKncOVM8Cu1Hc+ETb5K+23HdAMvESYE3ZJ5b5cMI=
-github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5/go.mod h1:iIss55rKnNBTvrwdmkUpLnDpZoAHvWaiq5+iMmen4AE=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rivo/uniseg v0.1.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
@@ -42,14 +40,10 @@ github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJ
 github.com/rivo/uniseg v0.4.4 h1:8TfxU8dW6PdqD27gjM8MVNuicgxIjxpm4K7x4jp8sis=
 github.com/rivo/uniseg v0.4.4/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
 github.com/rogpeppe/go-internal v1.8.1 h1:geMPLpDpQOgVyCg5z5GoRwLHepNdb71NXb67XFkP+Eg=
-github.com/sds-framework/client-lib v0.0.0-20260519122907-8d1f99d41b57 h1:lc4jCJ4DeDmpLvYso6a09pmp2bAhmXm5Ru2UDemNYWs=
-github.com/sds-framework/client-lib v0.0.0-20260519122907-8d1f99d41b57/go.mod h1:AReE+OOAQ9mAgE/BocS59XjHHwVK/sqSao4N1LVAyWk=
 github.com/sds-framework/datatype-lib v0.0.0-20260519113206-6acc97659255 h1:+/+8BNEEPRA+pFQF3rOI5UkLrdogjdMj5siRHBo2Yko=
 github.com/sds-framework/datatype-lib v0.0.0-20260519113206-6acc97659255/go.mod h1:QD+naKxneE4a35lVe7sw3qU4gbHBug1Z1WpWQA78780=
 github.com/sds-framework/log-lib v0.0.0-20260519113119-b6fe63f7315e h1:P2moT2MNcMYpzXvos/ZKiKX/wI/n6zCKPoBe/vlTHTk=
 github.com/sds-framework/log-lib v0.0.0-20260519113119-b6fe63f7315e/go.mod h1:ihGbhsnkEwUJBjhfcUwihO9wSXpRx9aEIj8+W6P9Aio=
-github.com/sds-framework/os-lib v0.0.0-20260519114205-aa75782063cf h1:OcJr0bmgIsSv6pTLU4Q3YRxoX+3c1WGe+0+OZHt7VEk=
-github.com/sds-framework/os-lib v0.0.0-20260519114205-aa75782063cf/go.mod h1:P6jWnEgvfFnDlZMWRmrDM863nYDKlX5+X5pYbS+nVFo=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/wcharczuk/go-chart/v2 v2.1.0/go.mod h1:yx7MvAVNcP/kN9lKXM/NTce4au4DFN99j6i1OwDclNA=

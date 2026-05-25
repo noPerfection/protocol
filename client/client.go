@@ -3,9 +3,9 @@ package client
 
 import (
 	"fmt"
-	"github.com/sds-framework/client-lib/config"
 	"github.com/sds-framework/datatype-lib/data_type"
-	"github.com/sds-framework/datatype-lib/message"
+	"github.com/sds-framework/protocol/client/config"
+	"github.com/sds-framework/protocol/message"
 	"os"
 	"time"
 

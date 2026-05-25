@@ -1,16 +1,16 @@
 package base
 
 import (
-	clientConfig "github.com/sds-framework/client-lib/config"
-	"github.com/sds-framework/handler-lib/config"
 	"github.com/sds-framework/log-lib"
+	clientConfig "github.com/sds-framework/protocol/client/config"
+	"github.com/sds-framework/protocol/handler/config"
 )
 
 // Interface of the handler. Any handlers must be based on this.
 // All handlers have
 //
 // The interface that it accepts is the *client.ClientSocket from the
-// "github.com/sds-framework/client-lib" package.
+// "github.com/sds-framework/protocol/client" package.
 //
 // handler.New(handler.Type)
 // handler.SetConfig(Config)

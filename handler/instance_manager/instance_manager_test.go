@@ -1,12 +1,12 @@
 package instance_manager
 
 import (
-	"github.com/sds-framework/client-lib"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
-	"github.com/sds-framework/handler-lib/config"
-	"github.com/sds-framework/handler-lib/instance"
 	"github.com/sds-framework/log-lib"
+	"github.com/sds-framework/protocol/client"
+	"github.com/sds-framework/protocol/handler/config"
+	"github.com/sds-framework/protocol/handler/instance"
+	"github.com/sds-framework/protocol/message"
 	"testing"
 	"time"
 

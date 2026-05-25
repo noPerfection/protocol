@@ -1,14 +1,14 @@
 package base
 
 import (
-	"github.com/sds-framework/client-lib"
-	clientConfig "github.com/sds-framework/client-lib/config"
-	"github.com/sds-framework/datatype-lib/message"
-	"github.com/sds-framework/handler-lib/config"
-	"github.com/sds-framework/handler-lib/frontend"
-	"github.com/sds-framework/handler-lib/instance_manager"
-	"github.com/sds-framework/handler-lib/manager_client"
 	"github.com/sds-framework/log-lib"
+	"github.com/sds-framework/protocol/client"
+	clientConfig "github.com/sds-framework/protocol/client/config"
+	"github.com/sds-framework/protocol/handler/config"
+	"github.com/sds-framework/protocol/handler/frontend"
+	"github.com/sds-framework/protocol/handler/instance_manager"
+	"github.com/sds-framework/protocol/handler/manager_client"
+	"github.com/sds-framework/protocol/message"
 	"github.com/stretchr/testify/suite"
 	"slices"
 	"testing"

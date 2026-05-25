@@ -5,19 +5,19 @@ package base
 
 import (
 	"fmt"
-	"github.com/sds-framework/client-lib"
-	clientConfig "github.com/sds-framework/client-lib/config"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/handler-lib/config"
-	"github.com/sds-framework/handler-lib/frontend"
-	"github.com/sds-framework/handler-lib/handler_manager"
-	"github.com/sds-framework/handler-lib/instance_manager"
-	"github.com/sds-framework/handler-lib/route"
 	"github.com/sds-framework/log-lib"
+	"github.com/sds-framework/protocol/client"
+	clientConfig "github.com/sds-framework/protocol/client/config"
+	"github.com/sds-framework/protocol/handler/config"
+	"github.com/sds-framework/protocol/handler/frontend"
+	"github.com/sds-framework/protocol/handler/handler_manager"
+	"github.com/sds-framework/protocol/handler/instance_manager"
+	"github.com/sds-framework/protocol/handler/route"
 	"slices"
 
-	"github.com/sds-framework/datatype-lib/message"
 	zmq "github.com/pebbe/zmq4"
+	"github.com/sds-framework/protocol/message"
 )
 
 // The Handler is the socket wrapper for the zeromq socket.

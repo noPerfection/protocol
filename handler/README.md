@@ -10,12 +10,12 @@ For architecture, socket layout, and contribution guidelines, see [CONTRIBUTING.
 
 - Go 1.19+
 - ZeroMQ 4.x (`libzmq3-dev` on Debian/Ubuntu)
-- SDS modules: [client-lib](https://github.com/sds-framework/client-lib), [datatype-lib](https://github.com/sds-framework/datatype-lib), [log-lib](https://github.com/sds-framework/log-lib)
+- SDS modules: [client-lib](https://github.com/sds-framework/protocol/client), [datatype-lib](https://github.com/sds-framework/datatype-lib), [log-lib](https://github.com/sds-framework/log-lib)
 
 ## Installation
 
 ```bash
-go get github.com/sds-framework/handler-lib@latest
+go get github.com/sds-framework/protocol/handler@latest
 ```
 
 ## Handler types
@@ -44,9 +44,9 @@ import (
 	"log"
 
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
-	"github.com/sds-framework/handler-lib/config"
-	"github.com/sds-framework/handler-lib/sync_replier"
+	"github.com/sds-framework/protocol/message"
+	"github.com/sds-framework/protocol/handler/config"
+	"github.com/sds-framework/protocol/handler/sync_replier"
 	loglib "github.com/sds-framework/log-lib"
 )
 
@@ -81,7 +81,7 @@ func main() {
 }
 ```
 
-Send requests with [client-lib](https://github.com/sds-framework/client-lib) (see [Tutorial: Call a handler](#tutorial-call-a-handler-from-a-client)).
+Send requests with [client-lib](https://github.com/sds-framework/protocol/client) (see [Tutorial: Call a handler](#tutorial-call-a-handler-from-a-client)).
 
 ---
 
@@ -189,11 +189,11 @@ import (
 	"fmt"
 
 	"github.com/pebbe/zmq4"
-	"github.com/sds-framework/client-lib"
-	clientConfig "github.com/sds-framework/client-lib/config"
+	"github.com/sds-framework/protocol/client"
+	clientConfig "github.com/sds-framework/protocol/client/config"
 	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/datatype-lib/message"
-	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/protocol/message"
+	"github.com/sds-framework/protocol/handler/config"
 )
 
 func callHello(handlerCfg *config.Handler) error {
@@ -250,7 +250,7 @@ if err := handler.Start(); err != nil {
 Scale instances via **manager_client**:
 
 ```go
-import "github.com/sds-framework/handler-lib/manager_client"
+import "github.com/sds-framework/protocol/handler/manager_client"
 
 mc, err := manager_client.New(cfg)
 if err != nil {
@@ -266,7 +266,7 @@ instanceId, err := mc.AddInstance()
 Routes can depend on other SDS services. Declare dependency IDs on the route; the service calls `AddDepByService` before `Start()`.
 
 ```go
-import "github.com/sds-framework/client-lib"
+import "github.com/sds-framework/protocol/client"
 
 // Route: needs two dependency sockets
 err := handler.Route("aggregate", aggregateHandler, "users", "orders")
@@ -344,10 +344,10 @@ import (
 	"log"
 
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/message"
-	"github.com/sds-framework/handler-lib/config"
-	"github.com/sds-framework/handler-lib/sdsin"
-	"github.com/sds-framework/handler-lib/sdsout"
+	"github.com/sds-framework/protocol/message"
+	"github.com/sds-framework/protocol/handler/config"
+	"github.com/sds-framework/protocol/handler/sdsin"
+	"github.com/sds-framework/protocol/handler/sdsout"
 	loglib "github.com/sds-framework/log-lib"
 )
 
@@ -488,7 +488,7 @@ Check health: `handler.Status()` (empty string = running) or `manager_client.Han
 
 | Repo | Role |
 |------|------|
-| [client-lib](https://github.com/sds-framework/client-lib) | Connect and send requests |
+| [client-lib](https://github.com/sds-framework/protocol/client) | Connect and send requests |
 | [datatype-lib](https://github.com/sds-framework/datatype-lib) | `message.Request` / `message.Reply` |
 | [log-lib](https://github.com/sds-framework/log-lib) | Logging |
 | [service-lib](https://github.com/sds-framework/service-lib) | Run handlers inside a service |

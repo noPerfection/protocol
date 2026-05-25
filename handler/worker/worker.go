@@ -3,8 +3,8 @@ package worker
 // Asynchronous replier
 
 import (
-	"github.com/sds-framework/handler-lib/base"
-	"github.com/sds-framework/handler-lib/config"
+	"github.com/sds-framework/protocol/handler/base"
+	"github.com/sds-framework/protocol/handler/config"
 	"runtime"
 )
 
