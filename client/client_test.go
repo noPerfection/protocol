@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/client/config"
-	"github.com/sds-framework/protocol/message"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -65,7 +65,7 @@ func (test *TestClientSuite) runBackend(funcName string, url string, zmqType zmq
 		content := (&message.Reply{
 			Status:  message.OK,
 			Message: "",
-			Parameters: key_value.New().
+			Parameters: datatype.New().
 				Set("reply", fmt.Sprintf("reply to '%s'", msg[2])),
 		}).String()
 		reply = []string{msg[0], msg[1], content}
@@ -73,7 +73,7 @@ func (test *TestClientSuite) runBackend(funcName string, url string, zmqType zmq
 		content := (&message.Reply{
 			Status:  message.OK,
 			Message: "",
-			Parameters: key_value.New().
+			Parameters: datatype.New().
 				Set("reply", fmt.Sprintf("reply to '%s'", msg[1])),
 		}).String()
 		reply = []string{msg[0], content}
@@ -81,7 +81,7 @@ func (test *TestClientSuite) runBackend(funcName string, url string, zmqType zmq
 		content := (&message.Reply{
 			Status:  message.OK,
 			Message: "",
-			Parameters: key_value.New().
+			Parameters: datatype.New().
 				Set("reply", fmt.Sprintf("reply to '%s'", msg[0])),
 		}).String()
 		reply = []string{content}
@@ -213,7 +213,7 @@ func (test *TestClientSuite) Test_17_RequestToRep() {
 
 	req := &message.Request{
 		Command:    "hello",
-		Parameters: key_value.New().Set("unit", "Test_17_RequestToRep"),
+		Parameters: datatype.New().Set("unit", "Test_17_RequestToRep"),
 	}
 	reply, err := test.socket.Request(req)
 	require().NoError(err)

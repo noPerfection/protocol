@@ -10,12 +10,12 @@ For architecture, socket layout, and contribution guidelines, see [CONTRIBUTING.
 
 - Go 1.19+
 - ZeroMQ 4.x (`libzmq3-dev` on Debian/Ubuntu)
-- SDS modules: [client-lib](https://github.com/sds-framework/protocol/client), [datatype-lib](https://github.com/sds-framework/datatype-lib), [log-lib](https://github.com/sds-framework/log-lib)
+- SDS modules: [client-lib](https://github.com/noPerfection/protocol/client), [datatype-lib](https://github.com/noPerfection/datatype), [log-lib](https://github.com/noPerfection/log)
 
 ## Installation
 
 ```bash
-go get github.com/sds-framework/protocol/handler@latest
+go get github.com/noPerfection/protocol/handler@latest
 ```
 
 ## Handler types
@@ -43,11 +43,11 @@ package main
 import (
 	"log"
 
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/message"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/sync_replier"
-	loglib "github.com/sds-framework/log-lib"
+	"github.com/noPerfection/datatype/data_type/key_value"
+	"github.com/noPerfection/protocol/message"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/sync_replier"
+	loglib "github.com/noPerfection/log"
 )
 
 func main() {
@@ -81,7 +81,7 @@ func main() {
 }
 ```
 
-Send requests with [client-lib](https://github.com/sds-framework/protocol/client) (see [Tutorial: Call a handler](#tutorial-call-a-handler-from-a-client)).
+Send requests with [client-lib](https://github.com/noPerfection/protocol/client) (see [Tutorial: Call a handler](#tutorial-call-a-handler-from-a-client)).
 
 ---
 
@@ -189,11 +189,11 @@ import (
 	"fmt"
 
 	"github.com/pebbe/zmq4"
-	"github.com/sds-framework/protocol/client"
-	clientConfig "github.com/sds-framework/protocol/client/config"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/message"
-	"github.com/sds-framework/protocol/handler/config"
+	"github.com/noPerfection/protocol/client"
+	clientConfig "github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/datatype/data_type/key_value"
+	"github.com/noPerfection/protocol/message"
+	"github.com/noPerfection/protocol/handler/config"
 )
 
 func callHello(handlerCfg *config.Handler) error {
@@ -250,7 +250,7 @@ if err := handler.Start(); err != nil {
 Scale instances via **manager_client**:
 
 ```go
-import "github.com/sds-framework/protocol/handler/manager_client"
+import "github.com/noPerfection/protocol/handler/manager_client"
 
 mc, err := manager_client.New(cfg)
 if err != nil {
@@ -266,7 +266,7 @@ instanceId, err := mc.AddInstance()
 Routes can depend on other SDS services. Declare dependency IDs on the route; the service calls `AddDepByService` before `Start()`.
 
 ```go
-import "github.com/sds-framework/protocol/client"
+import "github.com/noPerfection/protocol/client"
 
 // Route: needs two dependency sockets
 err := handler.Route("aggregate", aggregateHandler, "users", "orders")
@@ -344,11 +344,11 @@ import (
 	"log"
 
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/protocol/message"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/sdsin"
-	"github.com/sds-framework/protocol/handler/sdsout"
-	loglib "github.com/sds-framework/log-lib"
+	"github.com/noPerfection/protocol/message"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/sdsin"
+	"github.com/noPerfection/protocol/handler/sdsout"
+	loglib "github.com/noPerfection/log"
 )
 
 logger, err := loglib.New("events", false)
@@ -488,9 +488,9 @@ Check health: `handler.Status()` (empty string = running) or `manager_client.Han
 
 | Repo | Role |
 |------|------|
-| [client-lib](https://github.com/sds-framework/protocol/client) | Connect and send requests |
-| [datatype-lib](https://github.com/sds-framework/datatype-lib) | `message.Request` / `message.Reply` |
-| [log-lib](https://github.com/sds-framework/log-lib) | Logging |
+| [client-lib](https://github.com/noPerfection/protocol/client) | Connect and send requests |
+| [datatype-lib](https://github.com/noPerfection/datatype) | `message.Request` / `message.Reply` |
+| [log-lib](https://github.com/noPerfection/log) | Logging |
 | [service-lib](https://github.com/sds-framework/service-lib) | Run handlers inside a service |
 | [web-lib](https://github.com/sds-framework/web-lib) | HTTP frontend example |
 

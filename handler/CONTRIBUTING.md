@@ -50,7 +50,7 @@ Handler configuration lives in `config`:
 | 0 | starts with `tmp` | `ipc:///{Id}` |
 | 0 | otherwise | `inproc://{Id}` |
 
-Clients use the same `Id` and `Port` with [`client-lib/config.Url`](https://github.com/sds-framework/protocol/client).
+Clients use the same `Id` and `Port` with [`client-lib/config.Url`](https://github.com/noPerfection/protocol/client).
 
 ## Internal parts
 
@@ -126,7 +126,7 @@ Requires ZeroMQ 4.x (`libzmq3-dev` on Debian/Ubuntu).
 
 ## Related repositories
 
-- [client-lib](https://github.com/sds-framework/protocol/client) — connect to handlers
-- [datatype-lib](https://github.com/sds-framework/datatype-lib) — request/reply types
+- [client-lib](https://github.com/noPerfection/protocol/client) — connect to handlers
+- [datatype-lib](https://github.com/noPerfection/datatype) — request/reply types
 - [service-lib](https://github.com/sds-framework/service-lib) — service orchestration
 - [web-lib](https://github.com/sds-framework/web-lib) — HTTP over handler pair

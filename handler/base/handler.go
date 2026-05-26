@@ -5,19 +5,20 @@ package base
 
 import (
 	"fmt"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/client"
-	clientConfig "github.com/sds-framework/protocol/client/config"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/frontend"
-	"github.com/sds-framework/protocol/handler/handler_manager"
-	"github.com/sds-framework/protocol/handler/instance_manager"
-	"github.com/sds-framework/protocol/handler/route"
 	"slices"
 
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/client"
+	clientConfig "github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/frontend"
+	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/handler/instance_manager"
+	"github.com/noPerfection/protocol/handler/route"
+
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/protocol/message"
 )
 
 // The Handler is the socket wrapper for the zeromq socket.
@@ -25,11 +26,11 @@ type Handler struct {
 	config                 *config.Handler
 	socket                 *zmq.Socket
 	logger                 *log.Logger
-	Routes                 key_value.KeyValue
-	RouteDeps              key_value.KeyValue
+	Routes                 datatype.KeyValue
+	RouteDeps              datatype.KeyValue
 	depIds                 []string
-	depConfigs             key_value.KeyValue
-	DepClients             key_value.KeyValue
+	depConfigs             datatype.KeyValue
+	DepClients             datatype.KeyValue
 	Frontend               *frontend.Frontend
 	InstanceManager        *instance_manager.Parent
 	instanceManagerStarted bool
@@ -41,11 +42,11 @@ type Handler struct {
 func New() *Handler {
 	return &Handler{
 		logger:                 nil,
-		Routes:                 key_value.New(),
-		RouteDeps:              key_value.New(),
+		Routes:                 datatype.New(),
+		RouteDeps:              datatype.New(),
 		depIds:                 make([]string, 0),
-		depConfigs:             key_value.New(),
-		DepClients:             key_value.New(),
+		depConfigs:             datatype.New(),
+		DepClients:             datatype.New(),
 		Frontend:               frontend.New(),
 		InstanceManager:        nil,
 		instanceManagerStarted: false,
@@ -382,7 +383,7 @@ func (c *Handler) Start() error {
 
 // Does nothing, simply returns the data
 var anyHandler = func(request message.RequestInterface) message.ReplyInterface {
-	replyParameters := key_value.New().Set("route", request.CommandName())
+	replyParameters := datatype.New().Set("route", request.CommandName())
 
 	reply := request.Ok(replyParameters)
 	return reply

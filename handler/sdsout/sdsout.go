@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/message"
 )
 
 const (

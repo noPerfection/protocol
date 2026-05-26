@@ -1,16 +1,16 @@
 package base
 
 import (
-	"github.com/sds-framework/log-lib"
-	clientConfig "github.com/sds-framework/protocol/client/config"
-	"github.com/sds-framework/protocol/handler/config"
+	"github.com/noPerfection/log"
+	clientConfig "github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/protocol/handler/config"
 )
 
 // Interface of the handler. Any handlers must be based on this.
 // All handlers have
 //
 // The interface that it accepts is the *client.ClientSocket from the
-// "github.com/sds-framework/protocol/client" package.
+// "github.com/noPerfection/protocol/client" package.
 //
 // handler.New(handler.Type)
 // handler.SetConfig(Config)

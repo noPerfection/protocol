@@ -2,8 +2,9 @@ package message
 
 import (
 	"encoding/json"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
 	"testing"
+
+	"github.com/noPerfection/datatype"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -45,7 +46,7 @@ func (test *TestRawSuite) SetupTest() {
 
 	req := &Request{
 		Command:    test.cmdName,
-		Parameters: key_value.New().Set(test.reqKey, 12),
+		Parameters: datatype.New().Set(test.reqKey, 12),
 	}
 	reqStrings, err := req.ZmqEnvelope()
 	s().NoError(err)
@@ -54,7 +55,7 @@ func (test *TestRawSuite) SetupTest() {
 	reply := &Reply{
 		Status:     OK,
 		Message:    "",
-		Parameters: key_value.New().Set(test.replyKey, 53),
+		Parameters: datatype.New().Set(test.replyKey, 53),
 	}
 	replyStrings, err := reply.ZmqEnvelope()
 	s().NoError(err)
@@ -483,7 +484,7 @@ func (test *TestRawSuite) Test_23_ReqUuid() {
 func (test *TestRawSuite) Test_24_NextReq() {
 	s := test.Require
 
-	parameters := key_value.New()
+	parameters := datatype.New()
 
 	rawReq, err := NewRawReq(test.rawReq)
 	s().NoError(err)
@@ -505,7 +506,7 @@ func (test *TestRawSuite) Test_25_ReqToReply() {
 
 	failMessage := "error"
 	value := uint64(123)
-	parameters := key_value.New().Set(test.replyKey, value)
+	parameters := datatype.New().Set(test.replyKey, value)
 
 	rawReq, err := NewRawReq(test.rawReq)
 	s().NoError(err)

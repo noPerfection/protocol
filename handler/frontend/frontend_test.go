@@ -3,18 +3,18 @@ package frontend
 import (
 	"os"
 
-	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/client"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/instance_manager"
-	"github.com/sds-framework/protocol/handler/pair"
-	"github.com/sds-framework/protocol/message"
-	"github.com/stretchr/testify/suite"
 	"testing"
 	"time"
+
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/instance_manager"
+	"github.com/noPerfection/protocol/handler/pair"
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
+	"github.com/stretchr/testify/suite"
 )
 
 type CustomExternal struct {
@@ -42,11 +42,11 @@ func (test *TestFrontendSuite) instanceManager() (string, string, *instance_mana
 		if err != nil {
 			id = 0
 		}
-		return req.Ok(key_value.New().Set("id", id))
+		return req.Ok(datatype.New().Set("id", id))
 	}
-	routes := key_value.New().Set(cmd, handleHello)
-	routeDeps := key_value.New()
-	depClients := key_value.New()
+	routes := datatype.New().Set(cmd, handleHello)
+	routeDeps := datatype.New()
+	depClients := datatype.New()
 
 	// Added Instance Manager
 	logger, err := log.New(test.handleConfig.Id, true)
@@ -127,7 +127,7 @@ func (test *TestFrontendSuite) Test_11_External() {
 	s.Require().EqualValues(test.frontend.queue.Len(), uint(0))
 
 	for i := 1; i <= 2; i++ {
-		msg := message.Request{Command: "cmd", Parameters: key_value.New().Set("id", i).Set("cap", 2)}
+		msg := message.Request{Command: "cmd", Parameters: datatype.New().Set("id", i).Set("cap", 2)}
 		msgStr, err := msg.ZmqEnvelope()
 		s.Require().NoError(err)
 		_, err = user.SendMessage("", msgStr)
@@ -147,7 +147,7 @@ func (test *TestFrontendSuite) Test_11_External() {
 
 	// If we try to send a message, it should fail
 	i := 3
-	msg := message.Request{Command: "cmd", Parameters: key_value.New().Set("id", i).Set("cap", 2)}
+	msg := message.Request{Command: "cmd", Parameters: datatype.New().Set("id", i).Set("cap", 2)}
 	msgStr, err := msg.ZmqEnvelope()
 	s.Require().NoError(err)
 	_, err = user.SendMessage("", msgStr)
@@ -175,7 +175,7 @@ func (test *TestFrontendSuite) Test_11_External() {
 	s.Require().NoError(err)
 
 	// clean out the queue
-	test.frontend.queue = data_type.NewQueue()
+	test.frontend.queue = datatype.NewQueue()
 }
 
 // Test_11_External_ipc tests the external socket over a filesystem IPC endpoint.
@@ -206,7 +206,7 @@ func (test *TestFrontendSuite) Test_11_External_ipc() {
 	err = user.Connect(clientUrl)
 	s.Require().NoError(err)
 
-	msg := message.Request{Command: "cmd", Parameters: key_value.New().Set("id", 1)}
+	msg := message.Request{Command: "cmd", Parameters: datatype.New().Set("id", 1)}
 	msgStr, err := msg.ZmqEnvelope()
 	s.Require().NoError(err)
 	_, err = user.SendMessage("", msgStr)
@@ -251,7 +251,7 @@ func (test *TestFrontendSuite) Test_12_Consumer() {
 	s.Require().NoError(err)
 
 	// add a message into the queue
-	req := message.Request{Command: cmd, Parameters: key_value.New()}
+	req := message.Request{Command: cmd, Parameters: datatype.New()}
 	reqStr, err := req.ZmqEnvelope()
 	s.Require().NoError(err)
 	messageId := "msg_1"
@@ -280,7 +280,7 @@ func (test *TestFrontendSuite) Test_12_Consumer() {
 
 	// clean out
 	instanceManager.Close()
-	test.frontend.processing = key_value.NewList()
+	test.frontend.processing = datatype.NewList()
 
 	time.Sleep(time.Millisecond * 100) // wait until instance manager ends
 }
@@ -330,7 +330,7 @@ func (test *TestFrontendSuite) Test_13_Run() {
 	err = user.Connect(clientUrl)
 	s.Require().NoError(err)
 
-	req := message.Request{Command: cmd, Parameters: key_value.New().Set("id", 1)}
+	req := message.Request{Command: cmd, Parameters: datatype.New().Set("id", 1)}
 	reqStr, err := req.ZmqEnvelope()
 	s.Require().NoError(err)
 
@@ -397,7 +397,7 @@ func (test *TestFrontendSuite) Test_13_Run() {
 	s.Require().NoError(err)
 
 	instanceManager.Close()
-	test.frontend.processing = key_value.NewList()
+	test.frontend.processing = datatype.NewList()
 	// wait a bit for thread closing
 	time.Sleep(time.Millisecond * 50)
 }
@@ -432,7 +432,7 @@ func (test *TestFrontendSuite) Test_14_PairSocket() {
 
 	customExternal := test.customExternal()
 
-	req := message.Request{Command: cmd, Parameters: key_value.New().Set("id", 1)}
+	req := message.Request{Command: cmd, Parameters: datatype.New().Set("id", 1)}
 	reqStr, err := req.ZmqEnvelope()
 	s.Require().NoError(err)
 
@@ -455,7 +455,7 @@ func (test *TestFrontendSuite) Test_14_PairSocket() {
 	s.Require().NoError(err)
 
 	instanceManager.Close()
-	test.frontend.processing = key_value.NewList()
+	test.frontend.processing = datatype.NewList()
 }
 
 // In order for 'go test' to run this suite, we need to create

@@ -1,16 +1,17 @@
 package worker
 
 import (
-	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/client"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/handler_manager"
-	"github.com/sds-framework/protocol/message"
-	"github.com/stretchr/testify/suite"
 	"testing"
 	"time"
+
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
+	"github.com/stretchr/testify/suite"
 )
 
 // Define the suite, and absorb the built-in basic suite
@@ -128,7 +129,7 @@ func (test *TestWorkerSuite) Test_10_Start() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything works
-	req := message.Request{Command: config.HandlerStatus, Parameters: key_value.New()}
+	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
 	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -136,7 +137,7 @@ func (test *TestWorkerSuite) Test_10_Start() {
 	s.Require().NoError(err)
 	s.Require().Equal(handler_manager.Ready, status)
 
-	req = message.Request{Command: config.InstanceAmount, Parameters: key_value.New()}
+	req = message.Request{Command: config.InstanceAmount, Parameters: datatype.New()}
 	reply = test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -148,7 +149,7 @@ func (test *TestWorkerSuite) Test_10_Start() {
 	s.Require().Empty(test.cmd1Result)
 	req = message.Request{
 		Command:    "command_1",
-		Parameters: key_value.New().Set("id", cmd1Id),
+		Parameters: datatype.New().Set("id", cmd1Id),
 	}
 	err = test.externalClient.Submit(&req)
 	s.Require().NoError(err)

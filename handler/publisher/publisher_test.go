@@ -1,16 +1,17 @@
 package publisher
 
 import (
-	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/client"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/message"
-	"github.com/stretchr/testify/suite"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
+	"github.com/stretchr/testify/suite"
 )
 
 // Define the suite, and absorb the built-in basic suite
@@ -129,7 +130,7 @@ func (test *TestPublisherSuite) Test_10_Start() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything works
-	req := message.Request{Command: config.HandlerStatus, Parameters: key_value.New()}
+	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
 	err = test.trigger.Submit(&req)
 	s.Require().NoError(err)
 

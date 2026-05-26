@@ -1,19 +1,21 @@
-module github.com/sds-framework/protocol/handler
+module github.com/noPerfection/protocol/handler
 
 go 1.19
 
 require (
+	github.com/noPerfection/datatype v0.0.0
+	github.com/noPerfection/log v0.0.0
+	github.com/noPerfection/protocol/client v0.0.0
+	github.com/noPerfection/protocol/message v0.0.0
 	github.com/pebbe/zmq4 v1.2.10
-	github.com/sds-framework/datatype-lib v0.0.0-20260519113206-6acc97659255
-	github.com/sds-framework/log-lib v0.0.0-20260519113119-b6fe63f7315e
-	github.com/sds-framework/protocol/client v0.0.0
-	github.com/sds-framework/protocol/message v0.0.0
 	github.com/stretchr/testify v1.8.4
 )
 
 replace (
-	github.com/sds-framework/protocol/client => ../client
-	github.com/sds-framework/protocol/message => ../message
+	github.com/noPerfection/datatype => ../../datatype
+	github.com/noPerfection/log => ../../log
+	github.com/noPerfection/protocol/client => ../client
+	github.com/noPerfection/protocol/message => ../message
 )
 
 require (

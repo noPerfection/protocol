@@ -3,9 +3,10 @@ package pair
 
 import (
 	"fmt"
-	"github.com/sds-framework/protocol/client"
-	clientConfig "github.com/sds-framework/protocol/client/config"
-	"github.com/sds-framework/protocol/handler/config"
+
+	"github.com/noPerfection/protocol/client"
+	clientConfig "github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/protocol/handler/config"
 )
 
 // Config converts the external handler config into the paired one

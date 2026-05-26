@@ -2,14 +2,15 @@ package instance
 
 import (
 	"fmt"
-	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/client"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/message"
 	"testing"
 	"time"
+
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -26,9 +27,9 @@ type TestInstanceSuite struct {
 	handle1   interface{}
 	parentId  string
 
-	clients   key_value.KeyValue
-	routes    key_value.KeyValue
-	routeDeps key_value.KeyValue
+	clients   datatype.KeyValue
+	routes    datatype.KeyValue
+	routeDeps datatype.KeyValue
 }
 
 // Make sure that Account is set to five
@@ -36,10 +37,10 @@ type TestInstanceSuite struct {
 func (test *TestInstanceSuite) SetupTest() {
 	handle0 := func(request message.RequestInterface) message.ReplyInterface {
 		time.Sleep(time.Millisecond * 200)
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 	handle1 := func(request message.RequestInterface, _ *client.Socket) message.ReplyInterface {
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 
 	test.handle0 = handle0
@@ -68,8 +69,8 @@ func (test *TestInstanceSuite) Test_0_New() {
 func (test *TestInstanceSuite) Test_10_SetRoutes() {
 	s := &test.Suite
 
-	test.routes = key_value.New()
-	test.routeDeps = key_value.New()
+	test.routes = datatype.New()
+	test.routeDeps = datatype.New()
 
 	// Before setting the routes, the instance should have a nil there
 	s.Require().Nil(test.instance0.routes)
@@ -129,7 +130,7 @@ func (test *TestInstanceSuite) Test_10_SetRoutes() {
 func (test *TestInstanceSuite) Test_11_SetClients() {
 	s := &test.Suite
 
-	test.clients = key_value.New()
+	test.clients = datatype.New()
 
 	// Before setting the clients, the instance should have a nil there
 	s.Require().Nil(test.instance0.depClients)
@@ -181,7 +182,7 @@ func (test *TestInstanceSuite) Test_12_Close() {
 	s.Require().NoError(err)
 	err = instanceManager.Connect(config.InstanceUrl(test.instance0.parentId, test.instance0.Id))
 	s.Require().NoError(err)
-	req := message.Request{Command: "close", Parameters: key_value.New().Set("instant", false)}
+	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()
 	s.Require().NoError(err)
 
@@ -215,7 +216,7 @@ func (test *TestInstanceSuite) Test_13_Handle() {
 	err = handleClient.Connect(config.InstanceHandleUrl(test.instance0.parentId, test.instance0.Id))
 	s.Require().NoError(err)
 	for i := 0; i < 2; i++ {
-		req := message.Request{Command: "handle_0", Parameters: key_value.New()}
+		req := message.Request{Command: "handle_0", Parameters: datatype.New()}
 		reqStr, err := req.ZmqEnvelope()
 		s.Require().NoError(err)
 
@@ -231,7 +232,7 @@ func (test *TestInstanceSuite) Test_13_Handle() {
 	s.Require().NoError(err)
 	err = instanceManager.Connect(config.InstanceUrl(test.instance0.parentId, test.instance0.Id))
 	s.Require().NoError(err)
-	req := message.Request{Command: "close", Parameters: key_value.New().Set("instant", false)}
+	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()
 	s.Require().NoError(err)
 
@@ -251,7 +252,7 @@ func (test *TestInstanceSuite) Test_13_Handle() {
 func (test *TestInstanceSuite) Test_14_HandleRouter() {
 	s := &test.Suite
 
-	test.routes = key_value.New()
+	test.routes = datatype.New()
 	test.routes.Set("handle_0", test.handle0)
 	test.routes.Set("handle_1", test.handle1)
 
@@ -278,7 +279,7 @@ func (test *TestInstanceSuite) Test_14_HandleRouter() {
 	err = handleClient.Connect(config.InstanceHandleUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
 	for i := 0; i < 2; i++ {
-		req := message.Request{Command: "handle_0", Parameters: key_value.New()}
+		req := message.Request{Command: "handle_0", Parameters: datatype.New()}
 		reqStr, err := req.ZmqEnvelope()
 		s.Require().NoError(err)
 
@@ -294,7 +295,7 @@ func (test *TestInstanceSuite) Test_14_HandleRouter() {
 	s.Require().NoError(err)
 	err = instanceManager.Connect(config.InstanceUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
-	req := message.Request{Command: "close", Parameters: key_value.New().Set("instant", false)}
+	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()
 	s.Require().NoError(err)
 
@@ -314,7 +315,7 @@ func (test *TestInstanceSuite) Test_14_HandleRouter() {
 func (test *TestInstanceSuite) Test_15_HandleDealer() {
 	s := &test.Suite
 
-	test.routes = key_value.New()
+	test.routes = datatype.New()
 	test.routes.Set("handle_0", test.handle0)
 	test.routes.Set("handle_1", test.handle1)
 
@@ -341,7 +342,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealer() {
 	err = handleClient.Connect(config.InstanceHandleUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
 	for i := 0; i < 2; i++ {
-		req := message.Request{Command: "handle_0", Parameters: key_value.New()}
+		req := message.Request{Command: "handle_0", Parameters: datatype.New()}
 		reqStr, err := req.ZmqEnvelope()
 		s.Require().NoError(err)
 
@@ -357,7 +358,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealer() {
 	s.Require().NoError(err)
 	err = instanceManager.Connect(config.InstanceUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
-	req := message.Request{Command: "close", Parameters: key_value.New().Set("instant", false)}
+	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()
 	s.Require().NoError(err)
 
@@ -377,7 +378,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealer() {
 func (test *TestInstanceSuite) Test_15_HandleDealerRouter() {
 	s := &test.Suite
 
-	test.routes = key_value.New()
+	test.routes = datatype.New()
 	test.routes.Set("handle_0", test.handle0)
 	test.routes.Set("handle_1", test.handle1)
 
@@ -404,7 +405,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealerRouter() {
 	err = handleClient.Connect(config.InstanceHandleUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
 	for i := 0; i < 2; i++ {
-		req := message.Request{Command: "handle_0", Parameters: key_value.New()}
+		req := message.Request{Command: "handle_0", Parameters: datatype.New()}
 		reqStr, err := req.ZmqEnvelope()
 		s.Require().NoError(err)
 
@@ -420,7 +421,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealerRouter() {
 	s.Require().NoError(err)
 	err = instanceManager.Connect(config.InstanceUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
-	req := message.Request{Command: "close", Parameters: key_value.New().Set("instant", false)}
+	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()
 	s.Require().NoError(err)
 

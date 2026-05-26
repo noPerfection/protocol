@@ -5,13 +5,13 @@ import (
 	"io"
 	"sync"
 
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/base"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/handler/base"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/handler_manager"
-	"github.com/sds-framework/protocol/message"
 )
 
 const (
@@ -164,12 +164,12 @@ func (publisher *SDSIn) StartInBg() error {
 func (publisher *SDSIn) setManagerRoutes() error {
 	onStatus := func(req message.RequestInterface) message.ReplyInterface {
 		status := publisher.publisherStatus()
-		params := key_value.New()
+		params := datatype.New()
 		if status == publisherRunning {
 			params.Set("status", handler_manager.Ready)
 		} else {
 			params.Set("status", handler_manager.Incomplete).
-				Set("parts", key_value.New().Set(partPublisher, status))
+				Set("parts", datatype.New().Set(partPublisher, status))
 		}
 		return req.Ok(params)
 	}
@@ -185,7 +185,7 @@ func (publisher *SDSIn) setManagerRoutes() error {
 		if err := publisher.Close(); err != nil {
 			return req.Fail(err.Error())
 		}
-		return req.Ok(key_value.New())
+		return req.Ok(datatype.New())
 	}
 
 	onRunPart := func(req message.RequestInterface) message.ReplyInterface {
@@ -199,7 +199,7 @@ func (publisher *SDSIn) setManagerRoutes() error {
 		if err := publisher.startPublisher(); err != nil {
 			return req.Fail(fmt.Sprintf("sdsin.startPublisher: %v", err))
 		}
-		return req.Ok(key_value.New())
+		return req.Ok(datatype.New())
 	}
 
 	onMessageAmount := func(req message.RequestInterface) message.ReplyInterface {
@@ -210,17 +210,17 @@ func (publisher *SDSIn) setManagerRoutes() error {
 		}
 		publisher.mu.RUnlock()
 
-		return req.Ok(key_value.New().Set("queue_length", queueLength))
+		return req.Ok(datatype.New().Set("queue_length", queueLength))
 	}
 
 	onParts := func(req message.RequestInterface) message.ReplyInterface {
-		return req.Ok(key_value.New().
+		return req.Ok(datatype.New().
 			Set("parts", []string{partPublisher}).
 			Set("message_types", []string{"queue_length"}))
 	}
 
 	onInstanceAmount := func(req message.RequestInterface) message.ReplyInterface {
-		return req.Ok(key_value.New().Set("instance_amount", 0))
+		return req.Ok(datatype.New().Set("instance_amount", 0))
 	}
 
 	onUnsupported := func(req message.RequestInterface) message.ReplyInterface {
@@ -280,7 +280,7 @@ func (publisher *SDSIn) run(handlerConfig *config.Handler, queue <-chan message.
 	for {
 		select {
 		case <-done:
-			publisher.sendRequest(socket, &message.Request{Command: commandEOF, Parameters: key_value.New()})
+			publisher.sendRequest(socket, &message.Request{Command: commandEOF, Parameters: datatype.New()})
 			publisher.closeSocket(socket)
 			return
 		case req := <-queue:
@@ -337,7 +337,7 @@ func (publisher *SDSIn) Close() error {
 func (publisher *SDSIn) Write(p []byte) (int, error) {
 	req := &message.Request{
 		Command:    commandIO,
-		Parameters: key_value.New().Set("row", string(p)),
+		Parameters: datatype.New().Set("row", string(p)),
 	}
 
 	publisher.mu.RLock()

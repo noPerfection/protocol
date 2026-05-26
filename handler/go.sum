@@ -40,10 +40,6 @@ github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJ
 github.com/rivo/uniseg v0.4.4 h1:8TfxU8dW6PdqD27gjM8MVNuicgxIjxpm4K7x4jp8sis=
 github.com/rivo/uniseg v0.4.4/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
 github.com/rogpeppe/go-internal v1.8.1 h1:geMPLpDpQOgVyCg5z5GoRwLHepNdb71NXb67XFkP+Eg=
-github.com/sds-framework/datatype-lib v0.0.0-20260519113206-6acc97659255 h1:+/+8BNEEPRA+pFQF3rOI5UkLrdogjdMj5siRHBo2Yko=
-github.com/sds-framework/datatype-lib v0.0.0-20260519113206-6acc97659255/go.mod h1:QD+naKxneE4a35lVe7sw3qU4gbHBug1Z1WpWQA78780=
-github.com/sds-framework/log-lib v0.0.0-20260519113119-b6fe63f7315e h1:P2moT2MNcMYpzXvos/ZKiKX/wI/n6zCKPoBe/vlTHTk=
-github.com/sds-framework/log-lib v0.0.0-20260519113119-b6fe63f7315e/go.mod h1:ihGbhsnkEwUJBjhfcUwihO9wSXpRx9aEIj8+W6P9Aio=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/wcharczuk/go-chart/v2 v2.1.0/go.mod h1:yx7MvAVNcP/kN9lKXM/NTce4au4DFN99j6i1OwDclNA=

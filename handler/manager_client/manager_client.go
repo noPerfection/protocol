@@ -4,11 +4,11 @@ package manager_client
 
 import (
 	"fmt"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/client"
-	handlerConfig "github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/handler_manager"
-	"github.com/sds-framework/protocol/message"
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/client"
+	handlerConfig "github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/message"
 	"time"
 )
 
@@ -24,7 +24,7 @@ type Interface interface {
 	Attempt(uint8)
 
 	// HandlerStatus of the handler. Return status. If the status is incomplete, then returns part statuses
-	HandlerStatus() (string, key_value.KeyValue, error)
+	HandlerStatus() (string, datatype.KeyValue, error)
 
 	// ClosePart stops the running handler part.
 	// Part could be 'frontend,' 'instance_manager,' optionally a 'broadcaster'
@@ -39,7 +39,7 @@ type Interface interface {
 
 	// MessageAmount returns the messages in each part.
 	// Returns queue_length, processing_length, and optionally broadcasting_length
-	MessageAmount() (key_value.KeyValue, error)
+	MessageAmount() (datatype.KeyValue, error)
 
 	// AddInstance adds a new instance. If successfully added, returns its id.
 	AddInstance() (string, error)
@@ -83,7 +83,7 @@ func (c *Client) Attempt(attempt uint8) {
 func (c *Client) Close() error {
 	req := message.Request{
 		Command:    handlerConfig.HandlerClose,
-		Parameters: key_value.New(),
+		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
@@ -105,7 +105,7 @@ func (c *Client) Close() error {
 func (c *Client) Config() (*handlerConfig.Handler, error) {
 	req := message.Request{
 		Command:    handlerConfig.HandlerConfig,
-		Parameters: key_value.New(),
+		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
@@ -136,10 +136,10 @@ func (c *Client) Id() string {
 
 // HandlerStatus returns the handler status.
 // If the handler is not ready, then optionally returns parts.
-func (c *Client) HandlerStatus() (string, key_value.KeyValue, error) {
+func (c *Client) HandlerStatus() (string, datatype.KeyValue, error) {
 	req := message.Request{
 		Command:    handlerConfig.HandlerStatus,
-		Parameters: key_value.New(),
+		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
@@ -154,7 +154,7 @@ func (c *Client) HandlerStatus() (string, key_value.KeyValue, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("reply.Parameters.GetString('status'): %w", err)
 	}
-	parts := key_value.New()
+	parts := datatype.New()
 	if status != handler_manager.Ready {
 		parts, err = reply.ReplyParameters().NestedValue("parts")
 		if err != nil {
@@ -168,7 +168,7 @@ func (c *Client) HandlerStatus() (string, key_value.KeyValue, error) {
 func (c *Client) Parts() ([]string, []string, error) {
 	req := message.Request{
 		Command:    handlerConfig.Parts,
-		Parameters: key_value.New(),
+		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
@@ -195,7 +195,7 @@ func (c *Client) Parts() ([]string, []string, error) {
 func (c *Client) ClosePart(part string) error {
 	req := message.Request{
 		Command:    handlerConfig.ClosePart,
-		Parameters: key_value.New().Set("part", part),
+		Parameters: datatype.New().Set("part", part),
 	}
 
 	reply, err := c.socket.Request(&req)
@@ -214,7 +214,7 @@ func (c *Client) ClosePart(part string) error {
 func (c *Client) RunPart(part string) error {
 	req := message.Request{
 		Command:    handlerConfig.RunPart,
-		Parameters: key_value.New().Set("part", part),
+		Parameters: datatype.New().Set("part", part),
 	}
 
 	reply, err := c.socket.Request(&req)
@@ -232,7 +232,7 @@ func (c *Client) RunPart(part string) error {
 func (c *Client) InstanceAmount() (uint8, error) {
 	req := message.Request{
 		Command:    handlerConfig.InstanceAmount,
-		Parameters: key_value.New(),
+		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
@@ -253,10 +253,10 @@ func (c *Client) InstanceAmount() (uint8, error) {
 
 // MessageAmount returns the messages in each part.
 // Returns queue_length, processing_length, and optionally broadcasting_length
-func (c *Client) MessageAmount() (key_value.KeyValue, error) {
+func (c *Client) MessageAmount() (datatype.KeyValue, error) {
 	req := message.Request{
 		Command:    handlerConfig.MessageAmount,
-		Parameters: key_value.New(),
+		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
@@ -278,7 +278,7 @@ func (c *Client) MessageAmount() (key_value.KeyValue, error) {
 func (c *Client) AddInstance() (string, error) {
 	req := message.Request{
 		Command:    handlerConfig.AddInstance,
-		Parameters: key_value.New(),
+		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
@@ -301,7 +301,7 @@ func (c *Client) AddInstance() (string, error) {
 func (c *Client) DeleteInstance(instanceId string) error {
 	req := message.Request{
 		Command:    handlerConfig.DeleteInstance,
-		Parameters: key_value.New().Set("instance_id", instanceId),
+		Parameters: datatype.New().Set("instance_id", instanceId),
 	}
 
 	reply, err := c.socket.Request(&req)

@@ -2,15 +2,15 @@ package route
 
 import (
 	"fmt"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/client"
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/client"
 )
 
 // Any route name
 const Any string = "*"
 
 // FilterExtensionClients returns the list of the clients specific for this route
-func FilterExtensionClients(deps []string, clients key_value.KeyValue) []*client.Socket {
+func FilterExtensionClients(deps []string, clients datatype.KeyValue) []*client.Socket {
 	routeClients := make([]*client.Socket, len(deps))
 
 	for i := 0; i < len(deps); i++ {
@@ -38,7 +38,7 @@ func FilterExtensionClients(deps []string, clients key_value.KeyValue) []*client
 // However, we do still return an interface{} as this interface will be a different type of Route.
 //
 // Returns handle func from the func list, returns dependencies list and error
-func Route(cmd string, routeFuncs key_value.KeyValue, routeDeps key_value.KeyValue) (interface{}, []string, error) {
+func Route(cmd string, routeFuncs datatype.KeyValue, routeDeps datatype.KeyValue) (interface{}, []string, error) {
 	var handleInterface interface{}
 	var handleDeps []string
 	var err error

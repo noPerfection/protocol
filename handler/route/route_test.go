@@ -1,12 +1,12 @@
 package route
 
 import (
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/message"
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/message"
 	"testing"
 
+	"github.com/noPerfection/protocol/client"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/protocol/client"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -40,7 +40,7 @@ func (test *TestRouteSuite) Test_0_FilterClients() {
 	dep2 := &client.Socket{}
 	dep3 := &client.Socket{}
 	dep4 := &client.Socket{}
-	clients := key_value.New().Set("dep_1", dep1).Set("dep_3", dep3)
+	clients := datatype.New().Set("dep_1", dep1).Set("dep_3", dep3)
 
 	filtered = FilterExtensionClients(deps, clients)
 	s.Require().Len(filtered, 3)
@@ -59,13 +59,13 @@ func (test *TestRouteSuite) Test_0_FilterClients() {
 
 func (test *TestRouteSuite) Test_1_Route() {
 	s := &test.Suite
-	handlers := key_value.New()
-	deps := key_value.New()
+	handlers := datatype.New()
+	deps := datatype.New()
 	var anyHandle = func(request message.RequestInterface, _ *client.Socket) message.ReplyInterface {
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 	var emptyHandle = func(request message.RequestInterface) message.ReplyInterface {
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 	anyDeps := []string{"dep_1"}
 	cmd := "cmd"

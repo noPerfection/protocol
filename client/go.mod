@@ -1,4 +1,4 @@
-module github.com/sds-framework/protocol/client
+module github.com/noPerfection/protocol/client
 
 go 1.19
 
@@ -12,9 +12,12 @@ require (
 )
 
 require (
+	github.com/noPerfection/datatype v0.0.0
+	github.com/noPerfection/protocol/message v0.0.0
 	github.com/pebbe/zmq4 v1.2.10
-	github.com/sds-framework/datatype-lib v0.0.0-20260519113206-6acc97659255
-	github.com/sds-framework/protocol/message v0.0.0
 )
 
-replace github.com/sds-framework/protocol/message => ../message
+replace (
+	github.com/noPerfection/datatype => ../../datatype
+	github.com/noPerfection/protocol/message => ../message
+)

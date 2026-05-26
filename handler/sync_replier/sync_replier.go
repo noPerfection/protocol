@@ -3,10 +3,10 @@ package sync_replier
 import (
 	"fmt"
 
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/handler/base"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/message"
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/handler/base"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/message"
 )
 
 type SyncReplier struct {
@@ -46,7 +46,7 @@ func (c *SyncReplier) Start() error {
 			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", c.Config().Type, err))
 		}
 
-		params := key_value.New().Set("instance_id", instanceId)
+		params := datatype.New().Set("instance_id", instanceId)
 		return req.Ok(params)
 	}
 

@@ -1,15 +1,16 @@
 package replier
 
 import (
-	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/handler_manager"
-	"github.com/sds-framework/protocol/message"
-	"github.com/stretchr/testify/suite"
 	"testing"
 	"time"
+
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
+	"github.com/stretchr/testify/suite"
 )
 
 // Define the suite, and absorb the built-in basic suite
@@ -104,7 +105,7 @@ func (test *TestReplierSuite) Test_10_Start() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything works
-	req := message.Request{Command: config.HandlerStatus, Parameters: key_value.New()}
+	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
 	reply := test.req(test.managingClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -149,7 +150,7 @@ func (test *TestReplierSuite) Test_11_Request() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything works
-	req := message.Request{Command: config.HandlerStatus, Parameters: key_value.New()}
+	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
 	reply := test.req(test.managingClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -181,7 +182,7 @@ func (test *TestReplierSuite) Test_11_Request() {
 	err = client.Connect(externalUrl)
 	s.Require().NoError(err)
 
-	req = message.Request{Command: "command_1", Parameters: key_value.New()}
+	req = message.Request{Command: "command_1", Parameters: datatype.New()}
 	reply = test.req(client, req)
 	s.Require().True(reply.IsOK())
 

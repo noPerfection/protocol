@@ -2,8 +2,9 @@ package route
 
 import (
 	"fmt"
-	"github.com/sds-framework/protocol/client"
-	"github.com/sds-framework/protocol/message"
+
+	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/message"
 )
 
 type depSock = *client.Socket

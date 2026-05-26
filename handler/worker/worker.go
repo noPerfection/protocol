@@ -3,9 +3,10 @@ package worker
 // Asynchronous replier
 
 import (
-	"github.com/sds-framework/protocol/handler/base"
-	"github.com/sds-framework/protocol/handler/config"
 	"runtime"
+
+	"github.com/noPerfection/protocol/handler/base"
+	"github.com/noPerfection/protocol/handler/config"
 )
 
 // Worker is the socket wrapper for the service.

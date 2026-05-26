@@ -3,10 +3,10 @@ package instance_manager
 
 import (
 	"fmt"
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/message"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 
 // Broadcast that instance manager received a close signal
 func (parent *Parent) pubIdle(closeSignal bool) error {
-	parameters := key_value.New().Set("close", closeSignal)
+	parameters := datatype.New().Set("close", closeSignal)
 	if err := parent.pubEvent(EventIdle, parameters); err != nil {
 		return fmt.Errorf("parent.pubEvent('idle'): %w", err)
 	}
@@ -28,7 +28,7 @@ func (parent *Parent) pubIdle(closeSignal bool) error {
 }
 
 func (parent *Parent) pubReady() error {
-	parameters := key_value.New()
+	parameters := datatype.New()
 	if err := parent.pubEvent(EventReady, parameters); err != nil {
 		return fmt.Errorf("parent.pubEvent('ready'): %w", err)
 	}
@@ -36,7 +36,7 @@ func (parent *Parent) pubReady() error {
 }
 
 func (parent *Parent) pubClose() error {
-	parameters := key_value.New()
+	parameters := datatype.New()
 	if err := parent.pubEvent(EventClose, parameters); err != nil {
 		return fmt.Errorf("parent.pubEvent('ready'): %w", err)
 	}
@@ -44,7 +44,7 @@ func (parent *Parent) pubClose() error {
 }
 
 func (parent *Parent) pubError() error {
-	parameters := key_value.New().Set("message", parent.status)
+	parameters := datatype.New().Set("message", parent.status)
 	if err := parent.pubEvent(EventError, parameters); err != nil {
 		return fmt.Errorf("parent.pubEvent('error'): %w", err)
 	}
@@ -52,7 +52,7 @@ func (parent *Parent) pubError() error {
 }
 
 func (parent *Parent) pubInstanceAdded(id string) error {
-	parameters := key_value.New().Set("id", id)
+	parameters := datatype.New().Set("id", id)
 	if err := parent.pubEvent(EventInstanceAdded, parameters); err != nil {
 		return fmt.Errorf("parent.pubEvent('error'): %w", err)
 	}
@@ -60,14 +60,14 @@ func (parent *Parent) pubInstanceAdded(id string) error {
 }
 
 func (parent *Parent) pubInstanceDeleted(id string) error {
-	parameters := key_value.New().Set("id", id)
+	parameters := datatype.New().Set("id", id)
 	if err := parent.pubEvent(EventInstanceDeleted, parameters); err != nil {
 		return fmt.Errorf("parent.pubEvent('error'): %w", err)
 	}
 	return nil
 }
 
-func (parent *Parent) pubEvent(event string, parameters key_value.KeyValue) error {
+func (parent *Parent) pubEvent(event string, parameters datatype.KeyValue) error {
 	if parent.eventSock == nil {
 		return fmt.Errorf("event sock not set")
 	}

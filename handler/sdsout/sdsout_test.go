@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/message"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -46,7 +46,7 @@ func (test *TestSDSOutSuite) startPublisher() {
 	test.pub = pub
 }
 
-func (test *TestSDSOutSuite) publish(command string, params key_value.KeyValue) {
+func (test *TestSDSOutSuite) publish(command string, params datatype.KeyValue) {
 	s := &test.Suite
 
 	req := &message.Request{Command: command, Parameters: params}
@@ -66,7 +66,7 @@ func (test *TestSDSOutSuite) Test_10_WritesIoRowsToConfiguredWriter() {
 	s.Require().NoError(test.out.StartInBg())
 
 	time.Sleep(time.Millisecond * 100)
-	test.publish("io", key_value.New().Set("row", "hello from sdsin"))
+	test.publish("io", datatype.New().Set("row", "hello from sdsin"))
 
 	s.Eventually(func() bool {
 		return output.String() == "hello from sdsin"
@@ -83,7 +83,7 @@ func (test *TestSDSOutSuite) Test_20_IgnoresNonIoMessages() {
 	s.Require().NoError(test.out.StartInBg())
 
 	time.Sleep(time.Millisecond * 100)
-	test.publish("other", key_value.New().Set("row", "ignored"))
+	test.publish("other", datatype.New().Set("row", "ignored"))
 
 	time.Sleep(time.Millisecond * 50)
 	s.Require().Empty(output.String())
@@ -117,7 +117,7 @@ func (test *TestSDSOutSuite) Test_50_EOFCloseStopsSubscriber() {
 	s.Require().NoError(test.out.StartInBg())
 
 	time.Sleep(time.Millisecond * 100)
-	test.publish("eof", key_value.New())
+	test.publish("eof", datatype.New())
 
 	s.Eventually(func() bool {
 		return test.out.socket == nil

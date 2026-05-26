@@ -1,9 +1,9 @@
 package route
 
 import (
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/client"
-	"github.com/sds-framework/protocol/message"
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/message"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -28,22 +28,22 @@ type TestHandleFuncSuite struct {
 func (test *TestHandleFuncSuite) SetupTest() {
 	// the second argument is invalid
 	handleX := func(request message.RequestInterface, param string) message.ReplyInterface {
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 	handle0 := func(request message.RequestInterface) message.ReplyInterface {
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 	handle1 := func(request message.RequestInterface, _ *client.Socket) message.ReplyInterface {
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 	handle2 := func(request message.RequestInterface, _ *client.Socket, _ *client.Socket) message.ReplyInterface {
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 	handle3 := func(request message.RequestInterface, _ *client.Socket, _ *client.Socket, _ *client.Socket) message.ReplyInterface {
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 	handleN := func(request message.RequestInterface, _ ...*client.Socket) message.ReplyInterface {
-		return request.Ok(key_value.New())
+		return request.Ok(datatype.New())
 	}
 
 	test.handleX = handleX
@@ -68,7 +68,7 @@ func (test *TestHandleFuncSuite) Test_0_DepAmount() {
 func (test *TestHandleFuncSuite) Test_1_Handle() {
 	req := &message.Request{
 		Command:    "ping",
-		Parameters: key_value.New(),
+		Parameters: datatype.New(),
 	}
 
 	deps4 := []*client.Socket{nil, nil, nil, nil}

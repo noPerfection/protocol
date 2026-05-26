@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/noPerfection/datatype"
 )
 
 //
@@ -155,10 +155,10 @@ func (request *RawRequest) CommandName() string {
 }
 
 // RouteParameters returns the parameters if it was a Request
-func (request *RawRequest) RouteParameters() key_value.KeyValue {
+func (request *RawRequest) RouteParameters() datatype.KeyValue {
 	defReq, err := NewReq(request.messages)
 	if err != nil {
-		return key_value.New()
+		return datatype.New()
 	}
 
 	return defReq.RouteParameters()
@@ -314,7 +314,7 @@ func (request *RawRequest) SetUuid() {
 }
 
 // Next creates a new request based on the previous one. It uses the Request.
-func (request *RawRequest) Next(command string, parameters key_value.KeyValue) {
+func (request *RawRequest) Next(command string, parameters datatype.KeyValue) {
 	nextReq := (&Request{Command: command, Parameters: parameters}).String()
 
 	if len(nextReq) > 0 {
@@ -325,7 +325,7 @@ func (request *RawRequest) Next(command string, parameters key_value.KeyValue) {
 // Fail creates a new Reply as a failure
 // It accepts the error message that explains the reason of the failure.
 func (request *RawRequest) Fail(message string) ReplyInterface {
-	defaultReply, _ := (&Reply{Status: FAIL, Message: message, Parameters: key_value.New()}).ZmqEnvelope()
+	defaultReply, _ := (&Reply{Status: FAIL, Message: message, Parameters: datatype.New()}).ZmqEnvelope()
 
 	reply := &RawReply{
 		Uuid:     request.Uuid,
@@ -337,7 +337,7 @@ func (request *RawRequest) Fail(message string) ReplyInterface {
 	return reply
 }
 
-func (request *RawRequest) Ok(parameters key_value.KeyValue) ReplyInterface {
+func (request *RawRequest) Ok(parameters datatype.KeyValue) ReplyInterface {
 	defaultReply, _ := (&Reply{Status: OK, Message: "", Parameters: parameters}).ZmqEnvelope()
 
 	reply := &RawReply{
@@ -398,7 +398,7 @@ func (reply *RawReply) IsOK() bool {
 }
 
 // ReplyParameters returns the parameters if it was a Reply
-func (reply *RawReply) ReplyParameters() key_value.KeyValue {
+func (reply *RawReply) ReplyParameters() datatype.KeyValue {
 	defRep, err := NewRep(reply.messages)
 	if err != nil {
 		return nil

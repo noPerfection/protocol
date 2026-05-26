@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/noPerfection/datatype"
 )
 
 // Reply SDS Service returns the reply. Anyone who sends a request to the SDS Service gets this message.
@@ -14,7 +14,7 @@ type Reply struct {
 	Trace      []*Stack           `json:"traces,omitempty"`
 	Status     ReplyStatus        `json:"status"`     // message.OK or message.FAIL
 	Message    string             `json:"message"`    // If Status is fail, then the field will contain an error message.
-	Parameters key_value.KeyValue `json:"parameters"` // If the Status is OK, then the field will contain the parameters.
+	Parameters datatype.KeyValue `json:"parameters"` // If the Status is OK, then the field will contain the parameters.
 	conId      string
 }
 
@@ -25,9 +25,9 @@ func NewEmptyReply() ReplyInterface {
 // NewRep decodes Zeromq messages into Reply.
 func NewRep(messages []string) (ReplyInterface, error) {
 	msg := JoinMessages(messages)
-	data, err := key_value.NewFromString(msg)
+	data, err := datatype.NewFromString(msg)
 	if err != nil {
-		return nil, fmt.Errorf("key_value.NewFromString: %w", err)
+		return nil, fmt.Errorf("datatype.NewFromString: %w", err)
 	}
 
 	var reply Reply
@@ -49,7 +49,7 @@ func (reply *Reply) ErrorMessage() string {
 	return reply.Message
 }
 
-func (reply *Reply) ReplyParameters() key_value.KeyValue {
+func (reply *Reply) ReplyParameters() datatype.KeyValue {
 	return reply.Parameters
 }
 
@@ -120,7 +120,7 @@ func (reply *Reply) Bytes() ([]byte, error) {
 		return nil, fmt.Errorf("status validation: %w", err)
 	}
 
-	kv, err := key_value.NewFromInterface(reply)
+	kv, err := datatype.NewFromInterface(reply)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize Reply to key-value: %v", err)
 	}

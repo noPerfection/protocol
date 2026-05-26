@@ -1,8 +1,8 @@
 package publisher
 
 import (
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/trigger"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/trigger"
 )
 
 type Publisher struct {

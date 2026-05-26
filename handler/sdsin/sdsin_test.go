@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/message"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -48,7 +48,7 @@ func (test *TestSDSInSuite) TearDownTest() {
 		s.Require().NoError(test.publisher.Close())
 	}
 	if test.publisher != nil && test.publisher.Manager != nil {
-		req := &message.Request{Command: config.HandlerClose, Parameters: key_value.New()}
+		req := &message.Request{Command: config.HandlerClose, Parameters: datatype.New()}
 		test.publisher.Manager.SetClose(req)
 		time.Sleep(time.Millisecond * 20)
 	}

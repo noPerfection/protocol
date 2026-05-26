@@ -1,7 +1,7 @@
 package message
 
 import (
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
+	"github.com/noPerfection/datatype"
 )
 
 // RequestInterface generic requests
@@ -25,15 +25,15 @@ type RequestInterface interface {
 	ZmqEnvelope() ([]string, error)
 	SetUuid()
 	// Next creates a new request based on the previous one.
-	Next(command string, parameters key_value.KeyValue)
+	Next(command string, parameters datatype.KeyValue)
 	// Fail creates a new Reply as a failure
 	// It accepts the error message that explains the reason of the failure.
 	Fail(message string) ReplyInterface
-	Ok(parameters key_value.KeyValue) ReplyInterface
+	Ok(parameters datatype.KeyValue) ReplyInterface
 	Traces() []*Stack
 	SetMeta(map[string]string)
 	CommandName() string
-	RouteParameters() key_value.KeyValue
+	RouteParameters() datatype.KeyValue
 }
 
 type ReplyInterface interface {
@@ -52,5 +52,5 @@ type ReplyInterface interface {
 	Bytes() ([]byte, error)
 	Traces() []*Stack
 	ErrorMessage() string
-	ReplyParameters() key_value.KeyValue
+	ReplyParameters() datatype.KeyValue
 }

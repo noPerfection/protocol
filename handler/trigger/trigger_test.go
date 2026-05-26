@@ -1,19 +1,20 @@
 package trigger
 
 import (
-	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/client"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/frontend"
-	"github.com/sds-framework/protocol/handler/instance_manager"
-	"github.com/sds-framework/protocol/handler/manager_client"
-	"github.com/sds-framework/protocol/message"
-	"github.com/stretchr/testify/suite"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/frontend"
+	"github.com/noPerfection/protocol/handler/instance_manager"
+	"github.com/noPerfection/protocol/handler/manager_client"
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
+	"github.com/stretchr/testify/suite"
 )
 
 // Define the suite, and absorb the built-in basic suite
@@ -145,7 +146,7 @@ func (test *TestTriggerSuite) Test_14_Start() {
 	s.Require().Len(test.handler.Handler.InstanceManager.Instances(), 1)
 
 	// trigger a message
-	req := message.Request{Command: "hello", Parameters: key_value.New().Set("number", 1)}
+	req := message.Request{Command: "hello", Parameters: datatype.New().Set("number", 1)}
 
 	err = test.trigger.Submit(&req)
 	s.Require().NoError(err)

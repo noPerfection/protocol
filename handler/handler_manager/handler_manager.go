@@ -3,15 +3,16 @@ package handler_manager
 
 import (
 	"fmt"
-	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/frontend"
-	instances "github.com/sds-framework/protocol/handler/instance_manager"
-	"github.com/sds-framework/protocol/handler/route"
-	"github.com/sds-framework/protocol/message"
 	"time"
+
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/frontend"
+	instances "github.com/noPerfection/protocol/handler/instance_manager"
+	"github.com/noPerfection/protocol/handler/route"
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
 )
 
 const (
@@ -27,9 +28,9 @@ type HandlerManager struct {
 	instanceManager      *instances.Parent
 	startInstanceManager func() error
 	config               *config.Handler
-	routes               key_value.KeyValue
-	routeDeps            key_value.KeyValue
-	depClients           key_value.KeyValue
+	routes               datatype.KeyValue
+	routeDeps            datatype.KeyValue
+	depClients           datatype.KeyValue
 	status               string // It's the socket status, not the handler status
 	close                bool
 }
@@ -42,9 +43,9 @@ func New(parent *log.Logger, frontend *frontend.Frontend, instanceManager *insta
 		frontend:             frontend,
 		instanceManager:      instanceManager,
 		startInstanceManager: startInstanceManager,
-		routes:               key_value.New(),
-		routeDeps:            key_value.New(),
-		depClients:           key_value.New(),
+		routes:               datatype.New(),
+		routeDeps:            datatype.New(),
+		depClients:           datatype.New(),
 		status:               SocketIdle,
 		logger:               logger,
 	}
@@ -68,11 +69,11 @@ func (m *HandlerManager) Status() string {
 // PartStatuses returns statuses of the base handler parts.
 //
 // Intended to be used by the extending handlers.
-func (m *HandlerManager) PartStatuses() key_value.KeyValue {
+func (m *HandlerManager) PartStatuses() datatype.KeyValue {
 	frontendStatus := m.frontend.Status()
 	instanceStatus := m.instanceManager.Status()
 
-	parts := key_value.New().
+	parts := datatype.New().
 		Set("frontend", frontendStatus).
 		Set("instance_manager", instanceStatus)
 
@@ -83,7 +84,7 @@ func (m *HandlerManager) PartStatuses() key_value.KeyValue {
 func (m *HandlerManager) SetClose(req message.RequestInterface) message.ReplyInterface {
 	m.close = true
 
-	return req.Ok(key_value.New())
+	return req.Ok(datatype.New())
 }
 
 // setRoutes sets the default command handlers
@@ -93,12 +94,12 @@ func (m *HandlerManager) setRoutes() {
 		frontendStatus := m.frontend.Status()
 		instanceStatus := m.instanceManager.Status()
 
-		params := key_value.New()
+		params := datatype.New()
 
 		if frontendStatus == frontend.RUNNING && instanceStatus == instances.Running {
 			params.Set("status", Ready)
 		} else {
-			parts := key_value.New().
+			parts := datatype.New().
 				Set("frontend", frontendStatus).
 				Set("instance_manager", instanceStatus)
 
@@ -124,14 +125,14 @@ func (m *HandlerManager) setRoutes() {
 				if err := m.frontend.Close(); err != nil {
 					return req.Fail(fmt.Sprintf("failed to close the frontend: %v", err))
 				}
-				return req.Ok(key_value.New())
+				return req.Ok(datatype.New())
 			}
 		} else if part == "instance_manager" {
 			if m.instanceManager.Status() != instances.Running {
 				return req.Fail("instance_manager not running")
 			} else {
 				m.instanceManager.Close()
-				return req.Ok(key_value.New())
+				return req.Ok(datatype.New())
 			}
 		} else {
 			return req.Fail(fmt.Sprintf("unknown part '%s' to stop", part))
@@ -152,7 +153,7 @@ func (m *HandlerManager) setRoutes() {
 				if err != nil {
 					return req.Fail(fmt.Sprintf("frontend.Start: %v", err))
 				}
-				return req.Ok(key_value.New())
+				return req.Ok(datatype.New())
 			}
 		} else if part == "instance_manager" {
 			if m.instanceManager.Status() == instances.Running {
@@ -162,7 +163,7 @@ func (m *HandlerManager) setRoutes() {
 				if err != nil {
 					return req.Fail(fmt.Sprintf("m.startInstanceManager: %v", err))
 				}
-				return req.Ok(key_value.New())
+				return req.Ok(datatype.New())
 			}
 		} else {
 			return req.Fail(fmt.Sprintf("unknown part '%s' to stop", part))
@@ -171,12 +172,12 @@ func (m *HandlerManager) setRoutes() {
 
 	onInstanceAmount := func(req message.RequestInterface) message.ReplyInterface {
 		instanceAmount := len(m.instanceManager.Instances())
-		return req.Ok(key_value.New().Set("instance_amount", instanceAmount))
+		return req.Ok(datatype.New().Set("instance_amount", instanceAmount))
 	}
 
 	// Returns queue amount and currently processed images amount
 	onMessageAmount := func(req message.RequestInterface) message.ReplyInterface {
-		params := key_value.New().
+		params := datatype.New().
 			Set("queue_length", m.frontend.QueueLen()).
 			Set("processing_length", m.frontend.ProcessingLen())
 		return req.Ok(params)
@@ -189,7 +190,7 @@ func (m *HandlerManager) setRoutes() {
 			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", m.config.Type, err))
 		}
 
-		params := key_value.New().Set("instance_id", instanceId)
+		params := datatype.New().Set("instance_id", instanceId)
 		return req.Ok(params)
 	}
 
@@ -205,7 +206,7 @@ func (m *HandlerManager) setRoutes() {
 			return req.Fail(fmt.Sprintf("instanceManager.DeleteInstance('%s'): %v", instanceId, err))
 		}
 
-		return req.Ok(key_value.New())
+		return req.Ok(datatype.New())
 	}
 
 	onParts := func(req message.RequestInterface) message.ReplyInterface {
@@ -218,7 +219,7 @@ func (m *HandlerManager) setRoutes() {
 			"processing_length",
 		}
 
-		params := key_value.New().
+		params := datatype.New().
 			Set("parts", parts).
 			Set("message_types", messageTypes)
 
@@ -226,7 +227,7 @@ func (m *HandlerManager) setRoutes() {
 	}
 
 	onConfig := func(req message.RequestInterface) message.ReplyInterface {
-		params := key_value.New().Set("config", m.config)
+		params := datatype.New().Set("config", m.config)
 		return req.Ok(params)
 	}
 
@@ -379,7 +380,7 @@ func (m *HandlerManager) Start() error {
 		partsHandle := m.routes[config.Parts].(func(message.RequestInterface) message.ReplyInterface)
 		closeHandle := m.routes[config.ClosePart].(func(message.RequestInterface) message.ReplyInterface)
 
-		defReq := message.Request{Command: config.Parts, Parameters: key_value.New()}
+		defReq := message.Request{Command: config.Parts, Parameters: datatype.New()}
 		var req message.RequestInterface = &defReq
 
 		partsReply := partsHandle(req)

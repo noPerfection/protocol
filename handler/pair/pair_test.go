@@ -1,8 +1,9 @@
 package pair
 
 import (
-	"github.com/sds-framework/protocol/handler/config"
 	"testing"
+
+	"github.com/noPerfection/protocol/handler/config"
 
 	"github.com/stretchr/testify/suite"
 )

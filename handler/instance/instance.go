@@ -3,14 +3,15 @@ package instance
 import (
 	"context"
 	"fmt"
-	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	"github.com/sds-framework/protocol/client"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/route"
-	"github.com/sds-framework/protocol/message"
 	"time"
+
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/route"
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
 )
 
 const (
@@ -39,9 +40,9 @@ type Instance struct {
 	Id          string
 	parentId    string
 	handlerType config.HandlerType
-	routes      *key_value.KeyValue // handler routing
-	routeDeps   *key_value.KeyValue // handler deps
-	depClients  *key_value.KeyValue
+	routes      *datatype.KeyValue // handler routing
+	routeDeps   *datatype.KeyValue // handler deps
+	depClients  *datatype.KeyValue
 	messageOps  *message.Operations
 	logger      *log.Logger
 	close       bool
@@ -91,13 +92,13 @@ func (c *Instance) replyError(socket *zmq.Socket, err error) error {
 }
 
 // SetRoutes set the reference to the functions and dependencies from the Handler.
-func (c *Instance) SetRoutes(routes *key_value.KeyValue, routeDeps *key_value.KeyValue) {
+func (c *Instance) SetRoutes(routes *datatype.KeyValue, routeDeps *datatype.KeyValue) {
 	c.routes = routes
 	c.routeDeps = routeDeps
 }
 
 // SetClients set the reference to the socket clients
-func (c *Instance) SetClients(clients *key_value.KeyValue) {
+func (c *Instance) SetClients(clients *datatype.KeyValue) {
 	c.depClients = clients
 }
 
@@ -118,7 +119,7 @@ func (c *Instance) Status() string {
 // pubStatus notifies instance manager with the status of this Instance.
 func (c *Instance) pubStatus(parent *zmq.Socket, status string) error {
 	req := c.messageOps.EmptyReq()
-	req.Next("set_status", key_value.New().Set("id", c.Id).Set("status", status))
+	req.Next("set_status", datatype.New().Set("id", c.Id).Set("status", status))
 
 	reqStr, err := req.ZmqEnvelope()
 	if err != nil {
@@ -136,7 +137,7 @@ func (c *Instance) pubStatus(parent *zmq.Socket, status string) error {
 // pubFail notifies instance manager that this Instance crashed
 func (c *Instance) pubFail(parent *zmq.Socket, instanceErr error) error {
 	req := c.messageOps.EmptyReq()
-	key_value.New().Set("id", c.Id).Set("status", CLOSED).Set("message", instanceErr.Error())
+	datatype.New().Set("id", c.Id).Set("status", CLOSED).Set("message", instanceErr.Error())
 
 	reqStr, err := req.ZmqEnvelope()
 	if err != nil {
@@ -337,7 +338,7 @@ func (c *Instance) Start() error {
 						// the close parameter is set to true after reply the message back.
 						// otherwise, the socket may be closed while the requester is waiting for a reply message.
 						// it could leave to the app froze-up.
-						reply := &message.Reply{Status: message.OK, Parameters: key_value.New(), Message: ""}
+						reply := &message.Reply{Status: message.OK, Parameters: datatype.New(), Message: ""}
 						if err := c.reply(manager, reply); err != nil {
 							failErr := fmt.Errorf("c.reply('manager'): %w", err)
 							pubErr := c.pubFail(parent, failErr)

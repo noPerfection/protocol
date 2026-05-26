@@ -3,9 +3,9 @@ package client
 
 import (
 	"fmt"
-	"github.com/sds-framework/datatype-lib/data_type"
-	"github.com/sds-framework/protocol/client/config"
-	"github.com/sds-framework/protocol/message"
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/protocol/message"
 	"os"
 	"time"
 
@@ -43,7 +43,7 @@ type Socket struct {
 	socketType zmq.Type
 	target     zmq.Type
 	config     *config.Client
-	queue      *data_type.Queue
+	queue      *datatype.Queue
 	sent       uint64
 	messageOps *message.Operations // client translates the message before and after transmitting using message operations.
 }
@@ -75,7 +75,7 @@ func NewRaw(target zmq.Type, url string) (*Socket, error) {
 		socketType: socketType,
 		url:        url,
 		config:     nil,
-		queue:      data_type.NewQueue(),
+		queue:      datatype.NewQueue(),
 		schedulers: zmq.NewReactor(),
 		consumerId: 0,
 		sent:       1,

@@ -3,18 +3,17 @@ package trigger
 import (
 	"fmt"
 
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	clientConfig "github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/protocol/handler/base"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/frontend"
+	"github.com/noPerfection/protocol/handler/handler_manager"
+	instances "github.com/noPerfection/protocol/handler/instance_manager"
+	"github.com/noPerfection/protocol/handler/route"
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	clientConfig "github.com/sds-framework/protocol/client/config"
-	"github.com/sds-framework/protocol/handler/base"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/frontend"
-	"github.com/sds-framework/protocol/handler/handler_manager"
-	instances "github.com/sds-framework/protocol/handler/instance_manager"
-	"github.com/sds-framework/protocol/handler/route"
-	"github.com/sds-framework/protocol/message"
 )
 
 const (
@@ -31,7 +30,7 @@ type Trigger struct {
 	id           string
 	logger       *log.Logger
 	handlerType  config.HandlerType
-	broadcasting *data_type.Queue
+	broadcasting *datatype.Queue
 }
 
 // New trigger-able handler
@@ -40,7 +39,7 @@ func New() *Trigger {
 		Handler:      base.New(),
 		closePub:     false,
 		socket:       nil,
-		broadcasting: data_type.NewQueue(),
+		broadcasting: datatype.NewQueue(),
 	}
 	return handler
 }
@@ -158,7 +157,7 @@ func (handler *Trigger) onTrigger(req message.RequestInterface) message.ReplyInt
 
 	handler.broadcasting.Push(req)
 
-	return req.Ok(key_value.New())
+	return req.Ok(datatype.New())
 }
 
 func (handler *Trigger) broadcasterStatus() string {
@@ -200,7 +199,7 @@ func (handler *Trigger) Start() error {
 		}
 		broadcasterStatus := handler.broadcasterStatus()
 
-		params := key_value.New()
+		params := datatype.New()
 
 		if frontendStatus == frontend.RUNNING &&
 			instanceStatus == instances.Running &&
@@ -226,7 +225,7 @@ func (handler *Trigger) Start() error {
 			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", m.Config().Type, err))
 		}
 
-		params := key_value.New().Set("instance_id", instanceId)
+		params := datatype.New().Set("instance_id", instanceId)
 		return req.Ok(params)
 	}
 	onClose := func(req message.RequestInterface) message.ReplyInterface {
@@ -243,18 +242,18 @@ func (handler *Trigger) Start() error {
 				if err := m.Frontend.Close(); err != nil {
 					return req.Fail(fmt.Sprintf("failed to close the frontend: %v", err))
 				}
-				return req.Ok(key_value.New())
+				return req.Ok(datatype.New())
 			}
 		case "instance_manager":
 			if m.InstanceManager.Status() != instances.Running {
 				return req.Fail("instance manager not running")
 			} else {
 				m.InstanceManager.Close()
-				return req.Ok(key_value.New())
+				return req.Ok(datatype.New())
 			}
 		case "broadcaster":
 			handler.closePub = true
-			return req.Ok(key_value.New())
+			return req.Ok(datatype.New())
 		default:
 			return req.Fail(fmt.Sprintf("unknown part '%s' to stop", part))
 		}
@@ -273,7 +272,7 @@ func (handler *Trigger) Start() error {
 				if err != nil {
 					return req.Fail(fmt.Sprintf("m.Frontend.Start: %v", err))
 				}
-				return req.Ok(key_value.New())
+				return req.Ok(datatype.New())
 			}
 		} else if part == "instance_manager" {
 			if m.InstanceManager.Status() == instances.Running {
@@ -283,20 +282,20 @@ func (handler *Trigger) Start() error {
 				if err != nil {
 					return req.Fail(fmt.Sprintf("base.StartInstanceManager: %v", err))
 				}
-				return req.Ok(key_value.New())
+				return req.Ok(datatype.New())
 			}
 		} else if part == "broadcaster" {
 			err := handler.startBroadcaster()
 			if err != nil {
 				return req.Fail(fmt.Sprintf("trigger.startBroadcaster: %v", err))
 			}
-			return req.Ok(key_value.New())
+			return req.Ok(datatype.New())
 		} else {
 			return req.Fail(fmt.Sprintf("unknown part '%s' to stop", part))
 		}
 	}
 	onMessageAmount := func(req message.RequestInterface) message.ReplyInterface {
-		params := key_value.New().
+		params := datatype.New().
 			Set("queue_length", m.Frontend.QueueLen()).
 			Set("processing_length", m.Frontend.ProcessingLen()).
 			Set("broadcasting_length", handler.broadcasting.Len())
@@ -315,7 +314,7 @@ func (handler *Trigger) Start() error {
 			"broadcasting_length",
 		}
 
-		params := key_value.New().
+		params := datatype.New().
 			Set("parts", parts).
 			Set("message_types", messageTypes)
 

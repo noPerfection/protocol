@@ -3,13 +3,12 @@ package frontend
 
 import (
 	"fmt"
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/instance_manager"
+	"github.com/noPerfection/protocol/handler/pair"
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/instance_manager"
-	"github.com/sds-framework/protocol/handler/pair"
-	"github.com/sds-framework/protocol/message"
 	"time"
 )
 
@@ -26,8 +25,8 @@ type Frontend struct {
 	paired          bool
 	instanceType    config.HandlerType
 	externalConfig  *config.Handler
-	queue           *data_type.Queue
-	processing      *key_value.List // Tracking messages processed by the instances
+	queue           *datatype.Queue
+	processing      *datatype.List // Tracking messages processed by the instances
 	instanceManager *instance_manager.Parent
 	consumerId      uint64
 	close           bool
@@ -40,8 +39,8 @@ func New() *Frontend {
 		status:          CREATED,
 		paired:          false,
 		externalConfig:  nil,
-		queue:           data_type.NewQueue(),
-		processing:      key_value.NewList(),
+		queue:           datatype.NewQueue(),
+		processing:      datatype.NewList(),
 		instanceManager: nil,
 		consumerId:      0,
 		close:           false,
@@ -279,7 +278,7 @@ func (f *Frontend) Close() error {
 			}
 		}
 
-		f.processing = key_value.NewList()
+		f.processing = datatype.NewList()
 	}
 
 	return nil

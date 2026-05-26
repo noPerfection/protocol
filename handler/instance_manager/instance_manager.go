@@ -3,17 +3,18 @@ package instance_manager
 
 import (
 	"fmt"
-	zmq "github.com/pebbe/zmq4"
-	"github.com/sds-framework/datatype-lib/data_type/key_value"
-	"github.com/sds-framework/log-lib"
-	clientConfig "github.com/sds-framework/protocol/client/config"
-	"github.com/sds-framework/protocol/handler/config"
-	"github.com/sds-framework/protocol/handler/instance"
-	"github.com/sds-framework/protocol/message"
 	"time"
+
+	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/log"
+	clientConfig "github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/instance"
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
 )
 
-type kvRef = *key_value.KeyValue
+type kvRef = *datatype.KeyValue
 
 const (
 	InstanceCreated = "created" // Instance is created, but not initialized yet. Used for child instances
@@ -123,7 +124,7 @@ func (parent *Parent) onInstanceStatus(req message.RequestInterface) message.Rep
 		parent.instances[instanceId].status = status
 	}
 
-	return req.Ok(key_value.New())
+	return req.Ok(datatype.New())
 }
 
 // newPullSocket returns a socket that receives the instance status created by this Parent.
@@ -416,7 +417,7 @@ func (parent *Parent) DeleteInstance(instanceId string, instant bool) error {
 
 	req := message.Request{
 		Command:    "close",
-		Parameters: key_value.New().Set("instant", instant),
+		Parameters: datatype.New().Set("instant", instant),
 	}
 	reqStr, err := req.ZmqEnvelope()
 	if err != nil {
