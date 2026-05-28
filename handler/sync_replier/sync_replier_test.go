@@ -123,7 +123,7 @@ func (test *TestSyncReplierSuite) Test_10_Start() {
 
 	// By default, the handler creates a socket.
 	// Trying to add a new socket, it will throw an error
-	s.Require().Len(test.syncReplier.InstanceManager.Instances(), 1)
+	s.Require().NotNil(test.syncReplier.instance)
 
 	// Adding a new instance must fail
 	req.Command = config.AddInstance

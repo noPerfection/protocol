@@ -27,7 +27,7 @@ type TestHandlerManagerSuite struct {
 
 	handlerManager *HandlerManager
 
-	inprocConfig *config.Handler
+	inprocConfig *config.Concurrent
 	inprocClient *zmq.Socket
 	logger       *log.Logger
 	routes       datatype.KeyValue
@@ -38,7 +38,7 @@ type TestHandlerManagerSuite struct {
 func (test *TestHandlerManagerSuite) SetupTest() {
 	s := &test.Suite
 
-	test.inprocConfig = config.NewInternalHandler(config.SyncReplierType, "test", "test")
+	test.inprocConfig = config.NewInternalConcurrent(config.SyncReplierType, "test", "test")
 
 	logger, err := log.New("handler", false)
 	test.Suite.Require().NoError(err, "failed to create logger")

@@ -19,10 +19,10 @@ import (
 // returns the current testing orchestra
 type TestBaseHandlerSuite struct {
 	suite.Suite
-	tcpHandler    *Handler
-	inprocHandler *Handler
-	tcpConfig     *config.Handler
-	inprocConfig  *config.Handler
+	tcpHandler    *Concurrent
+	inprocHandler *Concurrent
+	tcpConfig     *config.Concurrent
+	inprocConfig  *config.Concurrent
 	tcpClient     *client.Socket
 	inprocClient  *client.Socket
 	logger        *log.Logger
@@ -40,8 +40,8 @@ func (test *TestBaseHandlerSuite) SetupTest() {
 	test.Suite.Require().NoError(err, "failed to create logger")
 	test.logger = logger
 
-	test.tcpHandler = New()
-	test.inprocHandler = New()
+	test.tcpHandler = NewConcurrent()
+	test.inprocHandler = NewConcurrent()
 
 	// Socket to talk to clients
 	test.routes = make(map[string]interface{}, 2)
@@ -57,8 +57,8 @@ func (test *TestBaseHandlerSuite) SetupTest() {
 	err = test.inprocHandler.Route("command_2", test.routes["command_2"])
 	s.Require().NoError(err)
 
-	test.inprocConfig = config.NewInternalHandler(config.SyncReplierType, "test", "test")
-	test.tcpConfig = config.NewHandler(config.SyncReplierType, "localhost", "test", 6000)
+	test.inprocConfig = config.NewInternalConcurrent(config.SyncReplierType, "test", "test")
+	test.tcpConfig = config.NewConcurrent(config.SyncReplierType, "localhost", "test", 6000)
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.inprocHandler.SetLogger(test.logger))
@@ -148,7 +148,7 @@ func (test *TestBaseHandlerSuite) Test_14_Start() {
 	s.Require().Equal(test.inprocHandler.Frontend.Status(), frontend.RUNNING)
 
 	// Now let's close it
-	inprocClient, err := manager_client.New(test.inprocConfig)
+	inprocClient, err := manager_client.New(test.inprocConfig.Handler)
 	s.Require().NoError(err)
 	s.Require().NoError(inprocClient.Close())
 

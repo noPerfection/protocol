@@ -27,7 +27,7 @@ type HandlerManager struct {
 	frontend             *frontend.Frontend
 	instanceManager      *instances.Parent
 	startInstanceManager func() error
-	config               *config.Handler
+	config               *config.Concurrent
 	routes               datatype.KeyValue
 	status               string // It's the socket status, not the handler status
 	close                bool
@@ -53,7 +53,7 @@ func New(parent *log.Logger, frontend *frontend.Frontend, instanceManager *insta
 }
 
 // SetConfig sets the link to the configuration of the handler
-func (m *HandlerManager) SetConfig(config *config.Handler) {
+func (m *HandlerManager) SetConfig(config *config.Concurrent) {
 	m.config = config
 }
 

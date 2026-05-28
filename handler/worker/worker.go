@@ -11,22 +11,22 @@ import (
 
 // Worker is the socket wrapper for the service.
 type Worker struct {
-	*base.Handler
+	*base.Concurrent
 	maxInstanceAmount int
 }
 
 // New asynchronous replying handler.
 func New() *Worker {
 	return &Worker{
-		Handler:           base.New(),
+		Concurrent:        base.NewConcurrent(),
 		maxInstanceAmount: runtime.NumCPU(),
 	}
 }
 
 // SetConfig adds the parameters of the handler from the config.
-func (c *Worker) SetConfig(handler *config.Handler) {
+func (c *Worker) SetConfig(handler *config.Concurrent) {
 	handler.Type = config.WorkerType
-	c.Handler.SetConfig(handler)
+	c.Concurrent.SetConfig(handler)
 }
 
 // Type returns the handler type. If the configuration is not set, returns config.UnknownType.

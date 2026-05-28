@@ -19,7 +19,7 @@ import (
 type TestReplierSuite struct {
 	suite.Suite
 	replier        *Replier
-	handlerConfig  *config.Handler
+	handlerConfig  *config.Concurrent
 	managingClient *zmq.Socket
 	logger         *log.Logger
 	routes         map[string]interface{}
@@ -49,7 +49,7 @@ func (test *TestReplierSuite) SetupTest() {
 	err = test.replier.Route("command_2", test.routes["command_2"])
 	s.Require().NoError(err)
 
-	test.handlerConfig = config.NewInternalHandler(config.ReplierType, "test", "test")
+	test.handlerConfig = config.NewInternalConcurrent(config.ReplierType, "test", "test")
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.replier.SetLogger(test.logger))

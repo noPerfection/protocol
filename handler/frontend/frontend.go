@@ -24,7 +24,7 @@ type Frontend struct {
 	status          string
 	paired          bool
 	instanceType    config.HandlerType
-	externalConfig  *config.Handler
+	externalConfig  *config.Concurrent
 	queue           *datatype.Queue
 	processing      *datatype.List // Tracking messages processed by the instances
 	instanceManager *instance_manager.Parent
@@ -47,10 +47,14 @@ func New() *Frontend {
 	}
 }
 
-func (f *Frontend) SetConfig(externalConfig *config.Handler) {
+func (f *Frontend) SetConfig(externalConfig *config.Concurrent) {
 	if f.paired {
 		f.instanceType = externalConfig.Type
-		f.externalConfig = pair.Config(externalConfig)
+		paired := pair.Config(externalConfig.Handler)
+		f.externalConfig = &config.Concurrent{
+			Handler:        paired,
+			InstanceAmount: externalConfig.InstanceAmount,
+		}
 	} else {
 		f.externalConfig = externalConfig
 	}
@@ -297,7 +301,11 @@ func (f *Frontend) PairExternal() error {
 
 	f.instanceType = f.externalConfig.Type
 	// frontend uses the paired config while paired interface will use external config.
-	f.externalConfig = pair.Config(f.externalConfig)
+	paired := pair.Config(f.externalConfig.Handler)
+	f.externalConfig = &config.Concurrent{
+		Handler:        paired,
+		InstanceAmount: f.externalConfig.InstanceAmount,
+	}
 	f.paired = true
 
 	return nil

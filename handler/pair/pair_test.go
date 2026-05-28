@@ -18,15 +18,12 @@ type TestPairSuite struct {
 }
 
 func (test *TestPairSuite) SetupTest() {
-	externalConfig := &config.Handler{
-		Type:           config.ReplierType,
-		Category:       "external_main",
-		InstanceAmount: 1,
-		Port:           100,
-		Id:             "external_1",
+	test.externalConfig = &config.Handler{
+		Type:     config.ReplierType,
+		Category: "external_main",
+		Port:     100,
+		Id:       "external_1",
 	}
-
-	test.externalConfig = externalConfig
 }
 
 // Test_0_Config tests converting external configuration to the pair type
@@ -37,7 +34,6 @@ func (test *TestPairSuite) Test_0_Config() {
 	s().Equal(config.PairType, pairConfig.Type)
 	s().Equal(test.externalConfig.Id+"_pair", pairConfig.Id)
 	s().Equal(test.externalConfig.Category+"_pair", pairConfig.Category)
-	s().Equal(test.externalConfig.InstanceAmount, pairConfig.InstanceAmount)
 	s().Zero(pairConfig.Port)
 }
 

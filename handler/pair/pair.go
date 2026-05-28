@@ -12,11 +12,10 @@ import (
 // Config converts the external handler config into the paired one
 func Config(originalConfig *config.Handler) *config.Handler {
 	pairConfig := &config.Handler{
-		Type:           config.PairType,
-		Category:       originalConfig.Category + "_pair",
-		Id:             originalConfig.Id + "_pair",
-		InstanceAmount: originalConfig.InstanceAmount,
-		Port:           0,
+		Type:     config.PairType,
+		Category: originalConfig.Category + "_pair",
+		Id:       originalConfig.Id + "_pair",
+		Port:     0,
 	}
 	return pairConfig
 }

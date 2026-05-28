@@ -2,15 +2,15 @@ package trigger
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	clientConfig "github.com/noPerfection/protocol/client/config"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/frontend"
 	"github.com/noPerfection/protocol/handler/handler_manager"
-	instances "github.com/noPerfection/protocol/handler/instance_manager"
+	"github.com/noPerfection/protocol/handler/instance"
 	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -26,11 +26,15 @@ type Trigger struct {
 	*base.Handler
 	socket       *zmq.Socket
 	closePub     bool
+	close        bool
 	port         uint64
 	id           string
 	logger       *log.Logger
 	handlerType  config.HandlerType
 	broadcasting *datatype.Queue
+	instance     *instance.Instance
+	messageOps   *message.Operations
+	status       string
 }
 
 // New trigger-able handler
@@ -38,8 +42,10 @@ func New() *Trigger {
 	handler := &Trigger{
 		Handler:      base.New(),
 		closePub:     false,
+		close:        false,
 		socket:       nil,
 		broadcasting: datatype.NewQueue(),
+		messageOps:   message.DefaultMessage(),
 	}
 	return handler
 }
@@ -73,8 +79,6 @@ func (handler *Trigger) Config() *config.Trigger {
 }
 
 // SetConfig adds the parameters of the handler from the config.
-//
-// Sets Frontend configuration as well.
 func (handler *Trigger) SetConfig(trigger *config.Trigger) {
 	// The broadcaster
 	handler.port = trigger.BroadcastPort
@@ -88,9 +92,12 @@ func (handler *Trigger) SetConfig(trigger *config.Trigger) {
 }
 
 func (handler *Trigger) SetLogger(logger *log.Logger) error {
-	handler.logger = logger
+	if err := handler.Handler.SetLogger(logger); err != nil {
+		return err
+	}
+	handler.logger = logger.Child(handler.Config().Id)
 
-	return handler.Handler.SetLogger(logger)
+	return nil
 }
 
 // startBroadcaster creates a socket that will be linked by the user
@@ -167,186 +174,291 @@ func (handler *Trigger) broadcasterStatus() string {
 	return BroadcasterRunning
 }
 
+func (handler *Trigger) Status() string {
+	return handler.status
+}
+
 // Start the trigger directly, not by goroutine.
 //
 // The Trigger-able handlers can have only one instance
 func (handler *Trigger) Start() error {
-	m := handler.Handler
-
-	if m.Config() == nil {
+	if handler.Config() == nil {
 		return fmt.Errorf("configuration not set")
 	}
 	if !config.CanTrigger(handler.handlerType) {
 		return fmt.Errorf("the '%s' handler type in configuration is not triggerable", handler.handlerType)
 	}
-	if m.Manager == nil {
-		return fmt.Errorf("handler manager not set. call SetConfig and SetLogger first")
+	if handler.logger == nil {
+		return fmt.Errorf("logger not set")
 	}
 
-	if err := m.Route(route.Any, handler.onTrigger); err != nil {
+	if err := handler.Handler.Route(route.Any, handler.onTrigger); err != nil {
 		return fmt.Errorf("handler.Route: %w", err)
 	}
 
-	onStatus := func(req message.RequestInterface) message.ReplyInterface {
-		partStatuses := m.Manager.PartStatuses()
-		frontendStatus, err := partStatuses.StringValue("frontend")
-		if err != nil {
-			return req.Fail(fmt.Sprintf("partStatuses.GetString('frontend'): %v", err))
-		}
-		instanceStatus, err := partStatuses.StringValue("instance_manager")
-		if err != nil {
-			return req.Fail(fmt.Sprintf("partStatuses.GetString('instance_manager'): %v", err))
-		}
-		broadcasterStatus := handler.broadcasterStatus()
-
-		params := datatype.New()
-
-		if frontendStatus == frontend.RUNNING &&
-			instanceStatus == instances.Running &&
-			broadcasterStatus == BroadcasterRunning {
-			params.Set("status", handler_manager.Ready)
-		} else {
-			partStatuses.Set("broadcaster", broadcasterStatus)
-			params.Set("status", handler_manager.Incomplete).
-				Set("parts", partStatuses)
-		}
-
-		return req.Ok(params)
+	parent, err := zmq.NewSocket(zmq.PULL)
+	if err != nil {
+		return fmt.Errorf("zmq.NewSocket('PULL'): %w", err)
+	}
+	parentUrl := config.ParentUrl(handler.Config().Id)
+	if err := parent.Bind(parentUrl); err != nil {
+		_ = parent.Close()
+		return fmt.Errorf("parent.Bind('%s'): %w", parentUrl, err)
 	}
 
-	// add a routing that redirects the messages to the trigger
-	onAddInstance := func(req message.RequestInterface) message.ReplyInterface {
-		if len(m.InstanceManager.Instances()) != 0 {
-			return req.Fail("only one instance allowed in sync replier")
-		}
-
-		instanceId, err := m.InstanceManager.AddInstance(m.Config().Type, &m.Routes)
-		if err != nil {
-			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", m.Config().Type, err))
-		}
-
-		params := datatype.New().Set("instance_id", instanceId)
-		return req.Ok(params)
-	}
-	onClose := func(req message.RequestInterface) message.ReplyInterface {
-		part, err := req.RouteParameters().StringValue("part")
-		if err != nil {
-			return req.Fail(fmt.Sprintf("req.Parameters.GetString('part'): %v", err))
-		}
-
-		switch part {
-		case "frontend":
-			if m.Frontend.Status() != frontend.RUNNING {
-				return req.Fail("frontend not running")
-			} else {
-				if err := m.Frontend.Close(); err != nil {
-					return req.Fail(fmt.Sprintf("failed to close the frontend: %v", err))
-				}
-				return req.Ok(datatype.New())
-			}
-		case "instance_manager":
-			if m.InstanceManager.Status() != instances.Running {
-				return req.Fail("instance manager not running")
-			} else {
-				m.InstanceManager.Close()
-				return req.Ok(datatype.New())
-			}
-		case "broadcaster":
-			handler.closePub = true
-			return req.Ok(datatype.New())
-		default:
-			return req.Fail(fmt.Sprintf("unknown part '%s' to stop", part))
-		}
-	}
-	onRunPart := func(req message.RequestInterface) message.ReplyInterface {
-		part, err := req.RouteParameters().StringValue("part")
-		if err != nil {
-			return req.Fail(fmt.Sprintf("req.Parameters.GetString('part'): %v", err))
-		}
-
-		if part == "frontend" {
-			if m.Frontend.Status() == frontend.RUNNING {
-				return req.Fail("frontend running")
-			} else {
-				err := m.Frontend.Start()
-				if err != nil {
-					return req.Fail(fmt.Sprintf("m.Frontend.Start: %v", err))
-				}
-				return req.Ok(datatype.New())
-			}
-		} else if part == "instance_manager" {
-			if m.InstanceManager.Status() == instances.Running {
-				return req.Fail("instance manager running")
-			} else {
-				err := m.StartInstanceManager()
-				if err != nil {
-					return req.Fail(fmt.Sprintf("base.StartInstanceManager: %v", err))
-				}
-				return req.Ok(datatype.New())
-			}
-		} else if part == "broadcaster" {
-			err := handler.startBroadcaster()
-			if err != nil {
-				return req.Fail(fmt.Sprintf("trigger.startBroadcaster: %v", err))
-			}
-			return req.Ok(datatype.New())
-		} else {
-			return req.Fail(fmt.Sprintf("unknown part '%s' to stop", part))
-		}
-	}
-	onMessageAmount := func(req message.RequestInterface) message.ReplyInterface {
-		params := datatype.New().
-			Set("queue_length", m.Frontend.QueueLen()).
-			Set("processing_length", m.Frontend.ProcessingLen()).
-			Set("broadcasting_length", handler.broadcasting.Len())
-		return req.Ok(params)
+	instanceId := handler.Config().Id + "_instance"
+	handler.instance = instance.New(triggerType, instanceId, handler.Config().Id, handler.logger)
+	handler.instance.SetRoutes(&handler.Routes)
+	handler.instance.SetMessageOps(handler.messageOps)
+	if err := handler.instance.Start(); err != nil {
+		_ = parent.Close()
+		return fmt.Errorf("instance.Start: %w", err)
 	}
 
-	onParts := func(req message.RequestInterface) message.ReplyInterface {
-		parts := []string{
-			"frontend",
-			"instance_manager",
-			"broadcaster",
-		}
-		messageTypes := []string{
-			"queue_length",
-			"processing_length",
-			"broadcasting_length",
-		}
-
-		params := datatype.New().
-			Set("parts", parts).
-			Set("message_types", messageTypes)
-
-		return req.Ok(params)
+	instanceClient, err := zmq.NewSocket(clientConfig.TargetToClient(config.SocketType(triggerType)))
+	if err != nil {
+		_ = parent.Close()
+		return fmt.Errorf("zmq.NewSocket('instanceClient'): %w", err)
+	}
+	instanceUrl := config.InstanceHandleUrl(handler.Config().Id, instanceId)
+	if err := instanceClient.Connect(instanceUrl); err != nil {
+		_ = instanceClient.Close()
+		_ = parent.Close()
+		return fmt.Errorf("instanceClient.Connect('%s'): %w", instanceUrl, err)
 	}
 
-	if err := m.Manager.Route(config.AddInstance, onAddInstance); err != nil {
-		return fmt.Errorf("overwriting handler manager 'add_instance' failed: %w", err)
+	triggerSocket, err := zmq.NewSocket(config.SocketType(triggerType))
+	if err != nil {
+		_ = instanceClient.Close()
+		_ = parent.Close()
+		return fmt.Errorf("zmq.NewSocket('%s'): %w", triggerType, err)
 	}
-	if err := m.Manager.Route(config.ClosePart, onClose); err != nil {
-		return fmt.Errorf("overwriting handler manager 'close' failed: %w", err)
+	triggerUrl := config.ExternalUrl(handler.Config().Id, handler.Config().Port)
+	if err := triggerSocket.Bind(triggerUrl); err != nil {
+		_ = triggerSocket.Close()
+		_ = instanceClient.Close()
+		_ = parent.Close()
+		return fmt.Errorf("triggerSocket.Bind('%s'): %w", triggerUrl, err)
 	}
-	if err := m.Manager.Route(config.RunPart, onRunPart); err != nil {
-		return fmt.Errorf("overwriting handler manager 'run' failed: %w", err)
+
+	manager, err := zmq.NewSocket(zmq.REP)
+	if err != nil {
+		_ = triggerSocket.Close()
+		_ = instanceClient.Close()
+		_ = parent.Close()
+		return fmt.Errorf("zmq.NewSocket('manager'): %w", err)
 	}
-	if err := m.Manager.Route(config.MessageAmount, onMessageAmount); err != nil {
-		return fmt.Errorf("overwriting handler manager 'message_amount' failed: %w", err)
-	}
-	if err := m.Manager.Route(config.Parts, onParts); err != nil {
-		return fmt.Errorf("overwriting handler manager 'parts' failed: %w", err)
-	}
-	if err := m.Manager.Route(config.HandlerStatus, onStatus); err != nil {
-		return fmt.Errorf("overwriting handler manager 'parts' failed: %w", err)
+	managerUrl := handler.Config().ManagerExternalUrl()
+	if err := manager.Bind(managerUrl); err != nil {
+		_ = manager.Close()
+		_ = triggerSocket.Close()
+		_ = instanceClient.Close()
+		_ = parent.Close()
+		return fmt.Errorf("manager.Bind('%s'): %w", managerUrl, err)
 	}
 
 	if err := handler.startBroadcaster(); err != nil {
+		_ = manager.Close()
+		_ = triggerSocket.Close()
+		_ = instanceClient.Close()
+		_ = parent.Close()
 		return fmt.Errorf("trigger.startBroadcaster: %w", err)
 	}
 
-	if err := m.Start(); err != nil {
-		return fmt.Errorf("base.Start: %w", err)
-	}
+	handler.close = false
+	handler.status = handler_manager.Ready
+	go handler.run(parent, triggerSocket, instanceClient, manager)
 
 	return nil
+}
+
+func (handler *Trigger) run(parent *zmq.Socket, triggerSocket *zmq.Socket, instanceClient *zmq.Socket, manager *zmq.Socket) {
+	poller := zmq.NewPoller()
+	poller.Add(parent, zmq.POLLIN)
+	poller.Add(triggerSocket, zmq.POLLIN)
+	poller.Add(manager, zmq.POLLIN)
+
+	for !handler.close {
+		sockets, err := poller.Poll(time.Millisecond)
+		if err != nil {
+			handler.status = err.Error()
+			break
+		}
+
+		for _, polled := range sockets {
+			switch polled.Socket {
+			case parent:
+				handler.handleInstanceStatus(parent)
+			case triggerSocket:
+				if err := handler.forwardToInstance(triggerSocket, instanceClient); err != nil {
+					handler.logger.Error("trigger.forwardToInstance", "error", err)
+					handler.status = err.Error()
+				}
+			case manager:
+				if err := handler.handleManager(manager); err != nil {
+					handler.logger.Error("trigger.handleManager", "error", err)
+					handler.status = err.Error()
+				}
+			}
+		}
+	}
+
+	handler.closePub = true
+	handler.closeInstance(false)
+	_ = poller.RemoveBySocket(parent)
+	_ = poller.RemoveBySocket(triggerSocket)
+	_ = poller.RemoveBySocket(manager)
+	_ = manager.Close()
+	_ = triggerSocket.Close()
+	_ = instanceClient.Close()
+	_ = parent.Close()
+	handler.status = ""
+}
+
+func (handler *Trigger) handleInstanceStatus(parent *zmq.Socket) {
+	raw, err := parent.RecvMessage(0)
+	if err != nil {
+		handler.logger.Error("parent.RecvMessage", "error", err)
+		return
+	}
+	if _, err := handler.messageOps.NewReq(raw); err != nil {
+		handler.logger.Error("messageOps.NewReq", "messages", raw, "error", err)
+	}
+}
+
+func (handler *Trigger) forwardToInstance(triggerSocket *zmq.Socket, instanceClient *zmq.Socket) error {
+	raw, err := triggerSocket.RecvMessage(0)
+	if err != nil {
+		return fmt.Errorf("triggerSocket.RecvMessage: %w", err)
+	}
+	if len(raw) < 3 {
+		return handler.replyTriggerError(triggerSocket, raw, "trigger request missing identity or separator")
+	}
+	if _, err := instanceClient.SendMessage("", raw[2:]); err != nil {
+		return fmt.Errorf("instanceClient.SendMessage: %w", err)
+	}
+	reply, err := instanceClient.RecvMessage(0)
+	if err != nil {
+		return fmt.Errorf("instanceClient.RecvMessage: %w", err)
+	}
+	if _, err := triggerSocket.SendMessage(raw[0], raw[1], reply); err != nil {
+		return fmt.Errorf("triggerSocket.SendMessage: %w", err)
+	}
+	return nil
+}
+
+func (handler *Trigger) replyTriggerError(triggerSocket *zmq.Socket, raw []string, text string) error {
+	reply, err := (&message.Request{}).Fail(text).ZmqEnvelope()
+	if err != nil {
+		return fmt.Errorf("request.Fail.ZmqEnvelope: %w", err)
+	}
+	if len(raw) >= 2 {
+		if _, err := triggerSocket.SendMessage(raw[0], raw[1], reply); err != nil {
+			return fmt.Errorf("triggerSocket.SendMessage: %w", err)
+		}
+	}
+	return nil
+}
+
+func (handler *Trigger) handleManager(manager *zmq.Socket) error {
+	raw, err := manager.RecvMessage(0)
+	if err != nil {
+		return fmt.Errorf("manager.RecvMessage: %w", err)
+	}
+	req, err := handler.messageOps.NewReq(raw)
+	if err != nil {
+		return handler.replyManager(manager, (&message.Request{}).Fail(fmt.Sprintf("messageOps.NewReq: %v", err)))
+	}
+
+	switch req.CommandName() {
+	case config.HandlerStatus:
+		return handler.replyManager(manager, req.Ok(datatype.New().Set("status", handler.managerStatus())))
+	case config.HandlerConfig:
+		return handler.replyManager(manager, req.Ok(datatype.New().Set("config", handler.Config().Handler)))
+	case config.HandlerClose:
+		if err := handler.replyManager(manager, req.Ok(datatype.New())); err != nil {
+			return err
+		}
+		handler.close = true
+		return nil
+	case config.InstanceAmount:
+		amount := uint64(0)
+		if handler.instance != nil && handler.instance.Status() != instance.CLOSED {
+			amount = 1
+		}
+		return handler.replyManager(manager, req.Ok(datatype.New().Set("instance_amount", amount)))
+	case config.MessageAmount:
+		return handler.replyManager(manager, req.Ok(datatype.New().
+			Set("queue_length", 0).
+			Set("processing_length", 0).
+			Set("broadcasting_length", handler.broadcasting.Len())))
+	case config.Parts:
+		return handler.replyManager(manager, req.Ok(datatype.New().
+			Set("parts", []string{"instance", "broadcaster"}).
+			Set("message_types", []string{"queue_length", "processing_length", "broadcasting_length"})))
+	case config.AddInstance:
+		return handler.replyManager(manager, req.Fail("only one private instance allowed in trigger"))
+	case config.DeleteInstance:
+		return handler.replyManager(manager, req.Fail("trigger private instance can not be deleted"))
+	case config.ClosePart, config.RunPart:
+		return handler.replyManager(manager, req.Fail("trigger parts are managed as a single handler"))
+	default:
+		return handler.replyManager(manager, req.Fail(fmt.Sprintf("unknown command '%s'", req.CommandName())))
+	}
+}
+
+func (handler *Trigger) managerStatus() string {
+	if handler.instance != nil &&
+		handler.instance.Status() == instance.READY &&
+		handler.broadcasterStatus() == BroadcasterRunning {
+		return handler_manager.Ready
+	}
+	return handler_manager.Incomplete
+}
+
+func (handler *Trigger) replyManager(manager *zmq.Socket, reply message.ReplyInterface) error {
+	envelope, err := reply.ZmqEnvelope()
+	if err != nil {
+		return fmt.Errorf("reply.ZmqEnvelope: %w", err)
+	}
+	if _, err := manager.SendMessage(envelope); err != nil {
+		return fmt.Errorf("manager.SendMessage: %w", err)
+	}
+	return nil
+}
+
+func (handler *Trigger) closeInstance(instant bool) {
+	if handler.instance == nil || handler.instance.Status() == instance.CLOSED {
+		return
+	}
+	socket, err := zmq.NewSocket(zmq.REQ)
+	if err != nil {
+		handler.logger.Error("zmq.NewSocket('instanceManager')", "error", err)
+		return
+	}
+	defer socket.Close()
+
+	url := config.InstanceUrl(handler.Config().Id, handler.instance.Id)
+	if err := socket.Connect(url); err != nil {
+		handler.logger.Error("instanceManager.Connect", "url", url, "error", err)
+		return
+	}
+	req := message.Request{
+		Command:    config.HandlerClose,
+		Parameters: datatype.New().Set("instant", instant),
+	}
+	envelope, err := req.ZmqEnvelope()
+	if err != nil {
+		handler.logger.Error("request.ZmqEnvelope", "error", err)
+		return
+	}
+	if _, err := socket.SendMessage(envelope); err != nil {
+		handler.logger.Error("instanceManager.SendMessage", "error", err)
+		return
+	}
+	if !instant {
+		if _, err := socket.RecvMessage(0); err != nil {
+			handler.logger.Error("instanceManager.RecvMessage", "error", err)
+		}
+	}
 }

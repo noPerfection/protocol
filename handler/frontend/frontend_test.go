@@ -28,7 +28,7 @@ type TestFrontendSuite struct {
 	suite.Suite
 
 	frontend     *Frontend
-	handleConfig *config.Handler
+	handleConfig *config.Concurrent
 }
 
 // Create an instance manager. Returns a test command, instance id and instance manager itself
@@ -66,7 +66,7 @@ func (test *TestFrontendSuite) instanceManager() (string, string, *instance_mana
 func (test *TestFrontendSuite) customExternal() *CustomExternal {
 	s := &test.Suite
 
-	pairClient, err := pair.NewClient(test.handleConfig)
+	pairClient, err := pair.NewClient(test.handleConfig.Handler)
 	s.Require().NoError(err)
 
 	externalLayer := CustomExternal{
@@ -77,7 +77,7 @@ func (test *TestFrontendSuite) customExternal() *CustomExternal {
 }
 
 func (test *TestFrontendSuite) SetupTest() {
-	test.handleConfig = &config.Handler{Type: config.SyncReplierType, Category: "test", Id: "sample", Port: 0, InstanceAmount: 1}
+	test.handleConfig = config.NewInternalConcurrent(config.SyncReplierType, "sample", "test")
 	test.frontend = New()
 }
 
@@ -185,8 +185,11 @@ func (test *TestFrontendSuite) Test_11_External_ipc() {
 	_ = os.Remove(ipcPath)
 	defer os.Remove(ipcPath)
 
-	test.handleConfig = &config.Handler{
-		Type: config.SyncReplierType, Category: "test", Id: ipcId, Port: 0, InstanceAmount: 1,
+	test.handleConfig = &config.Concurrent{
+		Handler: &config.Handler{
+			Type: config.SyncReplierType, Category: "test", Id: ipcId, Port: 0,
+		},
+		InstanceAmount: 1,
 	}
 	test.frontend = New()
 	test.frontend.SetConfig(test.handleConfig)

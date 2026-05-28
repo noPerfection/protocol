@@ -9,8 +9,7 @@ import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/frontend"
-	"github.com/noPerfection/protocol/handler/instance_manager"
+	"github.com/noPerfection/protocol/handler/instance"
 	"github.com/noPerfection/protocol/handler/manager_client"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -143,7 +142,7 @@ func (test *TestTriggerSuite) Test_14_Start() {
 	time.Sleep(time.Millisecond * 100)
 
 	// make sure that instance is created
-	s.Require().Len(test.handler.Handler.InstanceManager.Instances(), 1)
+	s.Require().NotNil(test.handler.instance)
 
 	// trigger a message
 	req := message.Request{Command: "hello", Parameters: datatype.New().Set("number", 1)}
@@ -168,8 +167,7 @@ func (test *TestTriggerSuite) Test_14_Start() {
 	wg.Wait()
 
 	// Make sure that everything works
-	s.Require().Equal(test.handler.InstanceManager.Status(), instance_manager.Running)
-	s.Require().Equal(test.handler.Frontend.Status(), frontend.RUNNING)
+	s.Require().Equal(instance.READY, test.handler.instance.Status())
 	s.Require().NotNil(test.handler.socket)
 
 	// Now let's close it
@@ -181,8 +179,7 @@ func (test *TestTriggerSuite) Test_14_Start() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything is closed
-	s.Require().Equal(test.handler.InstanceManager.Status(), instance_manager.Idle)
-	s.Require().Equal(test.handler.Frontend.Status(), frontend.CREATED)
+	s.Require().Equal(instance.CLOSED, test.handler.instance.Status())
 	s.Require().Nil(test.handler.socket)
 }
 

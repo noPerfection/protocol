@@ -22,13 +22,17 @@ const (
 )
 
 type Handler struct {
-	Type           HandlerType `json:"type" yaml:"type"`
-	Category       string      `json:"category" yaml:"category"`
-	InstanceAmount uint64      `json:"instance_amount" yaml:"instance_amount"`
-	Port           uint64      `json:"port" yaml:"port"`
-	Id             string      `json:"id" yaml:"id"`
-	ManagerId      string      `json:"manager_id" yaml:"manager_id"`
-	ManagerPort    uint64      `json:"manager_port" yaml:"manager_port"`
+	Type        HandlerType `json:"type" yaml:"type"`
+	Category    string      `json:"category" yaml:"category"`
+	Port        uint64      `json:"port" yaml:"port"`
+	Id          string      `json:"id" yaml:"id"`
+	ManagerId   string      `json:"manager_id" yaml:"manager_id"`
+	ManagerPort uint64      `json:"manager_port" yaml:"manager_port"`
+}
+
+type Concurrent struct {
+	*Handler
+	InstanceAmount uint64 `json:"instance_amount" yaml:"instance_amount"`
 }
 
 type Trigger struct {
@@ -41,13 +45,20 @@ type Trigger struct {
 // NewHandler returns a Handler configuration with the given HandlerType, ID, category, and port.
 func NewHandler(as HandlerType, id string, category string, port uint64) *Handler {
 	return &Handler{
-		Type:           as,
-		Category:       category,
-		Id:             id,
+		Type:        as,
+		Category:    category,
+		Id:          id,
+		Port:        port,
+		ManagerId:   DefaultManagerId(id),
+		ManagerPort: 0,
+	}
+}
+
+// NewConcurrent returns a concurrent Handler configuration with a default instance amount.
+func NewConcurrent(as HandlerType, id string, category string, port uint64) *Concurrent {
+	return &Concurrent{
+		Handler:        NewHandler(as, id, category, port),
 		InstanceAmount: 1,
-		Port:           port,
-		ManagerId:      DefaultManagerId(id),
-		ManagerPort:    0,
 	}
 }
 

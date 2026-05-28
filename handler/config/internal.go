@@ -46,13 +46,20 @@ func InstanceManagerEventUrl(handlerId string) string {
 // NewInternalHandler returns the configuration with the default parameters.
 func NewInternalHandler(as HandlerType, id string, category string) *Handler {
 	return &Handler{
-		Type:           as,
-		Category:       category,
-		Id:             id,
+		Type:        as,
+		Category:    category,
+		Id:          id,
+		Port:        0,
+		ManagerId:   DefaultManagerId(id),
+		ManagerPort: 0,
+	}
+}
+
+// NewInternalConcurrent returns a concurrent handler configuration for in-process use.
+func NewInternalConcurrent(as HandlerType, id string, category string) *Concurrent {
+	return &Concurrent{
+		Handler:        NewInternalHandler(as, id, category),
 		InstanceAmount: 1,
-		Port:           0,
-		ManagerId:      DefaultManagerId(id),
-		ManagerPort:    0,
 	}
 }
 

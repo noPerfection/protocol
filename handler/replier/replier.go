@@ -13,22 +13,22 @@ import (
 
 // Replier is the socket wrapper for the service.
 type Replier struct {
-	*base.Handler
+	*base.Concurrent
 	maxInstanceAmount int
 }
 
 // New asynchronous replying handler.
 func New() *Replier {
 	return &Replier{
-		Handler:           base.New(),
+		Concurrent:        base.NewConcurrent(),
 		maxInstanceAmount: runtime.NumCPU(),
 	}
 }
 
 // SetConfig adds the parameters of the handler from the config.
-func (c *Replier) SetConfig(handler *config.Handler) {
+func (c *Replier) SetConfig(handler *config.Concurrent) {
 	handler.Type = config.ReplierType
-	c.Handler.SetConfig(handler)
+	c.Concurrent.SetConfig(handler)
 }
 
 // Type returns the handler type. If the configuration is not set, returns config.UnknownType.
@@ -60,7 +60,7 @@ func (c *Replier) Start() error {
 		return fmt.Errorf("overwriting handler manager 'add_instance' failed: %w", err)
 	}
 
-	return c.Handler.Start()
+	return c.Concurrent.Start()
 }
 
 // MaxInstanceAmount is specific to Replier.
