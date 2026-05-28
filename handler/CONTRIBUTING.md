@@ -33,14 +33,14 @@ Handler configuration lives in `config`:
 
 | File / type | Role |
 |-------------|------|
-| `Handler` | Id, Port, Type, Category, InstanceAmount, ManagerId, ManagerPort |
+| `Handler` | Id, Port, Type, Category |
 | `Trigger` | Publisher broadcast settings |
 | `controller.go` | `ExternalUrl`, `NewHandler`, handler types |
 | `internal.go` | Internal `inproc://` URLs (manager, instance manager, instances) |
 
 ### Handler URLs (external)
 
-`config.ExternalUrl` is for external sockets. Handler manager endpoints use the same URL rules via `Handler.ManagerExternalUrl()` and `Handler.ManagerConnectUrl()`.
+`config.ExternalUrl` is for external sockets. Control endpoints are created by `control.CreateInternalConfig`.
 
 | Port | Id | Bind URL |
 |------|-----|----------|

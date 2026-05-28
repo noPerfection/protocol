@@ -8,12 +8,10 @@ import (
 )
 
 type Handler struct {
-	Type        HandlerType `json:"type" yaml:"type"`
-	Category    string      `json:"category" yaml:"category"`
-	Port        uint64      `json:"port" yaml:"port"`
-	Id          string      `json:"id" yaml:"id"`
-	ManagerId   string      `json:"manager_id" yaml:"manager_id"`
-	ManagerPort uint64      `json:"manager_port" yaml:"manager_port"`
+	Type     HandlerType `json:"type" yaml:"type"`
+	Category string      `json:"category" yaml:"category"`
+	Port     uint64      `json:"port" yaml:"port"`
+	Id       string      `json:"id" yaml:"id"`
 }
 
 func (handler *Handler) HandlerType() HandlerType {
@@ -30,36 +28,11 @@ type Trigger struct {
 // NewHandler returns a Handler configuration with the given HandlerType, ID, category, and port.
 func NewHandler(as HandlerType, id string, category string, port uint64) *Handler {
 	return &Handler{
-		Type:        as,
-		Category:    category,
-		Id:          id,
-		Port:        port,
-		ManagerId:   DefaultManagerId(id),
-		ManagerPort: 0,
+		Type:     as,
+		Category: category,
+		Id:       id,
+		Port:     port,
 	}
-}
-
-func DefaultManagerId(handlerId string) string {
-	return "manager_" + handlerId
-}
-
-func (handler *Handler) ManagerHandler() *Handler {
-	managerId := handler.ManagerId
-	if managerId == "" {
-		managerId = DefaultManagerId(handler.Id)
-	}
-
-	return NewHandler(handler.Type, managerId, "control", handler.ManagerPort)
-}
-
-func (handler *Handler) ManagerExternalUrl() string {
-	manager := handler.ManagerHandler()
-	return ExternalUrl(manager.Id, manager.Port)
-}
-
-func (handler *Handler) ManagerConnectUrl() string {
-	manager := handler.ManagerHandler()
-	return ConnectUrl(manager.Id, manager.Port)
 }
 
 // TriggerAble returns a Trigger configuration with the given handler and broadcast fields.
@@ -119,7 +92,7 @@ func ExternalUrl(id string, port uint64) string {
 }
 
 func isLocalhost(id string) bool {
-	return id == "localhost" || strings.HasPrefix(id, "127.0.0.")
+	return id == "" || id == "localhost" || strings.HasPrefix(id, "127.0.0.")
 }
 
 // ConnectUrl creates the ZeroMQ endpoint for a subscriber to connect.
@@ -133,6 +106,9 @@ func ConnectUrl(id string, port uint64) string {
 			return fmt.Sprintf("ipc:///%s", id)
 		}
 		return fmt.Sprintf("inproc://%s", id)
+	}
+	if isLocalhost(id) {
+		return fmt.Sprintf("tcp://localhost:%d", port)
 	}
 	return fmt.Sprintf("tcp://%s:%d", id, port)
 }

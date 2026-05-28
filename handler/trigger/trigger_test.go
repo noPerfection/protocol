@@ -171,7 +171,8 @@ func (test *TestTriggerSuite) Test_14_Start() {
 	s.Require().NotNil(test.handler.socket)
 
 	// Now let's close it
-	triggerClient, err := client.NewRaw(config.SocketType(test.config.Type), test.config.ManagerConnectUrl())
+	managerConfig := control.CreateInternalConfig(test.config.Handler)
+	triggerClient, err := client.NewRaw(config.SocketType(test.config.Type), config.ConnectUrl(managerConfig.Id, managerConfig.Port))
 	s.Require().NoError(err)
 	reply, err := triggerClient.Request(&message.Request{
 		Command:    control.HandlerClose,

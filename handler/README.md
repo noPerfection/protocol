@@ -123,8 +123,6 @@ err := handler.Route("my_command", myHandler)
 | `Type` | Set automatically by `sync_replier`, `replier`, etc. |
 | `Category` | Logical grouping |
 | `InstanceAmount` | Hint for instance count (service may manage instances) |
-| `ManagerId` | Manager endpoint identity |
-| `ManagerPort` | `0` = local manager; non-zero = TCP manager |
 
 **Helpers:**
 
@@ -155,7 +153,7 @@ cfg := &config.Handler{
 
 Clients use the same `Id` and `Port` with `config.ConnectUrl` (`tcp://{Id}:{Port}` for TCP).
 
-Manager endpoints use the same URL rules through `handlerCfg.ManagerExternalUrl()` and `handlerCfg.ManagerConnectUrl()`. By default constructors set the manager to `inproc://manager_{Id}` with category `"control"`; set `ManagerId` and `ManagerPort` when the manager must be reachable outside the process.
+Control endpoints are created by `control.CreateInternalConfig(handlerCfg)`. Internal control ids use the `{Id}_control` suffix with category `"control"`.
 
 **IPC example** — use an id under `/tmp/`:
 

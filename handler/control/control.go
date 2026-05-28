@@ -37,6 +37,19 @@ func New(parent *log.Logger) base.Interface {
 	}
 }
 
+func DefaultManagerId(handlerId string) string {
+	return handlerId + "_control"
+}
+
+func CreateInternalConfig(handler *config.Handler) *config.Handler {
+	id := handler.Id
+	if handler.Port == 0 {
+		id = DefaultManagerId(handler.Id)
+	}
+
+	return config.NewHandler(handler.Type, id, ControlCategory, 0)
+}
+
 // SetClose is intentionally disabled for control handlers.
 func (m *Manager) SetClose(_ bool) {
 	m.Handler.Logger().Warn("Handler controls can not be closed. Please don't call it")

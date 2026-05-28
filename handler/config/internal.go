@@ -26,12 +26,10 @@ func UrlToFileName(url string) string {
 // NewInternalHandler returns the configuration with the default parameters.
 func NewInternalHandler(as HandlerType, id string, category string) *Handler {
 	return &Handler{
-		Type:        as,
-		Category:    category,
-		Id:          id,
-		Port:        0,
-		ManagerId:   DefaultManagerId(id),
-		ManagerPort: 0,
+		Type:     as,
+		Category: category,
+		Id:       id,
+		Port:     0,
 	}
 }
 

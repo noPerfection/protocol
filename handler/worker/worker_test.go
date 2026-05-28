@@ -81,7 +81,8 @@ func (test *TestWorkerSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerUrl := test.handlerConfig.ManagerConnectUrl()
+	managerConfig := control.CreateInternalConfig(test.handlerConfig.Handler)
+	managerUrl := config.ConnectUrl(managerConfig.Id, managerConfig.Port)
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
 

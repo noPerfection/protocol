@@ -96,7 +96,7 @@ func (handler *Trigger) SetLogger(logger *log.Logger) error {
 	}
 	handler.logger = logger.Child(handler.Config().Id)
 	handler.Manager = control.New(logger)
-	handler.Manager.SetConfig(handler.Handler.Config().ManagerHandler())
+	handler.Manager.SetConfig(control.CreateInternalConfig(handler.Handler.Config()))
 
 	return nil
 }
@@ -249,7 +249,8 @@ func (handler *Trigger) Start() error {
 		_ = parent.Close()
 		return fmt.Errorf("zmq.NewSocket('manager'): %w", err)
 	}
-	managerUrl := handler.Config().ManagerExternalUrl()
+	managerConfig := control.CreateInternalConfig(handler.Config().Handler)
+	managerUrl := config.ExternalUrl(managerConfig.Id, managerConfig.Port)
 	if err := manager.Bind(managerUrl); err != nil {
 		_ = manager.Close()
 		_ = triggerSocket.Close()

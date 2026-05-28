@@ -37,10 +37,6 @@ func (test *TestConfigSuite) Test_11_IsLocal() {
 	s().Equal(category, handler.Category)
 	s().Equal(id, handler.Id)
 	s().Equal(port, handler.Port)
-	s().Equal(DefaultManagerId(id), handler.ManagerId)
-	s().Zero(handler.ManagerPort)
-	s().Equal("inproc://manager_"+id, handler.ManagerExternalUrl())
-	s().Equal("inproc://manager_"+id, handler.ManagerConnectUrl())
 	s().False(handler.IsInproc())
 
 	broadcastId := "broadcast.example.com"
@@ -85,21 +81,7 @@ func (test *TestConfigSuite) Test_14_ExternalUrl_ipc_tmp() {
 func (test *TestConfigSuite) Test_15_ConnectUrl_tcp() {
 	test.Require().Equal("tcp://sample:6000", ConnectUrl("sample", 6000))
 	test.Require().Equal("tcp://localhost:6000", ConnectUrl("localhost", 6000))
-	test.Require().Equal("tcp://127.0.0.1:6000", ConnectUrl("127.0.0.1", 6000))
-}
-
-func (test *TestConfigSuite) Test_15_ManagerUrl_tcp() {
-	handler := NewHandler(SyncReplierType, "example.com", "category", 6000)
-	handler.ManagerId = "manager.example.com"
-	handler.ManagerPort = 7000
-
-	manager := handler.ManagerHandler()
-
-	test.Require().Equal("manager.example.com", manager.Id)
-	test.Require().Equal("control", manager.Category)
-	test.Require().Equal(uint64(7000), manager.Port)
-	test.Require().Equal("tcp://manager.example.com:7000", handler.ManagerExternalUrl())
-	test.Require().Equal("tcp://manager.example.com:7000", handler.ManagerConnectUrl())
+	test.Require().Equal("tcp://localhost:6000", ConnectUrl("127.0.0.1", 6000))
 }
 
 func (test *TestConfigSuite) Test_16_ConnectUrl_inproc() {

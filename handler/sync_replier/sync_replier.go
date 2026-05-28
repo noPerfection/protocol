@@ -45,7 +45,7 @@ func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 	}
 	c.logger = parent.Child(c.Config().Id)
 	c.Manager = control.New(parent)
-	c.Manager.SetConfig(c.Config().ManagerHandler())
+	c.Manager.SetConfig(control.CreateInternalConfig(c.Config()))
 	return nil
 }
 

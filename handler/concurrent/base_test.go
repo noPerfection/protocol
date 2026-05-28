@@ -147,7 +147,8 @@ func (test *TestBaseHandlerSuite) Test_14_Start() {
 	s.Require().Equal(test.inprocHandler.Frontend.Status(), RUNNING)
 
 	// Now let's close it
-	inprocClient, err := client.NewRaw(config.SocketType(test.inprocConfig.Type), test.inprocConfig.ManagerConnectUrl())
+	managerConfig := control.CreateInternalConfig(test.inprocConfig.Handler)
+	inprocClient, err := client.NewRaw(config.SocketType(test.inprocConfig.Type), config.ConnectUrl(managerConfig.Id, managerConfig.Port))
 	s.Require().NoError(err)
 	reply, err := inprocClient.Request(&message.Request{
 		Command:    control.HandlerClose,

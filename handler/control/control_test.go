@@ -83,7 +83,8 @@ func (test *TestControlSuite) SetupTest() {
 	// Client that will imitate the service
 	inprocClient, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	err = inprocClient.Connect(test.inprocConfig.ManagerConnectUrl())
+	managerConfig := control.CreateInternalConfig(test.inprocConfig.Handler)
+	err = inprocClient.Connect(config.ConnectUrl(managerConfig.Id, managerConfig.Port))
 	s.Require().NoError(err)
 	test.inprocClient = inprocClient
 }
@@ -91,7 +92,8 @@ func (test *TestControlSuite) SetupTest() {
 // Limitation of Zeromq, the inproc client can not reconnect if the backend restarted
 func (test *TestControlSuite) reconnectClient() {
 	s := &test.Suite
-	url := test.inprocConfig.ManagerConnectUrl()
+	managerConfig := control.CreateInternalConfig(test.inprocConfig.Handler)
+	url := config.ConnectUrl(managerConfig.Id, managerConfig.Port)
 
 	err := test.inprocClient.Disconnect(url)
 	s.Require().NoError(err)
