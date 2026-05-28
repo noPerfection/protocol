@@ -9,7 +9,7 @@ import (
 	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -136,7 +136,7 @@ func (test *TestWorkerSuite) Test_10_Start() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(handler_manager.Ready, status)
+	s.Require().Equal(control.Ready, status)
 
 	req = message.Request{Command: config.InstanceAmount, Parameters: datatype.New()}
 	reply = test.req(test.managerClient, req)

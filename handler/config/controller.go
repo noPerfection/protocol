@@ -18,7 +18,7 @@ const (
 	Parts           = "parts"
 	HandlerClose    = "close"  // Close the handler
 	HandlerConfig   = "config" // Returns the handler configuration
-	ManagerCategory = "handler_manager"
+	ManagerCategory = "control"
 )
 
 type Handler struct {

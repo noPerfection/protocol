@@ -83,7 +83,7 @@ Accepts messages on the **external** socket, queues them, and forwards them to r
 
 ### Handler manager
 
-Control plane for handler parts (frontend, instance manager, instances). External management goes through `handler_manager` routes (`status`, `close`, `add-instance`, etc.) or [`manager_client`](manager_client/manager_client.go).
+Control plane for handler parts (frontend, instance manager, instances). External management goes through `control` routes (`status`, `close`, `add-instance`, etc.) or [`manager_client`](manager_client/manager_client.go).
 
 ### Recap
 

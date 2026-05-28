@@ -9,7 +9,7 @@ import (
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -128,7 +128,7 @@ func (c *SyncReplier) Start() error {
 	}
 
 	c.close = false
-	c.status = handler_manager.Ready
+	c.status = control.Ready
 	go c.run(parent, external, instanceClient, manager)
 
 	return nil
@@ -249,9 +249,9 @@ func (c *SyncReplier) handleManager(manager *zmq.Socket) error {
 
 func (c *SyncReplier) managerStatus() string {
 	if c.instance != nil && c.instance.Status() == concurrent.READY {
-		return handler_manager.Ready
+		return control.Ready
 	}
-	return handler_manager.Incomplete
+	return control.Incomplete
 }
 
 func (c *SyncReplier) replyManager(manager *zmq.Socket, reply message.ReplyInterface) error {

@@ -1,5 +1,5 @@
-// Package handler_manager creates a socket that manages the handler
-package handler_manager
+// Package control creates a socket that controls the handler.
+package control
 
 import (
 	"fmt"
@@ -43,7 +43,7 @@ type ManagerConfig interface {
 	HandlerType() config.HandlerType
 }
 
-type HandlerManager struct {
+type Manager struct {
 	logger               *log.Logger
 	frontend             Frontend
 	instanceManager      InstanceManager
@@ -55,11 +55,11 @@ type HandlerManager struct {
 	close                bool
 }
 
-// New creates a new HandlerManager
-func New(parent *log.Logger, frontend Frontend, instanceManager InstanceManager, startInstanceManager func() error) *HandlerManager {
-	logger := parent.Child("handler_manager")
+// New creates a new Manager.
+func New(parent *log.Logger, frontend Frontend, instanceManager InstanceManager, startInstanceManager func() error) *Manager {
+	logger := parent.Child("control")
 
-	m := &HandlerManager{
+	m := &Manager{
 		frontend:             frontend,
 		instanceManager:      instanceManager,
 		startInstanceManager: startInstanceManager,
@@ -75,20 +75,20 @@ func New(parent *log.Logger, frontend Frontend, instanceManager InstanceManager,
 }
 
 // SetConfig sets the link to the configuration of the handler
-func (m *HandlerManager) SetConfig(config ManagerConfig) {
+func (m *Manager) SetConfig(config ManagerConfig) {
 	m.config = config
 	m.rawConfig = config
 }
 
-// Status returns the socket status of the HandlerManager.
-func (m *HandlerManager) Status() string {
+// Status returns the socket status of the Manager.
+func (m *Manager) Status() string {
 	return m.status
 }
 
 // PartStatuses returns statuses of the base handler parts.
 //
 // Intended to be used by the extending handlers.
-func (m *HandlerManager) PartStatuses() datatype.KeyValue {
+func (m *Manager) PartStatuses() datatype.KeyValue {
 	frontendStatus := m.frontend.Status()
 	instanceStatus := m.instanceManager.Status()
 
@@ -100,14 +100,14 @@ func (m *HandlerManager) PartStatuses() datatype.KeyValue {
 }
 
 // SetClose adds a close signal to the queue.
-func (m *HandlerManager) SetClose(req message.RequestInterface) message.ReplyInterface {
+func (m *Manager) SetClose(req message.RequestInterface) message.ReplyInterface {
 	m.close = true
 
 	return req.Ok(datatype.New())
 }
 
 // setRoutes sets the default command handlers
-func (m *HandlerManager) setRoutes() {
+func (m *Manager) setRoutes() {
 	// Requesting status which is calculated from statuses of the handler parts
 	onStatus := func(req message.RequestInterface) message.ReplyInterface {
 		frontendStatus := m.frontend.Status()
@@ -264,10 +264,10 @@ func (m *HandlerManager) setRoutes() {
 
 // Route overrides the default route with the given handle.
 // Returns an error if the command is not supported.
-// Returns an error if HandlerManager is running.
-func (m *HandlerManager) Route(cmd string, handle route.HandleFunc) error {
+// Returns an error if Manager is running.
+func (m *Manager) Route(cmd string, handle route.HandleFunc) error {
 	if m.status == SocketReady {
-		return fmt.Errorf("can not overwrite handler when HandlerManager is running")
+		return fmt.Errorf("can not overwrite handler when Manager is running")
 	}
 	if !m.routes.Exist(cmd) {
 		return fmt.Errorf("'%s' command not found", cmd)
@@ -277,8 +277,8 @@ func (m *HandlerManager) Route(cmd string, handle route.HandleFunc) error {
 	return nil
 }
 
-// Start the HandlerManager
-func (m *HandlerManager) Start() error {
+// Start the Manager.
+func (m *Manager) Start() error {
 	if m.config == nil {
 		return fmt.Errorf("no config")
 	}

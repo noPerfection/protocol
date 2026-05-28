@@ -9,7 +9,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/handler/route"
 
 	"github.com/noPerfection/protocol/message"
@@ -22,7 +22,7 @@ type Handler struct {
 	socket  *zmq.Socket
 	logger  *log.Logger
 	Routes  datatype.KeyValue
-	Manager *handler_manager.HandlerManager
+	Manager *control.Manager
 	status  string
 }
 
@@ -71,7 +71,7 @@ func (c *Handler) SetLogger(parent *log.Logger) error {
 	logger := parent.Child(c.config.Id)
 	c.logger = logger
 
-	c.Manager = handler_manager.New(parent, nil, nil, nil)
+	c.Manager = control.New(parent, nil, nil, nil)
 	c.Manager.SetConfig(c.config)
 
 	return nil

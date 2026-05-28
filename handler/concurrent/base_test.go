@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/manager_client"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/suite"
 )
@@ -146,8 +146,14 @@ func (test *TestBaseHandlerSuite) Test_14_Start() {
 	s.Require().Equal(test.inprocHandler.Frontend.Status(), RUNNING)
 
 	// Now let's close it
-	inprocClient, err := manager_client.New(test.inprocConfig.Handler)
+	inprocClient, err := client.NewRaw(config.SocketType(test.inprocConfig.Type), test.inprocConfig.ManagerConnectUrl())
 	s.Require().NoError(err)
+	reply, err := inprocClient.Request(&message.Request{
+		Command:    config.HandlerClose,
+		Parameters: datatype.New(),
+	})
+	s.Require().NoError(err)
+	s.Require().True(reply.IsOK())
 	s.Require().NoError(inprocClient.Close())
 
 	// Wait a bit for closing handler threads

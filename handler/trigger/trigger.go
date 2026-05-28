@@ -10,7 +10,7 @@ import (
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -266,7 +266,7 @@ func (handler *Trigger) Start() error {
 	}
 
 	handler.close = false
-	handler.status = handler_manager.Ready
+	handler.status = control.Ready
 	go handler.run(parent, triggerSocket, instanceClient, manager)
 
 	return nil
@@ -411,9 +411,9 @@ func (handler *Trigger) managerStatus() string {
 	if handler.instance != nil &&
 		handler.instance.Status() == concurrent.READY &&
 		handler.broadcasterStatus() == BroadcasterRunning {
-		return handler_manager.Ready
+		return control.Ready
 	}
-	return handler_manager.Incomplete
+	return control.Incomplete
 }
 
 func (handler *Trigger) replyManager(manager *zmq.Socket, reply message.ReplyInterface) error {

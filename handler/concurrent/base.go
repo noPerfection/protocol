@@ -5,7 +5,7 @@ import (
 
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/handler/control"
 	zmq "github.com/pebbe/zmq4"
 )
 
@@ -53,7 +53,7 @@ func (c *Concurrent) SetLogger(parent *log.Logger) error {
 	c.InstanceManager = NewInstanceManager(c.config.Id, c.logger)
 	c.Frontend.SetInstanceManager(c.InstanceManager)
 
-	c.Manager = handler_manager.New(parent, c.Frontend, c.InstanceManager, c.StartInstanceManager)
+	c.Manager = control.New(parent, c.Frontend, c.InstanceManager, c.StartInstanceManager)
 	c.Manager.SetConfig(c.config)
 
 	return nil

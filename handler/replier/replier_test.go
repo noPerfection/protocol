@@ -8,7 +8,7 @@ import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -112,7 +112,7 @@ func (test *TestReplierSuite) Test_10_Start() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(handler_manager.Ready, status)
+	s.Require().Equal(control.Ready, status)
 
 	// By default, the handler creates a socket.
 	// Trying to add a new socket, it will throw an error
@@ -157,7 +157,7 @@ func (test *TestReplierSuite) Test_11_Request() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(handler_manager.Ready, status)
+	s.Require().Equal(control.Ready, status)
 
 	// By default, the handler creates a socket.
 	// Trying to add a new socket, it will throw an error
