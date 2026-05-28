@@ -130,7 +130,7 @@ func (test *TestWorkerSuite) Test_10_Start() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything works
-	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
+	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
 	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -138,7 +138,7 @@ func (test *TestWorkerSuite) Test_10_Start() {
 	s.Require().NoError(err)
 	s.Require().Equal(control.Ready, status)
 
-	req = message.Request{Command: config.InstanceAmount, Parameters: datatype.New()}
+	req = message.Request{Command: concurrent.InstanceAmount, Parameters: datatype.New()}
 	reply = test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -160,7 +160,7 @@ func (test *TestWorkerSuite) Test_10_Start() {
 	s.Require().Equal(cmd1Id, test.cmd1Result)
 
 	// Close the handler
-	req.Command = config.HandlerClose
+	req.Command = control.HandlerClose
 	reply = test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 

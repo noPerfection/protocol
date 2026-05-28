@@ -9,7 +9,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/handler/route"
 
 	"github.com/noPerfection/protocol/message"
@@ -18,21 +17,19 @@ import (
 
 // The Handler is the socket wrapper for the zeromq socket.
 type Handler struct {
-	config  *config.Handler
-	socket  *zmq.Socket
-	logger  *log.Logger
-	Routes  datatype.KeyValue
-	Manager *control.Manager
-	status  string
+	config *config.Handler
+	socket *zmq.Socket
+	logger *log.Logger
+	Routes datatype.KeyValue
+	status string
 }
 
 // New handler
 func New() *Handler {
 	return &Handler{
-		logger:  nil,
-		Routes:  datatype.New(),
-		Manager: nil,
-		status:  "",
+		logger: nil,
+		Routes: datatype.New(),
+		status: "",
 	}
 }
 
@@ -71,9 +68,6 @@ func (c *Handler) SetLogger(parent *log.Logger) error {
 	logger := parent.Child(c.config.Id)
 	c.logger = logger
 
-	c.Manager = control.New(parent, nil, nil, nil)
-	c.Manager.SetConfig(c.config)
-
 	return nil
 }
 
@@ -104,16 +98,14 @@ func (c *Handler) Status() string {
 	return c.status
 }
 
-// Start the handler directly, not by goroutine.
-func (c *Handler) Start() error {
-	if c.config == nil {
-		return fmt.Errorf("configuration not set")
-	}
-	if err := c.Manager.Start(); err != nil {
-		return fmt.Errorf("c.Manager.Start: %w", err)
-	}
+// SetSocket assigns the handler's external ZeroMQ socket.
+func (c *Handler) SetSocket(socket *zmq.Socket) {
+	c.socket = socket
+}
 
-	return nil
+// Socket returns the handler's external ZeroMQ socket.
+func (c *Handler) Socket() *zmq.Socket {
+	return c.socket
 }
 
 // Does nothing, simply returns the data

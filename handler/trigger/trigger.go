@@ -33,6 +33,7 @@ type Trigger struct {
 	handlerType  config.HandlerType
 	broadcasting *datatype.Queue
 	instance     *concurrent.Instance
+	Manager      *control.Manager
 	messageOps   *message.Operations
 	status       string
 }
@@ -96,6 +97,8 @@ func (handler *Trigger) SetLogger(logger *log.Logger) error {
 		return err
 	}
 	handler.logger = logger.Child(handler.Config().Id)
+	handler.Manager = control.New(logger)
+	handler.Manager.SetConfig(handler.Handler.Config())
 
 	return nil
 }
@@ -371,36 +374,36 @@ func (handler *Trigger) handleManager(manager *zmq.Socket) error {
 	}
 
 	switch req.CommandName() {
-	case config.HandlerStatus:
+	case control.HandlerStatus:
 		return handler.replyManager(manager, req.Ok(datatype.New().Set("status", handler.managerStatus())))
-	case config.HandlerConfig:
+	case control.HandlerConfig:
 		return handler.replyManager(manager, req.Ok(datatype.New().Set("config", handler.Config().Handler)))
-	case config.HandlerClose:
+	case control.HandlerClose:
 		if err := handler.replyManager(manager, req.Ok(datatype.New())); err != nil {
 			return err
 		}
 		handler.close = true
 		return nil
-	case config.InstanceAmount:
+	case concurrent.InstanceAmount:
 		amount := uint64(0)
 		if handler.instance != nil && handler.instance.Status() != concurrent.CLOSED {
 			amount = 1
 		}
 		return handler.replyManager(manager, req.Ok(datatype.New().Set("instance_amount", amount)))
-	case config.MessageAmount:
+	case concurrent.MessageAmount:
 		return handler.replyManager(manager, req.Ok(datatype.New().
 			Set("queue_length", 0).
 			Set("processing_length", 0).
 			Set("broadcasting_length", handler.broadcasting.Len())))
-	case config.Parts:
+	case concurrent.Parts:
 		return handler.replyManager(manager, req.Ok(datatype.New().
 			Set("parts", []string{"instance", "broadcaster"}).
 			Set("message_types", []string{"queue_length", "processing_length", "broadcasting_length"})))
-	case config.AddInstance:
+	case concurrent.AddInstance:
 		return handler.replyManager(manager, req.Fail("only one private instance allowed in trigger"))
-	case config.DeleteInstance:
+	case concurrent.DeleteInstance:
 		return handler.replyManager(manager, req.Fail("trigger private instance can not be deleted"))
-	case config.ClosePart, config.RunPart:
+	case concurrent.ClosePart, concurrent.RunPart:
 		return handler.replyManager(manager, req.Fail("trigger parts are managed as a single handler"))
 	default:
 		return handler.replyManager(manager, req.Fail(fmt.Sprintf("unknown command '%s'", req.CommandName())))
@@ -444,7 +447,7 @@ func (handler *Trigger) closeInstance(instant bool) {
 		return
 	}
 	req := message.Request{
-		Command:    config.HandlerClose,
+		Command:    control.HandlerClose,
 		Parameters: datatype.New().Set("instant", instant),
 	}
 	envelope, err := req.ZmqEnvelope()

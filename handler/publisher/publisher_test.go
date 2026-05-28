@@ -9,6 +9,7 @@ import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -130,7 +131,7 @@ func (test *TestPublisherSuite) Test_10_Start() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything works
-	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
+	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
 	err = test.trigger.Submit(&req)
 	s.Require().NoError(err)
 
@@ -153,7 +154,7 @@ func (test *TestPublisherSuite) Test_10_Start() {
 	wg.Wait()
 
 	// Close the handler
-	req.Command = config.HandlerClose
+	req.Command = control.HandlerClose
 	s.Require().NoError(test.trigger.Submit(&req))
 }
 

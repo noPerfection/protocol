@@ -21,8 +21,8 @@ import (
 type TestControlSuite struct {
 	suite.Suite
 
+	handler         *concurrent.Concurrent
 	instanceManager *concurrent.Parent
-	instanceRunner  func() error
 	frontend        *concurrent.Frontend
 
 	handlerManager *control.Manager
@@ -44,13 +44,6 @@ func (test *TestControlSuite) SetupTest() {
 	test.Suite.Require().NoError(err, "failed to create logger")
 	test.logger = logger
 
-	test.instanceManager = concurrent.NewInstanceManager(test.inprocConfig.Id, test.logger)
-
-	test.instanceRunner = func() error {
-		return test.instanceManager.Start()
-	}
-
-	// Socket to talk to clients
 	test.routes = datatype.New()
 	test.routes.Set("command_1", func(request message.RequestInterface) message.ReplyInterface {
 		// Used for testing 'message_amount' command.
@@ -63,12 +56,16 @@ func (test *TestControlSuite) SetupTest() {
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
 	})
 
-	test.frontend = concurrent.NewFrontend()
-	test.frontend.SetConfig(test.inprocConfig)
-	test.frontend.SetInstanceManager(test.instanceManager)
+	test.handler = concurrent.NewConcurrent()
+	test.handler.SetConfig(test.inprocConfig)
+	for command, handle := range test.routes {
+		s.Require().NoError(test.handler.Route(command, handle))
+	}
+	s.Require().NoError(test.handler.SetLogger(test.logger))
 
-	test.handlerManager = control.New(test.logger, test.frontend, test.instanceManager, test.instanceRunner)
-	test.handlerManager.SetConfig(test.inprocConfig)
+	test.frontend = test.handler.Frontend
+	test.instanceManager = test.handler.InstanceManager
+	test.handlerManager = test.handler.Manager
 
 	s.Require().NoError(test.instanceManager.Start())
 	s.Require().NoError(test.frontend.Start())
@@ -119,7 +116,7 @@ func (test *TestControlSuite) cleanOut() {
 	}
 
 	if test.handlerManager.Status() == control.SocketReady {
-		test.handlerManager.SetClose(&message.Request{Command: config.HandlerClose, Parameters: datatype.New()})
+		test.handlerManager.SetClose(&message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
 	}
 
 	// Wait a bit for closing
@@ -165,7 +162,7 @@ func (test *TestControlSuite) Test_10_InvalidCommand() {
 func (test *TestControlSuite) Test_12_ClosePart() {
 	s := &test.Suite
 	params := datatype.New()
-	req := message.Request{Command: config.ClosePart, Parameters: params}
+	req := message.Request{Command: concurrent.ClosePart, Parameters: params}
 
 	// Trying to stop without a part must fail
 	reply := test.req(req)
@@ -206,7 +203,7 @@ func (test *TestControlSuite) Test_12_ClosePart() {
 func (test *TestControlSuite) Test_13_RunPart() {
 	s := &test.Suite
 	params := datatype.New()
-	req := message.Request{Command: config.ClosePart, Parameters: params}
+	req := message.Request{Command: concurrent.ClosePart, Parameters: params}
 
 	// Stopping the frontend that was run during test setup
 	params.Set("part", "frontend")
@@ -219,7 +216,7 @@ func (test *TestControlSuite) Test_13_RunPart() {
 	s.Require().Equal(concurrent.CREATED, test.frontend.Status())
 
 	// Let's test running it
-	req.Command = config.RunPart
+	req.Command = concurrent.RunPart
 	reply = test.req(req)
 	s.Require().True(reply.IsOK())
 
@@ -232,7 +229,7 @@ func (test *TestControlSuite) Test_13_RunPart() {
 	//
 
 	// stop the instance manager that was run during test setup
-	req.Command = config.ClosePart
+	req.Command = concurrent.ClosePart
 	params.Set("part", "instance_manager")
 	req.Parameters = params
 
@@ -244,7 +241,7 @@ func (test *TestControlSuite) Test_13_RunPart() {
 	s.Require().Equal(concurrent.Idle, test.instanceManager.Status())
 
 	// Start the instance manager
-	req.Command = config.RunPart
+	req.Command = concurrent.RunPart
 	reply = test.req(req)
 	s.Require().True(reply.IsOK())
 
@@ -264,7 +261,7 @@ func (test *TestControlSuite) Test_13_RunPart() {
 // Test_14_InstanceAmount trying check that instance amount is correct
 func (test *TestControlSuite) Test_14_InstanceAmount() {
 	s := &test.Suite
-	req := message.Request{Command: config.InstanceAmount, Parameters: datatype.New()}
+	req := message.Request{Command: concurrent.InstanceAmount, Parameters: datatype.New()}
 
 	// No instances were added, so it must return 0
 	reply := test.req(req)
@@ -310,7 +307,7 @@ func (test *TestControlSuite) Test_14_InstanceAmount() {
 // Test_15_InstanceAmount checks that instance amount is correct when instances come and go
 func (test *TestControlSuite) Test_15_InstanceAmount() {
 	s := &test.Suite
-	req := message.Request{Command: config.InstanceAmount, Parameters: datatype.New()}
+	req := message.Request{Command: concurrent.InstanceAmount, Parameters: datatype.New()}
 
 	// No instances were added, so it must return 0
 	reply := test.req(req)
@@ -356,7 +353,7 @@ func (test *TestControlSuite) Test_15_InstanceAmount() {
 // Test_16_MessageAmount checks that queue and processing messages amount are correct
 func (test *TestControlSuite) Test_16_MessageAmount() {
 	s := &test.Suite
-	req := message.Request{Command: config.MessageAmount, Parameters: datatype.New()}
+	req := message.Request{Command: concurrent.MessageAmount, Parameters: datatype.New()}
 
 	// Imitating the user that sends the message
 	clientType := clientConfig.TargetToClient(config.SocketType(test.inprocConfig.Type))
@@ -439,7 +436,7 @@ func (test *TestControlSuite) Test_16_MessageAmount() {
 // Test_17_MessageAmount checks that message amounts are correct
 func (test *TestControlSuite) Test_17_MessageAmount() {
 	s := &test.Suite
-	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
+	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
 
 	// Test setup runs all parts, status must be control.Ready
 	reply := test.req(req)
@@ -452,7 +449,7 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 	//
 	// Turn the status to incomplete
 	//
-	partReq := message.Request{Command: config.ClosePart, Parameters: datatype.New().Set("part", "frontend")}
+	partReq := message.Request{Command: concurrent.ClosePart, Parameters: datatype.New().Set("part", "frontend")}
 	reply = test.req(partReq)
 	s.Require().True(reply.IsOK())
 
@@ -512,7 +509,7 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 	//
 
 	// Start the instance manager
-	partReq.Command = config.RunPart
+	partReq.Command = concurrent.RunPart
 	reply = test.req(partReq)
 	s.Require().True(reply.IsOK())
 
@@ -562,7 +559,7 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 // Test_18_OverwriteRoute checks that routes can be overwritten
 func (test *TestControlSuite) Test_18_OverwriteRoute() {
 	s := &test.Suite
-	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
+	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
 
 	// The default route must work as designed
 	reply := test.req(req)
@@ -582,7 +579,7 @@ func (test *TestControlSuite) Test_18_OverwriteRoute() {
 	s.Require().Error(err)
 
 	// Close the handler manager
-	test.handlerManager.SetClose(&message.Request{Command: config.HandlerClose, Parameters: datatype.New()})
+	test.handlerManager.SetClose(&message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
 	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(control.SocketIdle, test.handlerManager.Status())
 
@@ -613,7 +610,7 @@ func (test *TestControlSuite) Test_18_OverwriteRoute() {
 // Test_19_AddInstance checks that instances can be added
 func (test *TestControlSuite) Test_19_AddInstance() {
 	s := &test.Suite
-	req := message.Request{Command: config.AddInstance, Parameters: datatype.New()}
+	req := message.Request{Command: concurrent.AddInstance, Parameters: datatype.New()}
 
 	// There must not be any instances before adding
 	s.Require().Len(test.instanceManager.Instances(), 0)
@@ -638,7 +635,7 @@ func (test *TestControlSuite) Test_19_AddInstance() {
 // Test_20_DeleteInstance deletes the instance
 func (test *TestControlSuite) Test_20_DeleteInstance() {
 	s := &test.Suite
-	req := message.Request{Command: config.DeleteInstance, Parameters: datatype.New()}
+	req := message.Request{Command: concurrent.DeleteInstance, Parameters: datatype.New()}
 
 	// There must not be any instances before adding
 	s.Require().Len(test.instanceManager.Instances(), 0)
@@ -653,7 +650,7 @@ func (test *TestControlSuite) Test_20_DeleteInstance() {
 	s.Require().False(reply.IsOK())
 
 	// Let's add a new instance for deleting
-	req.Command = config.AddInstance
+	req.Command = concurrent.AddInstance
 	reply = test.req(req)
 	s.Require().True(reply.IsOK())
 
@@ -665,7 +662,7 @@ func (test *TestControlSuite) Test_20_DeleteInstance() {
 	s.Require().Len(test.instanceManager.Instances(), 1)
 
 	// Delete the instance
-	req.Command = config.DeleteInstance
+	req.Command = concurrent.DeleteInstance
 	req.Parameters.Set("instance_id", instanceId)
 	reply = test.req(req)
 	s.Require().True(reply.IsOK())

@@ -16,6 +16,7 @@ type Concurrent struct {
 	logger                 *log.Logger
 	Frontend               *Frontend
 	InstanceManager        *Parent
+	Manager                *control.Manager
 	instanceManagerStarted bool
 }
 
@@ -53,8 +54,11 @@ func (c *Concurrent) SetLogger(parent *log.Logger) error {
 	c.InstanceManager = NewInstanceManager(c.config.Id, c.logger)
 	c.Frontend.SetInstanceManager(c.InstanceManager)
 
-	c.Manager = control.New(parent, c.Frontend, c.InstanceManager, c.StartInstanceManager)
-	c.Manager.SetConfig(c.config)
+	c.Manager = control.New(parent)
+	c.Manager.SetConfig(c.config.Handler)
+	if err := c.SetControlRoutes(); err != nil {
+		return err
+	}
 
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/suite"
 )
@@ -149,7 +150,7 @@ func (test *TestBaseHandlerSuite) Test_14_Start() {
 	inprocClient, err := client.NewRaw(config.SocketType(test.inprocConfig.Type), test.inprocConfig.ManagerConnectUrl())
 	s.Require().NoError(err)
 	reply, err := inprocClient.Request(&message.Request{
-		Command:    config.HandlerClose,
+		Command:    control.HandlerClose,
 		Parameters: datatype.New(),
 	})
 	s.Require().NoError(err)

@@ -10,6 +10,7 @@ import (
 	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -173,7 +174,7 @@ func (test *TestTriggerSuite) Test_14_Start() {
 	triggerClient, err := client.NewRaw(config.SocketType(test.config.Type), test.config.ManagerConnectUrl())
 	s.Require().NoError(err)
 	reply, err := triggerClient.Request(&message.Request{
-		Command:    config.HandlerClose,
+		Command:    control.HandlerClose,
 		Parameters: datatype.New(),
 	})
 	s.Require().NoError(err)

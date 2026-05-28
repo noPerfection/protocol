@@ -14,58 +14,32 @@ import (
 )
 
 const (
+	HandlerStatus = "status"
+	HandlerClose  = "close"  // Close the handler
+	HandlerConfig = "config" // Returns the handler configuration
+
 	Incomplete  = "incomplete"
 	Ready       = "ready"
-	PartRunning = "running"
 	SocketIdle  = "idle"
 	SocketReady = "ready"
 )
 
-type Frontend interface {
-	Status() string
-	Start() error
-	Close() error
-	QueueLen() uint
-	ProcessingLen() uint
-}
-
-type InstanceManager interface {
-	Status() string
-	Start() error
-	Close()
-	Instances() map[string]string
-	AddInstance(config.HandlerType, *datatype.KeyValue) (string, error)
-	DeleteInstance(string, bool) error
-}
-
-type ManagerConfig interface {
-	ManagerExternalUrl() string
-	HandlerType() config.HandlerType
-}
-
 type Manager struct {
-	logger               *log.Logger
-	frontend             Frontend
-	instanceManager      InstanceManager
-	startInstanceManager func() error
-	config               ManagerConfig
-	rawConfig            any
-	routes               datatype.KeyValue
-	status               string // It's the socket status, not the handler status
-	close                bool
+	logger *log.Logger
+	config *config.Handler
+	routes datatype.KeyValue
+	status string // It's the socket status, not the handler status
+	close  bool
 }
 
 // New creates a new Manager.
-func New(parent *log.Logger, frontend Frontend, instanceManager InstanceManager, startInstanceManager func() error) *Manager {
+func New(parent *log.Logger) *Manager {
 	logger := parent.Child("control")
 
 	m := &Manager{
-		frontend:             frontend,
-		instanceManager:      instanceManager,
-		startInstanceManager: startInstanceManager,
-		routes:               datatype.New(),
-		status:               SocketIdle,
-		logger:               logger,
+		routes: datatype.New(),
+		status: SocketIdle,
+		logger: logger,
 	}
 
 	// Add the default routes
@@ -75,9 +49,8 @@ func New(parent *log.Logger, frontend Frontend, instanceManager InstanceManager,
 }
 
 // SetConfig sets the link to the configuration of the handler
-func (m *Manager) SetConfig(config ManagerConfig) {
+func (m *Manager) SetConfig(config *config.Handler) {
 	m.config = config
-	m.rawConfig = config
 }
 
 // Status returns the socket status of the Manager.
@@ -89,14 +62,7 @@ func (m *Manager) Status() string {
 //
 // Intended to be used by the extending handlers.
 func (m *Manager) PartStatuses() datatype.KeyValue {
-	frontendStatus := m.frontend.Status()
-	instanceStatus := m.instanceManager.Status()
-
-	parts := datatype.New().
-		Set("frontend", frontendStatus).
-		Set("instance_manager", instanceStatus)
-
-	return parts
+	return datatype.New()
 }
 
 // SetClose adds a close signal to the queue.
@@ -106,175 +72,38 @@ func (m *Manager) SetClose(req message.RequestInterface) message.ReplyInterface 
 	return req.Ok(datatype.New())
 }
 
-// setRoutes sets the default command handlers
+// setRoutes sets the default command handlers.
 func (m *Manager) setRoutes() {
-	// Requesting status which is calculated from statuses of the handler parts
 	onStatus := func(req message.RequestInterface) message.ReplyInterface {
-		frontendStatus := m.frontend.Status()
-		instanceStatus := m.instanceManager.Status()
-
-		params := datatype.New()
-
-		if frontendStatus == PartRunning && instanceStatus == PartRunning {
-			params.Set("status", Ready)
-		} else {
-			parts := datatype.New().
-				Set("frontend", frontendStatus).
-				Set("instance_manager", instanceStatus)
-
-			params.Set("status", Incomplete).
-				Set("parts", parts)
-		}
-
-		return req.Ok(params)
-	}
-
-	// Stop one of the parts.
-	// For example, frontend or instance_manager
-	onClosePart := func(req message.RequestInterface) message.ReplyInterface {
-		part, err := req.RouteParameters().StringValue("part")
-		if err != nil {
-			return req.Fail(fmt.Sprintf("req.Parameters.GetString('part'): %v", err))
-		}
-
-		if part == "frontend" {
-			if m.frontend.Status() != PartRunning {
-				return req.Fail("frontend not running")
-			} else {
-				if err := m.frontend.Close(); err != nil {
-					return req.Fail(fmt.Sprintf("failed to close the frontend: %v", err))
-				}
-				return req.Ok(datatype.New())
-			}
-		} else if part == "instance_manager" {
-			if m.instanceManager.Status() != PartRunning {
-				return req.Fail("instance_manager not running")
-			} else {
-				m.instanceManager.Close()
-				return req.Ok(datatype.New())
-			}
-		} else {
-			return req.Fail(fmt.Sprintf("unknown part '%s' to stop", part))
-		}
-	}
-
-	onRunPart := func(req message.RequestInterface) message.ReplyInterface {
-		part, err := req.RouteParameters().StringValue("part")
-		if err != nil {
-			return req.Fail(fmt.Sprintf("req.Parameters.GetString('part'): %v", err))
-		}
-
-		if part == "frontend" {
-			if m.frontend.Status() == PartRunning {
-				return req.Fail("frontend running")
-			} else {
-				err := m.frontend.Start()
-				if err != nil {
-					return req.Fail(fmt.Sprintf("frontend.Start: %v", err))
-				}
-				return req.Ok(datatype.New())
-			}
-		} else if part == "instance_manager" {
-			if m.instanceManager.Status() == PartRunning {
-				return req.Fail("instance_manager running")
-			} else {
-				err := m.startInstanceManager()
-				if err != nil {
-					return req.Fail(fmt.Sprintf("m.startInstanceManager: %v", err))
-				}
-				return req.Ok(datatype.New())
-			}
-		} else {
-			return req.Fail(fmt.Sprintf("unknown part '%s' to stop", part))
-		}
-	}
-
-	onInstanceAmount := func(req message.RequestInterface) message.ReplyInterface {
-		instanceAmount := len(m.instanceManager.Instances())
-		return req.Ok(datatype.New().Set("instance_amount", instanceAmount))
-	}
-
-	// Returns queue amount and currently processed images amount
-	onMessageAmount := func(req message.RequestInterface) message.ReplyInterface {
-		params := datatype.New().
-			Set("queue_length", m.frontend.QueueLen()).
-			Set("processing_length", m.frontend.ProcessingLen())
-		return req.Ok(params)
-	}
-
-	// Add a new instance, but it doesn't check that instance was added
-	onAddInstance := func(req message.RequestInterface) message.ReplyInterface {
-		instanceId, err := m.instanceManager.AddInstance(m.config.HandlerType(), &m.routes)
-		if err != nil {
-			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", m.config.HandlerType(), err))
-		}
-
-		params := datatype.New().Set("instance_id", instanceId)
-		return req.Ok(params)
-	}
-
-	// Delete the instance
-	onDeleteInstance := func(req message.RequestInterface) message.ReplyInterface {
-		instanceId, err := req.RouteParameters().StringValue("instance_id")
-		if err != nil {
-			return req.Fail(fmt.Sprintf("req.Parameters.GetString('instance_id'): %v", err))
-		}
-
-		err = m.instanceManager.DeleteInstance(instanceId, false)
-		if err != nil {
-			return req.Fail(fmt.Sprintf("instanceManager.DeleteInstance('%s'): %v", instanceId, err))
-		}
-
-		return req.Ok(datatype.New())
-	}
-
-	onParts := func(req message.RequestInterface) message.ReplyInterface {
-		parts := []string{
-			"frontend",
-			"instance_manager",
-		}
-		messageTypes := []string{
-			"queue_length",
-			"processing_length",
-		}
-
-		params := datatype.New().
-			Set("parts", parts).
-			Set("message_types", messageTypes)
-
-		return req.Ok(params)
+		return req.Ok(datatype.New().Set("status", Ready))
 	}
 
 	onConfig := func(req message.RequestInterface) message.ReplyInterface {
-		params := datatype.New().Set("config", m.rawConfig)
+		params := datatype.New().Set("config", m.config)
 		return req.Ok(params)
 	}
 
-	m.routes.Set(config.HandlerStatus, onStatus)
-	m.routes.Set(config.ClosePart, onClosePart)
-	m.routes.Set(config.RunPart, onRunPart)
-	m.routes.Set(config.InstanceAmount, onInstanceAmount)
-	m.routes.Set(config.MessageAmount, onMessageAmount)
-	m.routes.Set(config.AddInstance, onAddInstance)
-	m.routes.Set(config.DeleteInstance, onDeleteInstance)
-	m.routes.Set(config.Parts, onParts)
-	m.routes.Set(config.HandlerClose, m.SetClose)
-	m.routes.Set(config.HandlerConfig, onConfig)
+	m.routes.Set(HandlerStatus, onStatus)
+	m.routes.Set(HandlerClose, m.SetClose)
+	m.routes.Set(HandlerConfig, onConfig)
 }
 
-// Route overrides the default route with the given handle.
-// Returns an error if the command is not supported.
-// Returns an error if Manager is running.
-func (m *Manager) Route(cmd string, handle route.HandleFunc) error {
+// SetRoutes registers or overwrites control routes.
+func (m *Manager) SetRoutes(routes map[string]route.HandleFunc) error {
 	if m.status == SocketReady {
 		return fmt.Errorf("can not overwrite handler when Manager is running")
 	}
-	if !m.routes.Exist(cmd) {
-		return fmt.Errorf("'%s' command not found", cmd)
+
+	for cmd, handle := range routes {
+		m.routes.Set(cmd, handle)
 	}
-	m.routes.Set(cmd, handle)
 
 	return nil
+}
+
+// Route registers or overwrites one control route.
+func (m *Manager) Route(cmd string, handle route.HandleFunc) error {
+	return m.SetRoutes(map[string]route.HandleFunc{cmd: handle})
 }
 
 // Start the Manager.
@@ -387,37 +216,6 @@ func (m *Manager) Start() error {
 
 		m.status = SocketIdle
 		m.close = false
-
-		//
-		// Close the parts
-		//
-
-		// Since routes are over-writeable, as extending handlers might add new parts.
-		// We don't call frontend or instanceManager directly.
-		partsHandle := m.routes[config.Parts].(route.HandleFunc)
-		closeHandle := m.routes[config.ClosePart].(route.HandleFunc)
-
-		defReq := message.Request{Command: config.Parts, Parameters: datatype.New()}
-		var req message.RequestInterface = &defReq
-
-		partsReply := partsHandle(req)
-		if !partsReply.IsOK() {
-			m.logger.Error("failed to handle", "command", config.Parts, "request", req, "reply.Message", partsReply.ErrorMessage())
-		} else {
-			parts, err := partsReply.ReplyParameters().StringsValue("parts")
-			if err != nil {
-				m.logger.Error("reply.Parameters.GetStringList", "argument", "parts", "command", config.Parts, "request", req, "error", err)
-			} else {
-				defReq.Command = config.ClosePart
-				req = &defReq
-				for _, part := range parts {
-					req.RouteParameters().Set("part", part)
-
-					// if it's failed, it might be because part already closed
-					_ = closeHandle(req)
-				}
-			}
-		}
 
 		closeErr := socket.Close()
 		if closeErr != nil {

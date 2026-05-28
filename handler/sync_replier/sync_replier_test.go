@@ -113,7 +113,7 @@ func (test *TestSyncReplierSuite) Test_10_Start() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything works
-	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
+	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
 	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -121,14 +121,7 @@ func (test *TestSyncReplierSuite) Test_10_Start() {
 	s.Require().NoError(err)
 	s.Require().Equal(control.Ready, status)
 
-	// By default, the handler creates a socket.
-	// Trying to add a new socket, it will throw an error
-	s.Require().NotNil(test.syncReplier.instance)
-
-	// Adding a new instance must fail
-	req.Command = config.AddInstance
-	reply = test.req(test.managerClient, req)
-	s.Require().False(reply.IsOK())
+	s.Require().NotNil(test.syncReplier.Socket())
 
 	// Testing the external connection
 	req = message.Request{Command: "command_1", Parameters: datatype.New()}
@@ -137,7 +130,7 @@ func (test *TestSyncReplierSuite) Test_10_Start() {
 	s.Require().True(reply.IsOK())
 
 	// Close the handler
-	req.Command = config.HandlerClose
+	req.Command = control.HandlerClose
 	reply = test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
