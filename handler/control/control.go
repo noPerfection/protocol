@@ -7,7 +7,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
@@ -15,9 +14,13 @@ import (
 )
 
 const (
-	HandlerStatus = "status"
-	HandlerClose  = "close"  // Close the handler
-	HandlerConfig = "config" // Returns the handler configuration
+	HandlerStatus   = "status"
+	HandlerClose    = "close"  // Close the handler
+	HandlerConfig   = "config" // Returns the handler configuration
+	ControlCategory = "control"
+
+	socketIdle  = "idle"
+	socketReady = "ready"
 )
 
 type Manager struct {
@@ -32,19 +35,14 @@ type Manager struct {
 func New(parent *log.Logger) *Manager {
 	logger := parent.Child("control")
 
-	m := &Manager{
+	return &Manager{
 		routes: datatype.New(),
-		status: base.SocketIdle,
+		status: socketIdle,
 		logger: logger,
 	}
-
-	// Add the default routes
-	m.setRoutes()
-
-	return m
 }
 
-// SetConfig sets the link to the configuration of the handler
+// SetConfig sets the link to the configuration of the Manager.
 func (m *Manager) SetConfig(config *config.Handler) {
 	m.config = config
 }
@@ -61,32 +59,14 @@ func (m *Manager) PartStatuses() datatype.KeyValue {
 	return datatype.New()
 }
 
-// SetClose adds a close signal to the queue.
-func (m *Manager) SetClose(req message.RequestInterface) message.ReplyInterface {
+// Close adds a close signal to the Manager socket loop.
+func (m *Manager) Close() {
 	m.close = true
-
-	return req.Ok(datatype.New())
-}
-
-// setRoutes sets the default command handlers.
-func (m *Manager) setRoutes() {
-	onStatus := func(req message.RequestInterface) message.ReplyInterface {
-		return req.Ok(datatype.New().Set("status", base.Ready))
-	}
-
-	onConfig := func(req message.RequestInterface) message.ReplyInterface {
-		params := datatype.New().Set("config", m.config)
-		return req.Ok(params)
-	}
-
-	m.routes.Set(HandlerStatus, onStatus)
-	m.routes.Set(HandlerClose, m.SetClose)
-	m.routes.Set(HandlerConfig, onConfig)
 }
 
 // SetRoutes registers or overwrites control routes.
 func (m *Manager) SetRoutes(routes map[string]route.HandleFunc) error {
-	if m.status == base.SocketReady {
+	if m.status == socketReady {
 		return fmt.Errorf("can not overwrite handler when Manager is running")
 	}
 
@@ -107,6 +87,9 @@ func (m *Manager) Start() error {
 	if m.config == nil {
 		return fmt.Errorf("no config")
 	}
+	if m.config.Category != ControlCategory {
+		return fmt.Errorf("I cant start a handler in a %s category, It must be %s", m.config.Category, ControlCategory)
+	}
 
 	ready := make(chan error)
 
@@ -117,7 +100,7 @@ func (m *Manager) Start() error {
 			return
 		}
 
-		url := m.config.ManagerExternalUrl()
+		url := config.ExternalUrl(m.config.Id, m.config.Port)
 		err = socket.Bind(url)
 		if err != nil {
 			ready <- fmt.Errorf("socket.Bind('%s'): %w", url, err)
@@ -127,7 +110,7 @@ func (m *Manager) Start() error {
 		poller := zmq.NewPoller()
 		poller.Add(socket, zmq.POLLIN)
 
-		m.status = base.SocketReady
+		m.status = socketReady
 
 		// Exit from Start function
 		ready <- nil
@@ -210,7 +193,7 @@ func (m *Manager) Start() error {
 			}
 		}
 
-		m.status = base.SocketIdle
+		m.status = socketIdle
 		m.close = false
 
 		closeErr := socket.Close()

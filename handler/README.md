@@ -155,7 +155,7 @@ cfg := &config.Handler{
 
 Clients use the same `Id` and `Port` with `config.ConnectUrl` (`tcp://{Id}:{Port}` for TCP).
 
-Manager endpoints use the same URL rules through `handlerCfg.ManagerExternalUrl()` and `handlerCfg.ManagerConnectUrl()`. By default constructors set the manager to `inproc://manager_{Id}` with category `config.ManagerCategory` (`"control"`); set `ManagerId` and `ManagerPort` when the manager must be reachable outside the process.
+Manager endpoints use the same URL rules through `handlerCfg.ManagerExternalUrl()` and `handlerCfg.ManagerConnectUrl()`. By default constructors set the manager to `inproc://manager_{Id}` with category `"control"`; set `ManagerId` and `ManagerPort` when the manager must be reachable outside the process.
 
 **IPC example** — use an id under `/tmp/`:
 

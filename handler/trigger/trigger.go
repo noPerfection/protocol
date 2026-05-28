@@ -26,7 +26,6 @@ type Trigger struct {
 	*base.Handler
 	socket       *zmq.Socket
 	closePub     bool
-	close        bool
 	port         uint64
 	id           string
 	logger       *log.Logger
@@ -43,7 +42,6 @@ func New() *Trigger {
 	handler := &Trigger{
 		Handler:      base.New(),
 		closePub:     false,
-		close:        false,
 		socket:       nil,
 		broadcasting: datatype.NewQueue(),
 		messageOps:   message.DefaultMessage(),
@@ -98,7 +96,7 @@ func (handler *Trigger) SetLogger(logger *log.Logger) error {
 	}
 	handler.logger = logger.Child(handler.Config().Id)
 	handler.Manager = control.New(logger)
-	handler.Manager.SetConfig(handler.Handler.Config())
+	handler.Manager.SetConfig(handler.Handler.Config().ManagerHandler())
 
 	return nil
 }
@@ -268,7 +266,7 @@ func (handler *Trigger) Start() error {
 		return fmt.Errorf("trigger.startBroadcaster: %w", err)
 	}
 
-	handler.close = false
+	handler.Handler.SetClose(false)
 	handler.status = base.Ready
 	go handler.run(parent, triggerSocket, instanceClient, manager)
 
@@ -281,7 +279,7 @@ func (handler *Trigger) run(parent *zmq.Socket, triggerSocket *zmq.Socket, insta
 	poller.Add(triggerSocket, zmq.POLLIN)
 	poller.Add(manager, zmq.POLLIN)
 
-	for !handler.close {
+	for !handler.Handler.Closed() {
 		sockets, err := poller.Poll(time.Millisecond)
 		if err != nil {
 			handler.status = err.Error()
@@ -382,7 +380,7 @@ func (handler *Trigger) handleManager(manager *zmq.Socket) error {
 		if err := handler.replyManager(manager, req.Ok(datatype.New())); err != nil {
 			return err
 		}
-		handler.close = true
+		handler.Handler.SetClose(true)
 		return nil
 	case concurrent.InstanceAmount:
 		amount := uint64(0)

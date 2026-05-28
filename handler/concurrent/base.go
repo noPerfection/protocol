@@ -55,7 +55,7 @@ func (c *Concurrent) SetLogger(parent *log.Logger) error {
 	c.Frontend.SetInstanceManager(c.InstanceManager)
 
 	c.Manager = control.New(parent)
-	c.Manager.SetConfig(c.config.Handler)
+	c.Manager.SetConfig(c.config.Handler.ManagerHandler())
 	if err := c.SetControlRoutes(); err != nil {
 		return err
 	}

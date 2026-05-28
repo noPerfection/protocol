@@ -30,14 +30,22 @@ type Handler struct {
 	logger *log.Logger
 	Routes datatype.KeyValue
 	status string
+	close  bool
 }
 
 // New creates a handler.
-func New() *Handler {
+// Optionally you can set the logger.
+func New(logger ...*log.Logger) *Handler {
 	h := &Handler{
 		Routes: datatype.New(),
 		status: SocketNil,
+		close:  false,
 	}
+
+	if len(logger) > 0 && logger[0] != nil {
+		h.logger = logger[0]
+	}
+
 	return h
 }
 
@@ -104,6 +112,16 @@ func (c *Handler) Type() config.HandlerType {
 
 func (c *Handler) Status() string {
 	return c.status
+}
+
+// Closed returns true when the handler received a close signal.
+func (c *Handler) Closed() bool {
+	return c.close
+}
+
+// SetClose sets the handler close state.
+func (c *Handler) SetClose(close bool) {
+	c.close = close
 }
 
 // SetSocketIdle marks the handler socket as idle.

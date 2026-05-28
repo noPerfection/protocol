@@ -117,7 +117,7 @@ func (test *TestControlSuite) cleanOut() {
 	}
 
 	if test.handlerManager.Status() == base.SocketReady {
-		test.handlerManager.SetClose(&message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
+		test.handlerManager.Close()
 	}
 
 	// Wait a bit for closing
@@ -580,7 +580,7 @@ func (test *TestControlSuite) Test_18_OverwriteRoute() {
 	s.Require().Error(err)
 
 	// Close the handler manager
-	test.handlerManager.SetClose(&message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
+	test.handlerManager.Close()
 	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(base.SocketIdle, test.handlerManager.Status())
 

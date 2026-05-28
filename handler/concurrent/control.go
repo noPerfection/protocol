@@ -28,6 +28,7 @@ func (c *Concurrent) SetControlRoutes() error {
 	routes := map[string]func(message.RequestInterface) message.ReplyInterface{
 		control.HandlerStatus: c.onControlStatus,
 		control.HandlerClose:  c.onControlClose,
+		control.HandlerConfig: c.onControlConfig,
 		ClosePart:             c.onClosePart,
 		RunPart:               c.onRunPart,
 		InstanceAmount:        c.onInstanceAmount,
@@ -60,11 +61,17 @@ func (c *Concurrent) onControlStatus(req message.RequestInterface) message.Reply
 	return req.Ok(params)
 }
 
+func (c *Concurrent) onControlConfig(req message.RequestInterface) message.ReplyInterface {
+	return req.Ok(datatype.New().Set("config", c.config.Handler))
+}
+
 func (c *Concurrent) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	_ = c.closeControlPart("frontend")
 	_ = c.closeControlPart("instance_manager")
 
-	return c.Manager.SetClose(req)
+	c.Handler.SetClose(true)
+	c.Manager.Close()
+	return req.Ok(datatype.New())
 }
 
 func (c *Concurrent) controlPartStatuses() datatype.KeyValue {

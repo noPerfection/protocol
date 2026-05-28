@@ -7,10 +7,6 @@ import (
 	zmq "github.com/pebbe/zmq4"
 )
 
-const (
-	ManagerCategory = "control"
-)
-
 type Handler struct {
 	Type        HandlerType `json:"type" yaml:"type"`
 	Category    string      `json:"category" yaml:"category"`
@@ -53,7 +49,7 @@ func (handler *Handler) ManagerHandler() *Handler {
 		managerId = DefaultManagerId(handler.Id)
 	}
 
-	return NewHandler(handler.Type, managerId, ManagerCategory, handler.ManagerPort)
+	return NewHandler(handler.Type, managerId, "control", handler.ManagerPort)
 }
 
 func (handler *Handler) ManagerExternalUrl() string {

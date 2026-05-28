@@ -48,6 +48,12 @@ type Interface interface {
 	// SetSocketNil clears the handler socket and marks it nil.
 	SetSocketNil()
 
+	// Closed returns true when the handler received a close signal.
+	Closed() bool
+
+	// SetClose sets the handler close state.
+	SetClose(bool)
+
 	Start() error
 
 	// The Status is empty is the handler is running.

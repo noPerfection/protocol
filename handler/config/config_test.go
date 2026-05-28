@@ -96,7 +96,7 @@ func (test *TestConfigSuite) Test_15_ManagerUrl_tcp() {
 	manager := handler.ManagerHandler()
 
 	test.Require().Equal("manager.example.com", manager.Id)
-	test.Require().Equal(ManagerCategory, manager.Category)
+	test.Require().Equal("control", manager.Category)
 	test.Require().Equal(uint64(7000), manager.Port)
 	test.Require().Equal("tcp://manager.example.com:7000", handler.ManagerExternalUrl())
 	test.Require().Equal("tcp://manager.example.com:7000", handler.ManagerConnectUrl())

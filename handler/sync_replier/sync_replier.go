@@ -20,7 +20,6 @@ type SyncReplier struct {
 	logger      *log.Logger
 	Manager     *control.Manager
 	messageOps  *message.Operations
-	close       bool
 	status      string
 }
 
@@ -46,7 +45,7 @@ func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 	}
 	c.logger = parent.Child(c.Config().Id)
 	c.Manager = control.New(parent)
-	c.Manager.SetConfig(c.Config())
+	c.Manager.SetConfig(c.Config().ManagerHandler())
 	return nil
 }
 
@@ -76,7 +75,7 @@ func (c *SyncReplier) Start() error {
 		return err
 	}
 
-	c.close = false
+	c.Handler.SetClose(false)
 	if err := c.Manager.Start(); err != nil {
 		c.cleanup()
 		return fmt.Errorf("manager.Start: %w", err)
@@ -96,6 +95,7 @@ func (c *SyncReplier) setControlRoutes() error {
 	routes := map[string]route.HandleFunc{
 		control.HandlerStatus: c.onControlStatus,
 		control.HandlerClose:  c.onControlClose,
+		control.HandlerConfig: c.onControlConfig,
 	}
 
 	if err := c.Manager.SetRoutes(routes); err != nil {
@@ -132,7 +132,7 @@ func (c *SyncReplier) run() {
 	poller := zmq.NewPoller()
 	poller.Add(socket, zmq.POLLIN)
 
-	for !c.close {
+	for !c.Handler.Closed() {
 		sockets, err := poller.Poll(time.Millisecond)
 		if err != nil {
 			c.status = err.Error()
@@ -196,13 +196,18 @@ func (c *SyncReplier) cleanup() {
 
 func (c *SyncReplier) onControlStatus(req message.RequestInterface) message.ReplyInterface {
 	status := base.Incomplete
-	if c.Handler.Status() == base.SocketReady && !c.close {
+	if c.Handler.Status() == base.SocketReady && !c.Handler.Closed() {
 		status = base.Ready
 	}
 	return req.Ok(datatype.New().Set("status", status))
 }
 
+func (c *SyncReplier) onControlConfig(req message.RequestInterface) message.ReplyInterface {
+	return req.Ok(datatype.New().Set("config", c.Config()))
+}
+
 func (c *SyncReplier) onControlClose(req message.RequestInterface) message.ReplyInterface {
-	c.close = true
-	return c.Manager.SetClose(req)
+	c.Handler.SetClose(true)
+	c.Manager.Close()
+	return req.Ok(datatype.New())
 }
