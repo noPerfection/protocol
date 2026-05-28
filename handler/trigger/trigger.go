@@ -269,7 +269,7 @@ func (handler *Trigger) Start() error {
 	}
 
 	handler.close = false
-	handler.status = control.Ready
+	handler.status = base.Ready
 	go handler.run(parent, triggerSocket, instanceClient, manager)
 
 	return nil
@@ -414,9 +414,9 @@ func (handler *Trigger) managerStatus() string {
 	if handler.instance != nil &&
 		handler.instance.Status() == concurrent.READY &&
 		handler.broadcasterStatus() == BroadcasterRunning {
-		return control.Ready
+		return base.Ready
 	}
-	return control.Incomplete
+	return base.Incomplete
 }
 
 func (handler *Trigger) replyManager(manager *zmq.Socket, reply message.ReplyInterface) error {

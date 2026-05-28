@@ -3,6 +3,7 @@ package base
 import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/config"
+	zmq "github.com/pebbe/zmq4"
 )
 
 // Interface of the handler. Any handlers must be based on this.
@@ -31,6 +32,21 @@ type Interface interface {
 
 	// Type returns the type of the handler
 	Type() config.HandlerType
+
+	// Socket returns the handler's external ZeroMQ socket.
+	Socket() *zmq.Socket
+
+	// SetSocket assigns the handler's external ZeroMQ socket.
+	SetSocket(*zmq.Socket)
+
+	// SetSocketIdle marks the handler socket as idle.
+	SetSocketIdle()
+
+	// SetSocketReady marks the handler socket as ready.
+	SetSocketReady()
+
+	// SetSocketNil clears the handler socket and marks it nil.
+	SetSocketNil()
 
 	Start() error
 

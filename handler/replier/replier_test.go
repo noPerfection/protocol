@@ -6,6 +6,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
@@ -112,7 +113,7 @@ func (test *TestReplierSuite) Test_10_Start() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(control.Ready, status)
+	s.Require().Equal(base.Ready, status)
 
 	// By default, the handler creates a socket.
 	// Trying to add a new socket, it will throw an error
@@ -157,7 +158,7 @@ func (test *TestReplierSuite) Test_11_Request() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(control.Ready, status)
+	s.Require().Equal(base.Ready, status)
 
 	// By default, the handler creates a socket.
 	// Trying to add a new socket, it will throw an error

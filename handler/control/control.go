@@ -7,6 +7,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
@@ -17,11 +18,6 @@ const (
 	HandlerStatus = "status"
 	HandlerClose  = "close"  // Close the handler
 	HandlerConfig = "config" // Returns the handler configuration
-
-	Incomplete  = "incomplete"
-	Ready       = "ready"
-	SocketIdle  = "idle"
-	SocketReady = "ready"
 )
 
 type Manager struct {
@@ -38,7 +34,7 @@ func New(parent *log.Logger) *Manager {
 
 	m := &Manager{
 		routes: datatype.New(),
-		status: SocketIdle,
+		status: base.SocketIdle,
 		logger: logger,
 	}
 
@@ -75,7 +71,7 @@ func (m *Manager) SetClose(req message.RequestInterface) message.ReplyInterface 
 // setRoutes sets the default command handlers.
 func (m *Manager) setRoutes() {
 	onStatus := func(req message.RequestInterface) message.ReplyInterface {
-		return req.Ok(datatype.New().Set("status", Ready))
+		return req.Ok(datatype.New().Set("status", base.Ready))
 	}
 
 	onConfig := func(req message.RequestInterface) message.ReplyInterface {
@@ -90,7 +86,7 @@ func (m *Manager) setRoutes() {
 
 // SetRoutes registers or overwrites control routes.
 func (m *Manager) SetRoutes(routes map[string]route.HandleFunc) error {
-	if m.status == SocketReady {
+	if m.status == base.SocketReady {
 		return fmt.Errorf("can not overwrite handler when Manager is running")
 	}
 
@@ -131,7 +127,7 @@ func (m *Manager) Start() error {
 		poller := zmq.NewPoller()
 		poller.Add(socket, zmq.POLLIN)
 
-		m.status = SocketReady
+		m.status = base.SocketReady
 
 		// Exit from Start function
 		ready <- nil
@@ -214,7 +210,7 @@ func (m *Manager) Start() error {
 			}
 		}
 
-		m.status = SocketIdle
+		m.status = base.SocketIdle
 		m.close = false
 
 		closeErr := socket.Close()

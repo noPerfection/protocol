@@ -7,6 +7,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	clientConfig "github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
@@ -77,7 +78,7 @@ func (test *TestControlSuite) SetupTest() {
 	// make sure that parts are running
 	s.Require().Equal(concurrent.Running, test.instanceManager.Status())
 	s.Require().Equal(concurrent.RUNNING, test.frontend.Status())
-	s.Require().Equal(control.SocketReady, test.handlerManager.Status())
+	s.Require().Equal(base.SocketReady, test.handlerManager.Status())
 
 	// Client that will imitate the service
 	inprocClient, err := zmq.NewSocket(zmq.REQ)
@@ -115,7 +116,7 @@ func (test *TestControlSuite) cleanOut() {
 		s.Require().NoError(err)
 	}
 
-	if test.handlerManager.Status() == control.SocketReady {
+	if test.handlerManager.Status() == base.SocketReady {
 		test.handlerManager.SetClose(&message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
 	}
 
@@ -125,7 +126,7 @@ func (test *TestControlSuite) cleanOut() {
 	// Make sure that everything is closed
 	s.Require().Equal(concurrent.Idle, test.instanceManager.Status())
 	s.Require().Equal(concurrent.CREATED, test.frontend.Status())
-	s.Require().Equal(control.SocketIdle, test.handlerManager.Status())
+	s.Require().Equal(base.SocketIdle, test.handlerManager.Status())
 }
 
 func (test *TestControlSuite) req(request message.Request) message.ReplyInterface {
@@ -438,13 +439,13 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 	s := &test.Suite
 	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
 
-	// Test setup runs all parts, status must be control.Ready
+	// Test setup runs all parts, status must be base.Ready
 	reply := test.req(req)
 	s.Require().True(reply.IsOK())
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(control.Ready, status)
+	s.Require().Equal(base.Ready, status)
 
 	//
 	// Turn the status to incomplete
@@ -463,7 +464,7 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 
 	status, err = reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(control.Incomplete, status)
+	s.Require().Equal(base.Incomplete, status)
 
 	// Only frontend must be incomplete
 	parts, err := reply.ReplyParameters().NestedValue("parts")
@@ -492,7 +493,7 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 
 	status, err = reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(control.Incomplete, status)
+	s.Require().Equal(base.Incomplete, status)
 
 	// Frontend and instance manager are incomplete
 	parts, err = reply.ReplyParameters().NestedValue("parts")
@@ -505,7 +506,7 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 	s.Require().Equal(concurrent.Idle, instanceManager)
 
 	//
-	// control.Incomplete turns to ready when processes are running
+	// base.Incomplete turns to ready when processes are running
 	//
 
 	// Start the instance manager
@@ -523,7 +524,7 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 
 	status, err = reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(control.Incomplete, status)
+	s.Require().Equal(base.Incomplete, status)
 
 	// Only frontend is incomplete
 	parts, err = reply.ReplyParameters().NestedValue("parts")
@@ -550,7 +551,7 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 
 	status, err = reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(control.Ready, status)
+	s.Require().Equal(base.Ready, status)
 
 	// Clean
 	test.cleanOut()
@@ -567,7 +568,7 @@ func (test *TestControlSuite) Test_18_OverwriteRoute() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(control.Ready, status)
+	s.Require().Equal(base.Ready, status)
 
 	// Overriding must fail when handler manager is running
 	overwritten := "overwritten"
@@ -581,7 +582,7 @@ func (test *TestControlSuite) Test_18_OverwriteRoute() {
 	// Close the handler manager
 	test.handlerManager.SetClose(&message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(control.SocketIdle, test.handlerManager.Status())
+	s.Require().Equal(base.SocketIdle, test.handlerManager.Status())
 
 	// Overwriting must work when the handler manager is not running
 	err = test.handlerManager.Route("status", onStatus)
@@ -590,7 +591,7 @@ func (test *TestControlSuite) Test_18_OverwriteRoute() {
 	// Start handler manager to apply route effects
 	s.Require().NoError(test.handlerManager.Start())
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(control.SocketReady, test.handlerManager.Status())
+	s.Require().Equal(base.SocketReady, test.handlerManager.Status())
 
 	// reconnect the client
 	test.reconnectClient()

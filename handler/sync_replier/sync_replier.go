@@ -82,7 +82,7 @@ func (c *SyncReplier) Start() error {
 		return fmt.Errorf("manager.Start: %w", err)
 	}
 
-	c.status = control.Ready
+	c.status = base.Ready
 	go c.run()
 
 	return nil
@@ -118,6 +118,7 @@ func (c *SyncReplier) bindExternal() error {
 	}
 
 	c.Handler.SetSocket(socket)
+	c.Handler.SetSocketReady()
 	return nil
 }
 
@@ -188,15 +189,15 @@ func (c *SyncReplier) sendReply(socket *zmq.Socket, reply message.ReplyInterface
 func (c *SyncReplier) cleanup() {
 	if socket := c.Socket(); socket != nil {
 		_ = socket.Close()
-		c.Handler.SetSocket(nil)
 	}
+	c.Handler.SetSocketNil()
 	c.status = ""
 }
 
 func (c *SyncReplier) onControlStatus(req message.RequestInterface) message.ReplyInterface {
-	status := control.Incomplete
-	if c.Socket() != nil && !c.close {
-		status = control.Ready
+	status := base.Incomplete
+	if c.Handler.Status() == base.SocketReady && !c.close {
+		status = base.Ready
 	}
 	return req.Ok(datatype.New().Set("status", status))
 }

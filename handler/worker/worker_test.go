@@ -7,6 +7,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
@@ -136,7 +137,7 @@ func (test *TestWorkerSuite) Test_10_Start() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(control.Ready, status)
+	s.Require().Equal(base.Ready, status)
 
 	req = message.Request{Command: concurrent.InstanceAmount, Parameters: datatype.New()}
 	reply = test.req(test.managerClient, req)

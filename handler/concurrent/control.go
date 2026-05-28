@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/noPerfection/datatype"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 )
@@ -50,9 +51,9 @@ func (c *Concurrent) onControlStatus(req message.RequestInterface) message.Reply
 
 	params := datatype.New()
 	if frontendStatus == RUNNING && instanceStatus == Running {
-		params.Set("status", control.Ready)
+		params.Set("status", base.Ready)
 	} else {
-		params.Set("status", control.Incomplete).
+		params.Set("status", base.Incomplete).
 			Set("parts", c.controlPartStatuses())
 	}
 

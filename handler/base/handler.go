@@ -15,6 +15,14 @@ import (
 	zmq "github.com/pebbe/zmq4"
 )
 
+const (
+	Incomplete  = "incomplete"
+	Ready       = "ready"
+	SocketIdle  = "idle"
+	SocketReady = "ready"
+	SocketNil   = "nil"
+)
+
 // The Handler is the socket wrapper for the zeromq socket.
 type Handler struct {
 	config *config.Handler
@@ -24,13 +32,13 @@ type Handler struct {
 	status string
 }
 
-// New handler
+// New creates a handler.
 func New() *Handler {
-	return &Handler{
-		logger: nil,
+	h := &Handler{
 		Routes: datatype.New(),
-		status: "",
+		status: SocketNil,
 	}
+	return h
 }
 
 // IsRouteExist returns true if the given route exists
@@ -98,9 +106,30 @@ func (c *Handler) Status() string {
 	return c.status
 }
 
+// SetSocketIdle marks the handler socket as idle.
+func (c *Handler) SetSocketIdle() {
+	c.status = SocketIdle
+}
+
+// SetSocketReady marks the handler socket as ready.
+func (c *Handler) SetSocketReady() {
+	c.status = SocketReady
+}
+
+// SetSocketNil clears the handler socket and marks it nil.
+func (c *Handler) SetSocketNil() {
+	c.socket = nil
+	c.status = SocketNil
+}
+
 // SetSocket assigns the handler's external ZeroMQ socket.
 func (c *Handler) SetSocket(socket *zmq.Socket) {
 	c.socket = socket
+	if socket == nil {
+		c.status = SocketNil
+	} else {
+		c.status = SocketIdle
+	}
 }
 
 // Socket returns the handler's external ZeroMQ socket.
@@ -116,7 +145,7 @@ var anyHandler = func(request message.RequestInterface) message.ReplyInterface {
 	return reply
 }
 
-func AnyRoute(handler Interface) error {
+func AnyRoute(handler *Handler) error {
 	if err := handler.Route(route.Any, anyHandler); err != nil {
 		return fmt.Errorf("failed to '%s' route into the handler: %w", route.Any, err)
 	}
