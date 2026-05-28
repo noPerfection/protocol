@@ -7,9 +7,9 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
+	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/handler_manager"
-	"github.com/noPerfection/protocol/handler/instance"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -18,7 +18,7 @@ type SyncReplier struct {
 	*base.Handler
 	handlerType config.HandlerType
 	logger      *log.Logger
-	instance    *instance.Instance
+	instance    *concurrent.Instance
 	messageOps  *message.Operations
 	close       bool
 	status      string
@@ -70,14 +70,14 @@ func (c *SyncReplier) Start() error {
 	if err != nil {
 		return fmt.Errorf("zmq.NewSocket('PULL'): %w", err)
 	}
-	parentUrl := config.ParentUrl(c.Config().Id)
+	parentUrl := concurrent.ParentUrl(c.Config().Id)
 	if err := parent.Bind(parentUrl); err != nil {
 		_ = parent.Close()
 		return fmt.Errorf("parent.Bind('%s'): %w", parentUrl, err)
 	}
 
 	instanceId := c.Config().Id + "_instance"
-	c.instance = instance.New(config.SyncReplierType, instanceId, c.Config().Id, c.logger)
+	c.instance = concurrent.NewInstance(config.SyncReplierType, instanceId, c.Config().Id, c.logger)
 	c.instance.SetRoutes(&c.Routes)
 	c.instance.SetMessageOps(c.messageOps)
 	if err := c.instance.Start(); err != nil {
@@ -90,7 +90,7 @@ func (c *SyncReplier) Start() error {
 		_ = parent.Close()
 		return fmt.Errorf("zmq.NewSocket('instanceClient'): %w", err)
 	}
-	instanceUrl := config.InstanceHandleUrl(c.Config().Id, instanceId)
+	instanceUrl := concurrent.InstanceHandleUrl(c.Config().Id, instanceId)
 	if err := instanceClient.Connect(instanceUrl); err != nil {
 		_ = instanceClient.Close()
 		_ = parent.Close()
@@ -228,7 +228,7 @@ func (c *SyncReplier) handleManager(manager *zmq.Socket) error {
 		return nil
 	case config.InstanceAmount:
 		amount := uint64(0)
-		if c.instance != nil && c.instance.Status() != instance.CLOSED {
+		if c.instance != nil && c.instance.Status() != concurrent.CLOSED {
 			amount = 1
 		}
 		return c.replyManager(manager, req.Ok(datatype.New().Set("instance_amount", amount)))
@@ -248,7 +248,7 @@ func (c *SyncReplier) handleManager(manager *zmq.Socket) error {
 }
 
 func (c *SyncReplier) managerStatus() string {
-	if c.instance != nil && c.instance.Status() == instance.READY {
+	if c.instance != nil && c.instance.Status() == concurrent.READY {
 		return handler_manager.Ready
 	}
 	return handler_manager.Incomplete
@@ -266,7 +266,7 @@ func (c *SyncReplier) replyManager(manager *zmq.Socket, reply message.ReplyInter
 }
 
 func (c *SyncReplier) closeInstance(instant bool) {
-	if c.instance == nil || c.instance.Status() == instance.CLOSED {
+	if c.instance == nil || c.instance.Status() == concurrent.CLOSED {
 		return
 	}
 	socket, err := zmq.NewSocket(zmq.REQ)
@@ -276,7 +276,7 @@ func (c *SyncReplier) closeInstance(instant bool) {
 	}
 	defer socket.Close()
 
-	url := config.InstanceUrl(c.Config().Id, c.instance.Id)
+	url := concurrent.InstanceUrl(c.Config().Id, c.instance.Id)
 	if err := socket.Connect(url); err != nil {
 		c.logger.Error("instanceManager.Connect", "url", url, "error", err)
 		return

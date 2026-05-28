@@ -8,8 +8,8 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/instance"
 	"github.com/noPerfection/protocol/handler/manager_client"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -167,7 +167,7 @@ func (test *TestTriggerSuite) Test_14_Start() {
 	wg.Wait()
 
 	// Make sure that everything works
-	s.Require().Equal(instance.READY, test.handler.instance.Status())
+	s.Require().Equal(concurrent.READY, test.handler.instance.Status())
 	s.Require().NotNil(test.handler.socket)
 
 	// Now let's close it
@@ -179,7 +179,7 @@ func (test *TestTriggerSuite) Test_14_Start() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything is closed
-	s.Require().Equal(instance.CLOSED, test.handler.instance.Status())
+	s.Require().Equal(concurrent.CLOSED, test.handler.instance.Status())
 	s.Require().Nil(test.handler.socket)
 }
 

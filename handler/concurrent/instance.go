@@ -1,4 +1,4 @@
-package instance
+package concurrent
 
 import (
 	"context"
@@ -47,7 +47,7 @@ type Instance struct {
 }
 
 // New handler of the handlerType
-func New(handlerType config.HandlerType, id string, parentId string, parent *log.Logger) *Instance {
+func NewInstance(handlerType config.HandlerType, id string, parentId string, parent *log.Logger) *Instance {
 	logger := parent.Child(id)
 
 	return &Instance{
@@ -162,7 +162,7 @@ func (c *Instance) Start() error {
 			return
 		}
 
-		parentUrl := config.ParentUrl(c.parentId)
+		parentUrl := ParentUrl(c.parentId)
 		err = parent.Connect(parentUrl)
 		if err != nil {
 			ready <- fmt.Errorf("parent.Connect('%s'): %w", parentUrl, err)
@@ -183,7 +183,7 @@ func (c *Instance) Start() error {
 			return
 		}
 
-		handlerUrl := config.InstanceHandleUrl(c.parentId, c.Id)
+		handlerUrl := InstanceHandleUrl(c.parentId, c.Id)
 		err = handler.Bind(handlerUrl)
 		if err != nil {
 			ready <- fmt.Errorf("handler.Bind('%s'): %w", handlerUrl, err)
@@ -200,7 +200,7 @@ func (c *Instance) Start() error {
 			return
 		}
 
-		managerUrl := config.InstanceUrl(c.parentId, c.Id)
+		managerUrl := InstanceUrl(c.parentId, c.Id)
 		err = manager.Bind(managerUrl)
 		if err != nil {
 			closeErr := handler.Close()

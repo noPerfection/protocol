@@ -1,11 +1,10 @@
 // Package frontend forwards incoming messages to the instances and vice versa.
-package frontend
+package concurrent
 
 import (
 	"fmt"
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/instance_manager"
 	"github.com/noPerfection/protocol/handler/pair"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -24,16 +23,16 @@ type Frontend struct {
 	status          string
 	paired          bool
 	instanceType    config.HandlerType
-	externalConfig  *config.Concurrent
+	externalConfig  *Config
 	queue           *datatype.Queue
 	processing      *datatype.List // Tracking messages processed by the instances
-	instanceManager *instance_manager.Parent
+	instanceManager *Parent
 	consumerId      uint64
 	close           bool
 }
 
 // New frontend is created
-func New() *Frontend {
+func NewFrontend() *Frontend {
 	return &Frontend{
 		external:        nil,
 		status:          CREATED,
@@ -47,11 +46,11 @@ func New() *Frontend {
 	}
 }
 
-func (f *Frontend) SetConfig(externalConfig *config.Concurrent) {
+func (f *Frontend) SetConfig(externalConfig *Config) {
 	if f.paired {
 		f.instanceType = externalConfig.Type
 		paired := pair.Config(externalConfig.Handler)
-		f.externalConfig = &config.Concurrent{
+		f.externalConfig = &Config{
 			Handler:        paired,
 			InstanceAmount: externalConfig.InstanceAmount,
 		}
@@ -60,7 +59,7 @@ func (f *Frontend) SetConfig(externalConfig *config.Concurrent) {
 	}
 }
 
-func (f *Frontend) SetInstanceManager(manager *instance_manager.Parent) {
+func (f *Frontend) SetInstanceManager(manager *Parent) {
 	f.instanceManager = manager
 }
 
@@ -302,7 +301,7 @@ func (f *Frontend) PairExternal() error {
 	f.instanceType = f.externalConfig.Type
 	// frontend uses the paired config while paired interface will use external config.
 	paired := pair.Config(f.externalConfig.Handler)
-	f.externalConfig = &config.Concurrent{
+	f.externalConfig = &Config{
 		Handler:        paired,
 		InstanceAmount: f.externalConfig.InstanceAmount,
 	}
@@ -354,7 +353,7 @@ func (f *Frontend) handleConsume() error {
 		return fmt.Errorf("instanceManager not set")
 	}
 	// Maybe it's still loading
-	if f.instanceManager.Status() != instance_manager.Running {
+	if f.instanceManager.Status() != Running {
 		return nil
 	}
 

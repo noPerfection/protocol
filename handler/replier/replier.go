@@ -5,7 +5,7 @@ package replier
 import (
 	"fmt"
 	"github.com/noPerfection/datatype"
-	"github.com/noPerfection/protocol/handler/base"
+	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/message"
 	"runtime"
@@ -13,20 +13,20 @@ import (
 
 // Replier is the socket wrapper for the service.
 type Replier struct {
-	*base.Concurrent
+	*concurrent.Concurrent
 	maxInstanceAmount int
 }
 
 // New asynchronous replying handler.
 func New() *Replier {
 	return &Replier{
-		Concurrent:        base.NewConcurrent(),
+		Concurrent:        concurrent.NewConcurrent(),
 		maxInstanceAmount: runtime.NumCPU(),
 	}
 }
 
 // SetConfig adds the parameters of the handler from the config.
-func (c *Replier) SetConfig(handler *config.Concurrent) {
+func (c *Replier) SetConfig(handler *concurrent.Config) {
 	handler.Type = config.ReplierType
 	c.Concurrent.SetConfig(handler)
 }

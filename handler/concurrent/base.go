@@ -1,41 +1,40 @@
-package base
+package concurrent
 
 import (
 	"fmt"
 
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/frontend"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/handler_manager"
-	"github.com/noPerfection/protocol/handler/instance_manager"
 	zmq "github.com/pebbe/zmq4"
 )
 
 // Concurrent extends Handler with the frontend and instance-manager lifecycle.
 type Concurrent struct {
-	*Handler
-	config                 *config.Concurrent
-	Frontend               *frontend.Frontend
-	InstanceManager        *instance_manager.Parent
+	*base.Handler
+	config                 *Config
+	logger                 *log.Logger
+	Frontend               *Frontend
+	InstanceManager        *Parent
 	instanceManagerStarted bool
 }
 
 // NewConcurrent creates a handler that can run instances concurrently.
 func NewConcurrent() *Concurrent {
 	return &Concurrent{
-		Handler:                New(),
-		Frontend:               frontend.New(),
+		Handler:                base.New(),
+		Frontend:               NewFrontend(),
 		InstanceManager:        nil,
 		instanceManagerStarted: false,
 	}
 }
 
-func (c *Concurrent) Config() *config.Concurrent {
+func (c *Concurrent) Config() *Config {
 	return c.config
 }
 
 // SetConfig adds the parameters of the concurrent handler from the config.
-func (c *Concurrent) SetConfig(handler *config.Concurrent) {
+func (c *Concurrent) SetConfig(handler *Config) {
 	c.config = handler
 	c.Handler.SetConfig(handler.Handler)
 	c.Frontend.SetConfig(handler)
@@ -49,8 +48,9 @@ func (c *Concurrent) SetLogger(parent *log.Logger) error {
 	if err := c.Handler.SetLogger(parent); err != nil {
 		return err
 	}
+	c.logger = parent.Child(c.config.Id)
 
-	c.InstanceManager = instance_manager.New(c.config.Id, c.logger)
+	c.InstanceManager = NewInstanceManager(c.config.Id, c.logger)
 	c.Frontend.SetInstanceManager(c.InstanceManager)
 
 	c.Manager = handler_manager.New(parent, c.Frontend, c.InstanceManager, c.StartInstanceManager)
@@ -75,7 +75,7 @@ func (c *Concurrent) StartInstanceManager() error {
 			return
 		}
 
-		url := config.InstanceManagerEventUrl(c.config.Id)
+		url := InstanceManagerEventUrl(c.config.Id)
 		err = socket.Connect(url)
 		if err != nil {
 			ready <- fmt.Errorf("socket.Connect('%s'): %w", url, err)
@@ -113,7 +113,7 @@ func (c *Concurrent) StartInstanceManager() error {
 				continue
 			}
 
-			if req.CommandName() == instance_manager.EventReady {
+			if req.CommandName() == EventReady {
 				if !firstInstance {
 					instanceId, err = c.InstanceManager.AddInstance(c.config.Type, &c.Routes)
 					if err != nil {
@@ -122,7 +122,7 @@ func (c *Concurrent) StartInstanceManager() error {
 					}
 					firstInstance = true
 				}
-			} else if req.CommandName() == instance_manager.EventInstanceAdded {
+			} else if req.CommandName() == EventInstanceAdded {
 				if firstInstance && len(instanceId) > 0 {
 					addedInstanceId, err := req.RouteParameters().StringValue("id")
 					if err != nil {
@@ -134,7 +134,7 @@ func (c *Concurrent) StartInstanceManager() error {
 					}
 					instanceId = ""
 				}
-			} else if req.CommandName() == instance_manager.EventError {
+			} else if req.CommandName() == EventError {
 				_, err := req.RouteParameters().StringValue("message")
 				if err != nil {
 					c.logger.Error("req.Parameters.GetString('message')", "id", c.config.Id, "event", req.CommandName(), "error", err)
@@ -142,7 +142,7 @@ func (c *Concurrent) StartInstanceManager() error {
 				}
 
 				break
-			} else if req.CommandName() == instance_manager.EventIdle {
+			} else if req.CommandName() == EventIdle {
 				closeSignal, _ := req.RouteParameters().BoolValue("close")
 				if closeSignal {
 					break

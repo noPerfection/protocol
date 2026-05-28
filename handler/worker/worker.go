@@ -5,26 +5,26 @@ package worker
 import (
 	"runtime"
 
-	"github.com/noPerfection/protocol/handler/base"
+	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 )
 
 // Worker is the socket wrapper for the service.
 type Worker struct {
-	*base.Concurrent
+	*concurrent.Concurrent
 	maxInstanceAmount int
 }
 
 // New asynchronous replying handler.
 func New() *Worker {
 	return &Worker{
-		Concurrent:        base.NewConcurrent(),
+		Concurrent:        concurrent.NewConcurrent(),
 		maxInstanceAmount: runtime.NumCPU(),
 	}
 }
 
 // SetConfig adds the parameters of the handler from the config.
-func (c *Worker) SetConfig(handler *config.Concurrent) {
+func (c *Worker) SetConfig(handler *concurrent.Config) {
 	handler.Type = config.WorkerType
 	c.Concurrent.SetConfig(handler)
 }

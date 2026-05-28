@@ -1,4 +1,4 @@
-package instance_manager
+package concurrent
 
 import (
 	"testing"
@@ -7,7 +7,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/instance"
 	"github.com/noPerfection/protocol/message"
 
 	"github.com/stretchr/testify/suite"
@@ -16,7 +15,7 @@ import (
 // Define the suite, and absorb the built-in basic suite
 // functionality from testify - including a T() method which
 // returns the current testing orchestra
-type TestInstanceSuite struct {
+type TestInstanceManagerSuite struct {
 	suite.Suite
 
 	parent   *Parent
@@ -29,7 +28,7 @@ type TestInstanceSuite struct {
 
 // Make sure that Account is set to five
 // before each test
-func (test *TestInstanceSuite) SetupTest() {
+func (test *TestInstanceManagerSuite) SetupTest() {
 	handle0 := func(request message.RequestInterface) message.ReplyInterface {
 		time.Sleep(time.Millisecond * 200)
 		return request.Ok(datatype.New())
@@ -45,18 +44,18 @@ func (test *TestInstanceSuite) SetupTest() {
 	test.parentId = "parent_0"
 }
 
-func (test *TestInstanceSuite) Test_0_New() {
+func (test *TestInstanceManagerSuite) Test_0_New() {
 	s := &test.Suite
 
 	logger, _ := log.New("parent_test", true)
 
-	test.parent = New(test.parentId, logger)
+	test.parent = NewInstanceManager(test.parentId, logger)
 
 	s.Require().Equal(Idle, test.parent.Status())
 }
 
 // Test_10_Close starts, then closes the instance manager
-func (test *TestInstanceSuite) Test_10_Close() {
+func (test *TestInstanceManagerSuite) Test_10_Close() {
 	s := &test.Suite
 
 	// First, it should be prepared
@@ -80,7 +79,7 @@ func (test *TestInstanceSuite) Test_10_Close() {
 // Test_11_AddInstance tests adding a new instance.
 //
 // We won't test DeleteInstance, as it's already done by parent.Close().
-func (test *TestInstanceSuite) Test_11_AddInstance() {
+func (test *TestInstanceManagerSuite) Test_11_AddInstance() {
 	s := &test.Suite
 
 	test.routes = datatype.New().
@@ -110,7 +109,7 @@ func (test *TestInstanceSuite) Test_11_AddInstance() {
 
 	// The instance should be created
 	s.Require().Len(test.parent.instances, 1)
-	s.Equal(instance.READY, test.parent.instances[instanceId].status)
+	s.Equal(READY, test.parent.instances[instanceId].status)
 
 	// Clean out after adding a new instance
 	test.parent.Close()
@@ -120,7 +119,7 @@ func (test *TestInstanceSuite) Test_11_AddInstance() {
 }
 
 // Test_12_Ready tests the handling requests by ready worker.
-func (test *TestInstanceSuite) Test_12_Ready() {
+func (test *TestInstanceManagerSuite) Test_12_Ready() {
 	s := &test.Suite
 
 	test.routes = datatype.New().
@@ -157,11 +156,11 @@ func (test *TestInstanceSuite) Test_12_Ready() {
 
 	// Instance should be ready
 	time.Sleep(time.Millisecond * 100)
-	s.Equal(instance.READY, test.parent.instances[instanceId].status)
-	s.Equal(instance.READY, test.parent.instances[instanceId2].status)
+	s.Equal(READY, test.parent.instances[instanceId].status)
+	s.Equal(READY, test.parent.instances[instanceId2].status)
 
 	// Let's test the ready instances
-	_, handler := test.parent.Ready()
+	readyId, handler := test.parent.Ready()
 	s.Require().NotNil(handler)
 
 	_, err = handler.SendMessageDontwait(reqStr)
@@ -170,17 +169,18 @@ func (test *TestInstanceSuite) Test_12_Ready() {
 	// Waiting the instance will notify instance manager that it's busy
 	// Since, we are sending messages without waiting their update
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(instance.HANDLING, test.parent.instances[instanceId].status)
+	s.Require().Equal(HANDLING, test.parent.instances[readyId].status)
 
 	// Get the second ready worker
-	_, handler2 := test.parent.Ready()
+	readyId2, handler2 := test.parent.Ready()
+	s.Require().NotEqual(readyId, readyId2)
 	s.Require().NotNil(handler2)
 
 	_, err = handler2.SendMessageDontwait(reqStr)
 	s.Require().NoError(err)
 
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(instance.HANDLING, test.parent.instances[instanceId2].status)
+	s.Require().Equal(HANDLING, test.parent.instances[readyId2].status)
 
 	// There should not be any ready worker
 	_, handler3 := test.parent.Ready()
@@ -203,6 +203,6 @@ func (test *TestInstanceSuite) Test_12_Ready() {
 
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
-func TestInstance(t *testing.T) {
-	suite.Run(t, new(TestInstanceSuite))
+func TestInstanceManager(t *testing.T) {
+	suite.Run(t, new(TestInstanceManagerSuite))
 }

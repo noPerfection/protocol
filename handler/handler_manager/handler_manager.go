@@ -8,8 +8,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/frontend"
-	instances "github.com/noPerfection/protocol/handler/instance_manager"
 	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -18,23 +16,47 @@ import (
 const (
 	Incomplete  = "incomplete"
 	Ready       = "ready"
+	PartRunning = "running"
 	SocketIdle  = "idle"
 	SocketReady = "ready"
 )
 
+type Frontend interface {
+	Status() string
+	Start() error
+	Close() error
+	QueueLen() uint
+	ProcessingLen() uint
+}
+
+type InstanceManager interface {
+	Status() string
+	Start() error
+	Close()
+	Instances() map[string]string
+	AddInstance(config.HandlerType, *datatype.KeyValue) (string, error)
+	DeleteInstance(string, bool) error
+}
+
+type ManagerConfig interface {
+	ManagerExternalUrl() string
+	HandlerType() config.HandlerType
+}
+
 type HandlerManager struct {
 	logger               *log.Logger
-	frontend             *frontend.Frontend
-	instanceManager      *instances.Parent
+	frontend             Frontend
+	instanceManager      InstanceManager
 	startInstanceManager func() error
-	config               *config.Concurrent
+	config               ManagerConfig
+	rawConfig            any
 	routes               datatype.KeyValue
 	status               string // It's the socket status, not the handler status
 	close                bool
 }
 
 // New creates a new HandlerManager
-func New(parent *log.Logger, frontend *frontend.Frontend, instanceManager *instances.Parent, startInstanceManager func() error) *HandlerManager {
+func New(parent *log.Logger, frontend Frontend, instanceManager InstanceManager, startInstanceManager func() error) *HandlerManager {
 	logger := parent.Child("handler_manager")
 
 	m := &HandlerManager{
@@ -53,8 +75,9 @@ func New(parent *log.Logger, frontend *frontend.Frontend, instanceManager *insta
 }
 
 // SetConfig sets the link to the configuration of the handler
-func (m *HandlerManager) SetConfig(config *config.Concurrent) {
+func (m *HandlerManager) SetConfig(config ManagerConfig) {
 	m.config = config
+	m.rawConfig = config
 }
 
 // Status returns the socket status of the HandlerManager.
@@ -92,7 +115,7 @@ func (m *HandlerManager) setRoutes() {
 
 		params := datatype.New()
 
-		if frontendStatus == frontend.RUNNING && instanceStatus == instances.Running {
+		if frontendStatus == PartRunning && instanceStatus == PartRunning {
 			params.Set("status", Ready)
 		} else {
 			parts := datatype.New().
@@ -115,7 +138,7 @@ func (m *HandlerManager) setRoutes() {
 		}
 
 		if part == "frontend" {
-			if m.frontend.Status() != frontend.RUNNING {
+			if m.frontend.Status() != PartRunning {
 				return req.Fail("frontend not running")
 			} else {
 				if err := m.frontend.Close(); err != nil {
@@ -124,7 +147,7 @@ func (m *HandlerManager) setRoutes() {
 				return req.Ok(datatype.New())
 			}
 		} else if part == "instance_manager" {
-			if m.instanceManager.Status() != instances.Running {
+			if m.instanceManager.Status() != PartRunning {
 				return req.Fail("instance_manager not running")
 			} else {
 				m.instanceManager.Close()
@@ -142,7 +165,7 @@ func (m *HandlerManager) setRoutes() {
 		}
 
 		if part == "frontend" {
-			if m.frontend.Status() == frontend.RUNNING {
+			if m.frontend.Status() == PartRunning {
 				return req.Fail("frontend running")
 			} else {
 				err := m.frontend.Start()
@@ -152,7 +175,7 @@ func (m *HandlerManager) setRoutes() {
 				return req.Ok(datatype.New())
 			}
 		} else if part == "instance_manager" {
-			if m.instanceManager.Status() == instances.Running {
+			if m.instanceManager.Status() == PartRunning {
 				return req.Fail("instance_manager running")
 			} else {
 				err := m.startInstanceManager()
@@ -181,9 +204,9 @@ func (m *HandlerManager) setRoutes() {
 
 	// Add a new instance, but it doesn't check that instance was added
 	onAddInstance := func(req message.RequestInterface) message.ReplyInterface {
-		instanceId, err := m.instanceManager.AddInstance(m.config.Type, &m.routes)
+		instanceId, err := m.instanceManager.AddInstance(m.config.HandlerType(), &m.routes)
 		if err != nil {
-			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", m.config.Type, err))
+			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", m.config.HandlerType(), err))
 		}
 
 		params := datatype.New().Set("instance_id", instanceId)
@@ -223,7 +246,7 @@ func (m *HandlerManager) setRoutes() {
 	}
 
 	onConfig := func(req message.RequestInterface) message.ReplyInterface {
-		params := datatype.New().Set("config", m.config)
+		params := datatype.New().Set("config", m.rawConfig)
 		return req.Ok(params)
 	}
 

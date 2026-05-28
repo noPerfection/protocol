@@ -1,4 +1,4 @@
-package handler_manager
+package handler_manager_test
 
 import (
 	"testing"
@@ -7,9 +7,9 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	clientConfig "github.com/noPerfection/protocol/client/config"
+	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/frontend"
-	"github.com/noPerfection/protocol/handler/instance_manager"
+	"github.com/noPerfection/protocol/handler/handler_manager"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -21,13 +21,13 @@ import (
 type TestHandlerManagerSuite struct {
 	suite.Suite
 
-	instanceManager *instance_manager.Parent
+	instanceManager *concurrent.Parent
 	instanceRunner  func() error
-	frontend        *frontend.Frontend
+	frontend        *concurrent.Frontend
 
-	handlerManager *HandlerManager
+	handlerManager *handler_manager.HandlerManager
 
-	inprocConfig *config.Concurrent
+	inprocConfig *concurrent.Config
 	inprocClient *zmq.Socket
 	logger       *log.Logger
 	routes       datatype.KeyValue
@@ -38,13 +38,13 @@ type TestHandlerManagerSuite struct {
 func (test *TestHandlerManagerSuite) SetupTest() {
 	s := &test.Suite
 
-	test.inprocConfig = config.NewInternalConcurrent(config.SyncReplierType, "test", "test")
+	test.inprocConfig = concurrent.NewInternalConfig(config.SyncReplierType, "test", "test")
 
 	logger, err := log.New("handler", false)
 	test.Suite.Require().NoError(err, "failed to create logger")
 	test.logger = logger
 
-	test.instanceManager = instance_manager.New(test.inprocConfig.Id, test.logger)
+	test.instanceManager = concurrent.NewInstanceManager(test.inprocConfig.Id, test.logger)
 
 	test.instanceRunner = func() error {
 		return test.instanceManager.Start()
@@ -63,11 +63,11 @@ func (test *TestHandlerManagerSuite) SetupTest() {
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
 	})
 
-	test.frontend = frontend.New()
+	test.frontend = concurrent.NewFrontend()
 	test.frontend.SetConfig(test.inprocConfig)
 	test.frontend.SetInstanceManager(test.instanceManager)
 
-	test.handlerManager = New(test.logger, test.frontend, test.instanceManager, test.instanceRunner)
+	test.handlerManager = handler_manager.New(test.logger, test.frontend, test.instanceManager, test.instanceRunner)
 	test.handlerManager.SetConfig(test.inprocConfig)
 
 	s.Require().NoError(test.instanceManager.Start())
@@ -78,9 +78,9 @@ func (test *TestHandlerManagerSuite) SetupTest() {
 	time.Sleep(time.Millisecond * 100)
 
 	// make sure that parts are running
-	s.Require().Equal(instance_manager.Running, test.instanceManager.Status())
-	s.Require().Equal(frontend.RUNNING, test.frontend.Status())
-	s.Require().Equal(SocketReady, test.handlerManager.status)
+	s.Require().Equal(concurrent.Running, test.instanceManager.Status())
+	s.Require().Equal(concurrent.RUNNING, test.frontend.Status())
+	s.Require().Equal(handler_manager.SocketReady, test.handlerManager.Status())
 
 	// Client that will imitate the service
 	inprocClient, err := zmq.NewSocket(zmq.REQ)
@@ -109,26 +109,26 @@ func (test *TestHandlerManagerSuite) cleanOut() {
 	err := test.inprocClient.Close()
 	s.Require().NoError(err)
 
-	if test.instanceManager.Status() == instance_manager.Running {
+	if test.instanceManager.Status() == concurrent.Running {
 		test.instanceManager.Close()
 	}
 
-	if test.frontend.Status() == frontend.RUNNING {
+	if test.frontend.Status() == concurrent.RUNNING {
 		err = test.frontend.Close()
 		s.Require().NoError(err)
 	}
 
-	if test.handlerManager.status == SocketReady {
-		test.handlerManager.close = true
+	if test.handlerManager.Status() == handler_manager.SocketReady {
+		test.handlerManager.SetClose(&message.Request{Command: config.HandlerClose, Parameters: datatype.New()})
 	}
 
 	// Wait a bit for closing
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything is closed
-	s.Require().Equal(instance_manager.Idle, test.instanceManager.Status())
-	s.Require().Equal(frontend.CREATED, test.frontend.Status())
-	s.Require().Equal(SocketIdle, test.handlerManager.status)
+	s.Require().Equal(concurrent.Idle, test.instanceManager.Status())
+	s.Require().Equal(concurrent.CREATED, test.frontend.Status())
+	s.Require().Equal(handler_manager.SocketIdle, test.handlerManager.Status())
 }
 
 func (test *TestHandlerManagerSuite) req(request message.Request) message.ReplyInterface {
@@ -216,7 +216,7 @@ func (test *TestHandlerManagerSuite) Test_13_RunPart() {
 
 	// Make sure the frontend stopped
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(frontend.CREATED, test.frontend.Status())
+	s.Require().Equal(concurrent.CREATED, test.frontend.Status())
 
 	// Let's test running it
 	req.Command = config.RunPart
@@ -225,7 +225,7 @@ func (test *TestHandlerManagerSuite) Test_13_RunPart() {
 
 	// Make sure it's running
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(frontend.RUNNING, test.frontend.Status())
+	s.Require().Equal(concurrent.RUNNING, test.frontend.Status())
 
 	//
 	// Testing with the instance manager
@@ -241,7 +241,7 @@ func (test *TestHandlerManagerSuite) Test_13_RunPart() {
 
 	// Make sure that instance manager stopped
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(instance_manager.Idle, test.instanceManager.Status())
+	s.Require().Equal(concurrent.Idle, test.instanceManager.Status())
 
 	// Start the instance manager
 	req.Command = config.RunPart
@@ -250,7 +250,7 @@ func (test *TestHandlerManagerSuite) Test_13_RunPart() {
 
 	// Make sure that instance manager is running
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(instance_manager.Running, test.instanceManager.Status())
+	s.Require().Equal(concurrent.Running, test.instanceManager.Status())
 
 	//
 	// Re-running must fail
@@ -441,13 +441,13 @@ func (test *TestHandlerManagerSuite) Test_17_MessageAmount() {
 	s := &test.Suite
 	req := message.Request{Command: config.HandlerStatus, Parameters: datatype.New()}
 
-	// Test setup runs all parts, status must be Ready
+	// Test setup runs all parts, status must be handler_manager.Ready
 	reply := test.req(req)
 	s.Require().True(reply.IsOK())
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(Ready, status)
+	s.Require().Equal(handler_manager.Ready, status)
 
 	//
 	// Turn the status to incomplete
@@ -458,7 +458,7 @@ func (test *TestHandlerManagerSuite) Test_17_MessageAmount() {
 
 	// Wait a bit for the frontend closes itself
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(frontend.CREATED, test.frontend.Status())
+	s.Require().Equal(concurrent.CREATED, test.frontend.Status())
 
 	// Status must be incomplete
 	reply = test.req(req)
@@ -466,17 +466,17 @@ func (test *TestHandlerManagerSuite) Test_17_MessageAmount() {
 
 	status, err = reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(Incomplete, status)
+	s.Require().Equal(handler_manager.Incomplete, status)
 
 	// Only frontend must be incomplete
 	parts, err := reply.ReplyParameters().NestedValue("parts")
 	s.Require().NoError(err)
 	frontendStatus, err := parts.StringValue("frontend")
 	s.Require().NoError(err)
-	s.Require().Equal(frontend.CREATED, frontendStatus)
+	s.Require().Equal(concurrent.CREATED, frontendStatus)
 	instanceManager, err := parts.StringValue("instance_manager")
 	s.Require().NoError(err)
-	s.Require().Equal(instance_manager.Running, instanceManager)
+	s.Require().Equal(concurrent.Running, instanceManager)
 
 	//
 	// Absolutely incomplete if instance manager stopped
@@ -487,7 +487,7 @@ func (test *TestHandlerManagerSuite) Test_17_MessageAmount() {
 
 	// Wait a bit for the frontend closes itself
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(instance_manager.Idle, test.instanceManager.Status())
+	s.Require().Equal(concurrent.Idle, test.instanceManager.Status())
 
 	// Status must be incomplete
 	reply = test.req(req)
@@ -495,20 +495,20 @@ func (test *TestHandlerManagerSuite) Test_17_MessageAmount() {
 
 	status, err = reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(Incomplete, status)
+	s.Require().Equal(handler_manager.Incomplete, status)
 
 	// Frontend and instance manager are incomplete
 	parts, err = reply.ReplyParameters().NestedValue("parts")
 	s.Require().NoError(err)
 	frontendStatus, err = parts.StringValue("frontend")
 	s.Require().NoError(err)
-	s.Require().Equal(frontend.CREATED, frontendStatus)
+	s.Require().Equal(concurrent.CREATED, frontendStatus)
 	instanceManager, err = parts.StringValue("instance_manager")
 	s.Require().NoError(err)
-	s.Require().Equal(instance_manager.Idle, instanceManager)
+	s.Require().Equal(concurrent.Idle, instanceManager)
 
 	//
-	// Incomplete turns to ready when processes are running
+	// handler_manager.Incomplete turns to ready when processes are running
 	//
 
 	// Start the instance manager
@@ -518,7 +518,7 @@ func (test *TestHandlerManagerSuite) Test_17_MessageAmount() {
 
 	// Wait a bit for instance manager initialization
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(instance_manager.Running, test.instanceManager.Status())
+	s.Require().Equal(concurrent.Running, test.instanceManager.Status())
 
 	// Status must be incomplete
 	reply = test.req(req)
@@ -526,17 +526,17 @@ func (test *TestHandlerManagerSuite) Test_17_MessageAmount() {
 
 	status, err = reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(Incomplete, status)
+	s.Require().Equal(handler_manager.Incomplete, status)
 
 	// Only frontend is incomplete
 	parts, err = reply.ReplyParameters().NestedValue("parts")
 	s.Require().NoError(err)
 	frontendStatus, err = parts.StringValue("frontend")
 	s.Require().NoError(err)
-	s.Require().Equal(frontend.CREATED, frontendStatus)
+	s.Require().Equal(concurrent.CREATED, frontendStatus)
 	instanceManager, err = parts.StringValue("instance_manager")
 	s.Require().NoError(err)
-	s.Require().Equal(instance_manager.Running, instanceManager)
+	s.Require().Equal(concurrent.Running, instanceManager)
 
 	// Start Frontend
 	partReq.Parameters.Set("part", "frontend")
@@ -545,7 +545,7 @@ func (test *TestHandlerManagerSuite) Test_17_MessageAmount() {
 
 	// Wait a bit for frontend initialization
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(frontend.RUNNING, test.frontend.Status())
+	s.Require().Equal(concurrent.RUNNING, test.frontend.Status())
 
 	// Status must be ready
 	reply = test.req(req)
@@ -553,7 +553,7 @@ func (test *TestHandlerManagerSuite) Test_17_MessageAmount() {
 
 	status, err = reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(Ready, status)
+	s.Require().Equal(handler_manager.Ready, status)
 
 	// Clean
 	test.cleanOut()
@@ -570,7 +570,7 @@ func (test *TestHandlerManagerSuite) Test_18_OverwriteRoute() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(Ready, status)
+	s.Require().Equal(handler_manager.Ready, status)
 
 	// Overriding must fail when handler manager is running
 	overwritten := "overwritten"
@@ -582,9 +582,9 @@ func (test *TestHandlerManagerSuite) Test_18_OverwriteRoute() {
 	s.Require().Error(err)
 
 	// Close the handler manager
-	test.handlerManager.close = true
+	test.handlerManager.SetClose(&message.Request{Command: config.HandlerClose, Parameters: datatype.New()})
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(SocketIdle, test.handlerManager.status)
+	s.Require().Equal(handler_manager.SocketIdle, test.handlerManager.Status())
 
 	// Overwriting must work when the handler manager is not running
 	err = test.handlerManager.Route("status", onStatus)
@@ -593,7 +593,7 @@ func (test *TestHandlerManagerSuite) Test_18_OverwriteRoute() {
 	// Start handler manager to apply route effects
 	s.Require().NoError(test.handlerManager.Start())
 	time.Sleep(time.Millisecond * 100)
-	s.Require().Equal(SocketReady, test.handlerManager.status)
+	s.Require().Equal(handler_manager.SocketReady, test.handlerManager.Status())
 
 	// reconnect the client
 	test.reconnectClient()

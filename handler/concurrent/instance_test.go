@@ -1,4 +1,4 @@
-package instance
+package concurrent
 
 import (
 	"fmt"
@@ -53,7 +53,7 @@ func (test *TestInstanceSuite) Test_0_New() {
 
 	logger, _ := log.New("instance_test", true)
 
-	test.instance0 = New(handlerType, id, test.parentId, logger)
+	test.instance0 = NewInstance(handlerType, id, test.parentId, logger)
 	test.instance0.SetMessageOps(message.DefaultMessage())
 
 	s.Require().Equal(PREPARE, test.instance0.Status())
@@ -114,7 +114,7 @@ func (test *TestInstanceSuite) Test_12_Close() {
 	// Sending a close message
 	instanceManager, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	err = instanceManager.Connect(config.InstanceUrl(test.instance0.parentId, test.instance0.Id))
+	err = instanceManager.Connect(InstanceUrl(test.instance0.parentId, test.instance0.Id))
 	s.Require().NoError(err)
 	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()
@@ -147,7 +147,7 @@ func (test *TestInstanceSuite) Test_13_Handle() {
 	// Sending a close message
 	handleClient, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	err = handleClient.Connect(config.InstanceHandleUrl(test.instance0.parentId, test.instance0.Id))
+	err = handleClient.Connect(InstanceHandleUrl(test.instance0.parentId, test.instance0.Id))
 	s.Require().NoError(err)
 	for i := 0; i < 2; i++ {
 		req := message.Request{Command: "handle_0", Parameters: datatype.New()}
@@ -164,7 +164,7 @@ func (test *TestInstanceSuite) Test_13_Handle() {
 	// Sending a close message
 	instanceManager, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	err = instanceManager.Connect(config.InstanceUrl(test.instance0.parentId, test.instance0.Id))
+	err = instanceManager.Connect(InstanceUrl(test.instance0.parentId, test.instance0.Id))
 	s.Require().NoError(err)
 	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()
@@ -194,7 +194,7 @@ func (test *TestInstanceSuite) Test_14_HandleRouter() {
 	id := "instance_1"
 	logger, _ := log.New("instance_test", true)
 
-	test.instance1 = New(handlerType, id, test.parentId, logger)
+	test.instance1 = NewInstance(handlerType, id, test.parentId, logger)
 	test.instance1.SetRoutes(&test.routes)
 	test.instance1.SetMessageOps(message.DefaultMessage())
 
@@ -209,7 +209,7 @@ func (test *TestInstanceSuite) Test_14_HandleRouter() {
 	// Sending a close message
 	handleClient, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	err = handleClient.Connect(config.InstanceHandleUrl(test.instance1.parentId, test.instance1.Id))
+	err = handleClient.Connect(InstanceHandleUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
 	for i := 0; i < 2; i++ {
 		req := message.Request{Command: "handle_0", Parameters: datatype.New()}
@@ -226,7 +226,7 @@ func (test *TestInstanceSuite) Test_14_HandleRouter() {
 	// Sending a close message
 	instanceManager, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	err = instanceManager.Connect(config.InstanceUrl(test.instance1.parentId, test.instance1.Id))
+	err = instanceManager.Connect(InstanceUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
 	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()
@@ -256,7 +256,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealer() {
 	id := "instance_1"
 	logger, _ := log.New("instance_test", true)
 
-	test.instance1 = New(handlerType, id, test.parentId, logger)
+	test.instance1 = NewInstance(handlerType, id, test.parentId, logger)
 	test.instance1.SetRoutes(&test.routes)
 	test.instance1.SetMessageOps(message.DefaultMessage())
 
@@ -271,7 +271,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealer() {
 	// Sending a close message
 	handleClient, err := zmq.NewSocket(zmq.DEALER)
 	s.Require().NoError(err)
-	err = handleClient.Connect(config.InstanceHandleUrl(test.instance1.parentId, test.instance1.Id))
+	err = handleClient.Connect(InstanceHandleUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
 	for i := 0; i < 2; i++ {
 		req := message.Request{Command: "handle_0", Parameters: datatype.New()}
@@ -288,7 +288,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealer() {
 	// Sending a close message
 	instanceManager, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	err = instanceManager.Connect(config.InstanceUrl(test.instance1.parentId, test.instance1.Id))
+	err = instanceManager.Connect(InstanceUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
 	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()
@@ -318,7 +318,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealerRouter() {
 	id := "instance_1"
 	logger, _ := log.New("instance_test", true)
 
-	test.instance1 = New(handlerType, id, test.parentId, logger)
+	test.instance1 = NewInstance(handlerType, id, test.parentId, logger)
 	test.instance1.SetRoutes(&test.routes)
 	test.instance1.SetMessageOps(message.DefaultMessage())
 
@@ -333,7 +333,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealerRouter() {
 	// Sending a close message
 	handleClient, err := zmq.NewSocket(zmq.DEALER)
 	s.Require().NoError(err)
-	err = handleClient.Connect(config.InstanceHandleUrl(test.instance1.parentId, test.instance1.Id))
+	err = handleClient.Connect(InstanceHandleUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
 	for i := 0; i < 2; i++ {
 		req := message.Request{Command: "handle_0", Parameters: datatype.New()}
@@ -350,7 +350,7 @@ func (test *TestInstanceSuite) Test_15_HandleDealerRouter() {
 	// Sending a close message
 	instanceManager, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	err = instanceManager.Connect(config.InstanceUrl(test.instance1.parentId, test.instance1.Id))
+	err = instanceManager.Connect(InstanceUrl(test.instance1.parentId, test.instance1.Id))
 	s.Require().NoError(err)
 	req := message.Request{Command: "close", Parameters: datatype.New().Set("instant", false)}
 	reqStr, err := req.ZmqEnvelope()

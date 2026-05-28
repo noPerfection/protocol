@@ -30,9 +30,8 @@ type Handler struct {
 	ManagerPort uint64      `json:"manager_port" yaml:"manager_port"`
 }
 
-type Concurrent struct {
-	*Handler
-	InstanceAmount uint64 `json:"instance_amount" yaml:"instance_amount"`
+func (handler *Handler) HandlerType() HandlerType {
+	return handler.Type
 }
 
 type Trigger struct {
@@ -51,14 +50,6 @@ func NewHandler(as HandlerType, id string, category string, port uint64) *Handle
 		Port:        port,
 		ManagerId:   DefaultManagerId(id),
 		ManagerPort: 0,
-	}
-}
-
-// NewConcurrent returns a concurrent Handler configuration with a default instance amount.
-func NewConcurrent(as HandlerType, id string, category string, port uint64) *Concurrent {
-	return &Concurrent{
-		Handler:        NewHandler(as, id, category, port),
-		InstanceAmount: 1,
 	}
 }
 

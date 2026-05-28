@@ -1,10 +1,10 @@
 // Package instance_manager manages the instances
-package instance_manager
+package concurrent
 
 import (
 	"fmt"
+
 	"github.com/noPerfection/datatype"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -91,7 +91,7 @@ func (parent *Parent) newEventSocket() (*zmq.Socket, error) {
 		return nil, fmt.Errorf("zmq.NewSocket(zmq.PUB): %w", err)
 	}
 
-	eventUrl := config.InstanceManagerEventUrl(parent.id)
+	eventUrl := InstanceManagerEventUrl(parent.id)
 	err = eventSock.Bind(eventUrl)
 	if err != nil {
 		return nil, fmt.Errorf("eventSock.Bind('%s'): %w", eventUrl, err)

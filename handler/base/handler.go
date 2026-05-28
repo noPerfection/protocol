@@ -72,7 +72,7 @@ func (c *Handler) SetLogger(parent *log.Logger) error {
 	c.logger = logger
 
 	c.Manager = handler_manager.New(parent, nil, nil, nil)
-	c.Manager.SetConfig(&config.Concurrent{Handler: c.config})
+	c.Manager.SetConfig(c.config)
 
 	return nil
 }

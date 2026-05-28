@@ -1,4 +1,4 @@
-package frontend
+package concurrent
 
 import (
 	"os"
@@ -10,7 +10,6 @@ import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/instance_manager"
 	"github.com/noPerfection/protocol/handler/pair"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -28,11 +27,11 @@ type TestFrontendSuite struct {
 	suite.Suite
 
 	frontend     *Frontend
-	handleConfig *config.Concurrent
+	handleConfig *Config
 }
 
 // Create an instance manager. Returns a test command, instance id and instance manager itself
-func (test *TestFrontendSuite) instanceManager() (string, string, *instance_manager.Parent) {
+func (test *TestFrontendSuite) instanceManager() (string, string, *Parent) {
 	s := &test.Suite
 
 	cmd := "hello"
@@ -49,7 +48,7 @@ func (test *TestFrontendSuite) instanceManager() (string, string, *instance_mana
 	// Added Instance Manager
 	logger, err := log.New(test.handleConfig.Id, true)
 	s.Require().NoError(err)
-	instanceManager := instance_manager.New(test.handleConfig.Id, logger)
+	instanceManager := NewInstanceManager(test.handleConfig.Id, logger)
 
 	s.Require().NoError(instanceManager.Start())
 
@@ -77,12 +76,12 @@ func (test *TestFrontendSuite) customExternal() *CustomExternal {
 }
 
 func (test *TestFrontendSuite) SetupTest() {
-	test.handleConfig = config.NewInternalConcurrent(config.SyncReplierType, "sample", "test")
-	test.frontend = New()
+	test.handleConfig = NewInternalConfig(config.SyncReplierType, "sample", "test")
+	test.frontend = NewFrontend()
 }
 
-func (test *TestFrontendSuite) Test_0_New() {
-	test.frontend = New()
+func (test *TestFrontendSuite) Test_0_NewFrontend() {
+	test.frontend = NewFrontend()
 }
 
 func (test *TestFrontendSuite) Test_10_SetConfig() {
@@ -185,13 +184,13 @@ func (test *TestFrontendSuite) Test_11_External_ipc() {
 	_ = os.Remove(ipcPath)
 	defer os.Remove(ipcPath)
 
-	test.handleConfig = &config.Concurrent{
+	test.handleConfig = &Config{
 		Handler: &config.Handler{
 			Type: config.SyncReplierType, Category: "test", Id: ipcId, Port: 0,
 		},
 		InstanceAmount: 1,
 	}
-	test.frontend = New()
+	test.frontend = NewFrontend()
 	test.frontend.SetConfig(test.handleConfig)
 
 	err := test.frontend.queue.SetCap(1)
@@ -407,7 +406,7 @@ func (test *TestFrontendSuite) Test_13_Run() {
 func (test *TestFrontendSuite) Test_14_PairSocket() {
 	s := &test.Suite
 
-	test.frontend = New()
+	test.frontend = NewFrontend()
 
 	cmd, _, instanceManager := test.instanceManager()
 	test.frontend.SetInstanceManager(instanceManager)

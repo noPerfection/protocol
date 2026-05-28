@@ -23,26 +23,6 @@ func UrlToFileName(url string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(url, "/", "."), "\\", ".")
 }
 
-// ParentUrl returns the url of the instance manager
-func ParentUrl(handlerId string) string {
-	return fmt.Sprintf("inproc://handler_%s", handlerId)
-}
-
-// InstanceHandleUrl returns the url of the instance for handling the requests
-func InstanceHandleUrl(parentId string, id string) string {
-	return fmt.Sprintf("inproc://inst_handle_%s_%s", parentId, id)
-}
-
-// InstanceUrl returns the url of the instance for managing the instance itself
-func InstanceUrl(parentId string, id string) string {
-	return fmt.Sprintf("inproc://inst_manage_%s_%s", parentId, id)
-}
-
-// InstanceManagerEventUrl returns a socket that's used to update the instance manager status
-func InstanceManagerEventUrl(handlerId string) string {
-	return fmt.Sprintf("inproc://inst_manage_stat_%s", handlerId)
-}
-
 // NewInternalHandler returns the configuration with the default parameters.
 func NewInternalHandler(as HandlerType, id string, category string) *Handler {
 	return &Handler{
@@ -52,14 +32,6 @@ func NewInternalHandler(as HandlerType, id string, category string) *Handler {
 		Port:        0,
 		ManagerId:   DefaultManagerId(id),
 		ManagerPort: 0,
-	}
-}
-
-// NewInternalConcurrent returns a concurrent handler configuration for in-process use.
-func NewInternalConcurrent(as HandlerType, id string, category string) *Concurrent {
-	return &Concurrent{
-		Handler:        NewInternalHandler(as, id, category),
-		InstanceAmount: 1,
 	}
 }
 

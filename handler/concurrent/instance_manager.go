@@ -1,5 +1,5 @@
 // Package instance_manager manages the instances
-package instance_manager
+package concurrent
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 	"github.com/noPerfection/log"
 	clientConfig "github.com/noPerfection/protocol/client/config"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/instance"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -41,7 +40,7 @@ type Parent struct {
 }
 
 // New instance manager is created with the handler id
-func New(id string, parent *log.Logger) *Parent {
+func NewInstanceManager(id string, parent *log.Logger) *Parent {
 	logger := parent.Child("instance_manager")
 
 	return &Parent{
@@ -103,7 +102,7 @@ func (parent *Parent) onInstanceStatus(req message.RequestInterface) message.Rep
 		return req.Fail(fmt.Sprintf("req.Parameters.GetString('status'): %v", err))
 	}
 
-	if status == instance.CLOSED {
+	if status == CLOSED {
 		err = parent.cleanDeletedInstance(instanceId)
 		if err != nil {
 			return req.Fail(fmt.Sprintf("parent.cleanDeletedInstance('%s'): %v", instanceId, err))
@@ -112,7 +111,7 @@ func (parent *Parent) onInstanceStatus(req message.RequestInterface) message.Rep
 			parent.logger.Error("parent.pubInstanceDeleted", "instanceId", instanceId, "error", err)
 		}
 
-	} else if status == instance.READY {
+	} else if status == READY {
 		if err := parent.pubInstanceAdded(instanceId); err != nil {
 			parent.logger.Error("parent.pubInstanceAdded", "instanceId", instanceId, "error", err)
 		}
@@ -139,7 +138,7 @@ func (parent *Parent) newPullSocket() (*zmq.Socket, error) {
 		return nil, err
 	}
 
-	err = sock.Bind(config.ParentUrl(parent.id))
+	err = sock.Bind(ParentUrl(parent.id))
 	if err != nil {
 		err = fmt.Errorf("socket('PULL').Bind: %w", err)
 		if pubErr := parent.pubError(); pubErr != nil {
@@ -267,7 +266,7 @@ func (parent *Parent) Start() error {
 
 		// removing all running instances
 		for instanceId, child := range parent.instances {
-			if child.status == instance.CLOSED {
+			if child.status == CLOSED {
 				continue
 			}
 			err := parent.DeleteInstance(instanceId, true)
@@ -358,7 +357,7 @@ func (parent *Parent) AddInstance(handlerType config.HandlerType, routes kvRef) 
 
 	id := parent.NewInstanceId()
 
-	added := instance.New(handlerType, id, parent.id, parent.parentLogger)
+	added := NewInstance(handlerType, id, parent.id, parent.parentLogger)
 	added.SetRoutes(routes)
 	added.SetMessageOps(parent.MessageOps)
 
@@ -366,7 +365,7 @@ func (parent *Parent) AddInstance(handlerType config.HandlerType, routes kvRef) 
 	if err != nil {
 		return id, fmt.Errorf("new childSocket(%s): %v", id, err)
 	}
-	err = childSock.Connect(config.InstanceUrl(parent.id, id))
+	err = childSock.Connect(InstanceUrl(parent.id, id))
 	if err != nil {
 		return id, fmt.Errorf("connect childSocket(%s): %v", id, err)
 	}
@@ -375,7 +374,7 @@ func (parent *Parent) AddInstance(handlerType config.HandlerType, routes kvRef) 
 	if err != nil {
 		return "", fmt.Errorf("new handleSocket(%s): %v", id, err)
 	}
-	err = handleSock.Connect(config.InstanceHandleUrl(parent.id, id))
+	err = handleSock.Connect(InstanceHandleUrl(parent.id, id))
 	if err != nil {
 		return "", fmt.Errorf("connect handleSocket(%s): %v", id, err)
 	}
@@ -410,7 +409,7 @@ func (parent *Parent) DeleteInstance(instanceId string, instant bool) error {
 	if child == nil {
 		return fmt.Errorf("instance[%s] is null", instanceId)
 	}
-	if child.status == instance.CLOSED {
+	if child.status == CLOSED {
 		return fmt.Errorf("instance[%s] is closed", instanceId)
 	}
 
@@ -461,7 +460,7 @@ func (parent *Parent) Instances() map[string]string {
 // Ready returns an instance that's ready to handle requests
 func (parent *Parent) Ready() (string, *zmq.Socket) {
 	for id, child := range parent.instances {
-		if child.status == instance.READY {
+		if child.status == READY {
 			return id, child.handleSocket
 		}
 	}

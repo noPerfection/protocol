@@ -7,6 +7,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/handler_manager"
 	"github.com/noPerfection/protocol/message"
@@ -20,7 +21,7 @@ import (
 type TestWorkerSuite struct {
 	suite.Suite
 	worker         *Worker
-	handlerConfig  *config.Concurrent
+	handlerConfig  *concurrent.Config
 	managerClient  *zmq.Socket
 	externalClient *client.Socket
 	logger         *log.Logger
@@ -66,7 +67,7 @@ func (test *TestWorkerSuite) SetupTest() {
 	err = test.worker.Route("command_2", test.routes["command_2"])
 	s.Require().NoError(err)
 
-	test.handlerConfig = config.NewInternalConcurrent(config.WorkerType, "test", "test")
+	test.handlerConfig = concurrent.NewInternalConfig(config.WorkerType, "test", "test")
 	inprocUrl := config.ExternalUrl(test.handlerConfig.Id, test.handlerConfig.Port)
 
 	// Setting a logger should fail since we don't have a configuration set
