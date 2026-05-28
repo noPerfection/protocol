@@ -9,7 +9,6 @@ import (
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
-	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -92,7 +91,7 @@ func (c *SyncReplier) setControlRoutes() error {
 		return fmt.Errorf("control manager not initiated. call SetConfig and SetLogger")
 	}
 
-	routes := map[string]route.HandleFunc{
+	routes := map[string]base.HandleFunc{
 		control.HandlerStatus: c.onControlStatus,
 		control.HandlerClose:  c.onControlClose,
 		control.HandlerConfig: c.onControlConfig,
@@ -168,12 +167,12 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 		return c.sendReply(socket, reply)
 	}
 
-	handleInterface, err := route.Route(req.CommandName(), c.Routes)
+	handleFunc, err := base.FindRoute(req.CommandName(), c.Routes)
 	if err != nil {
-		return c.sendReply(socket, req.Fail(fmt.Sprintf("route.Route(%s): %v", req.CommandName(), err)))
+		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err)))
 	}
 
-	reply := route.Handle(req, handleInterface)
+	reply := base.Handle(req, handleFunc)
 	return c.sendReply(socket, reply)
 }
 

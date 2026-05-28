@@ -25,7 +25,7 @@ type TestSyncReplierSuite struct {
 	managerClient  *zmq.Socket
 	externalClient *client.Socket
 	logger         *log.Logger
-	routes         map[string]interface{}
+	routes         map[string]base.HandleFunc
 }
 
 // Make sure that Account is set to five
@@ -40,7 +40,7 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	test.syncReplier = New()
 
 	// Socket to talk to clients
-	test.routes = make(map[string]interface{}, 2)
+	test.routes = make(map[string]base.HandleFunc, 2)
 	test.routes["command_1"] = func(request message.RequestInterface) message.ReplyInterface {
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
 	}

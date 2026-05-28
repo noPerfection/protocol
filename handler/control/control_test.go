@@ -60,7 +60,7 @@ func (test *TestControlSuite) SetupTest() {
 	test.handler = concurrent.NewConcurrent()
 	test.handler.SetConfig(test.inprocConfig)
 	for command, handle := range test.routes {
-		s.Require().NoError(test.handler.Route(command, handle))
+		s.Require().NoError(test.handler.Route(command, handle.(base.HandleFunc)))
 	}
 	s.Require().NoError(test.handler.SetLogger(test.logger))
 

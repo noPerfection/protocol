@@ -26,7 +26,7 @@ type TestWorkerSuite struct {
 	managerClient  *zmq.Socket
 	externalClient *client.Socket
 	logger         *log.Logger
-	routes         map[string]interface{}
+	routes         map[string]base.HandleFunc
 	cmd1Result     string
 	cmd2Result     string
 }
@@ -43,7 +43,7 @@ func (test *TestWorkerSuite) SetupTest() {
 	test.worker = New()
 
 	// Socket to talk to clients
-	test.routes = make(map[string]interface{}, 2)
+	test.routes = make(map[string]base.HandleFunc, 2)
 	test.routes["command_1"] = func(request message.RequestInterface) message.ReplyInterface {
 		id, err := request.RouteParameters().StringValue("id")
 		if err != nil {

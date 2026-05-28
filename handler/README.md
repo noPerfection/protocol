@@ -91,7 +91,7 @@ Send requests with [client-lib](https://github.com/noPerfection/protocol/client)
 2. Build config (`config.NewInternalHandler` for in-process, or `config.NewHandler` for TCP).
 3. `SetConfig` → `SetLogger` → register routes → `Start()`.
 
-**Route handler signature** (`route` package):
+**Route handler signature** (`base.HandleFunc`):
 
 ```go
 func(req message.RequestInterface) message.ReplyInterface

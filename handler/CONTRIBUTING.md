@@ -25,7 +25,7 @@ The `base` package defines `Handler` and `base.Interface`. Do not use `base.Hand
 A route has three parts:
 
 1. **Command** — name the client sends in the request
-2. **Handle function** — `route.HandleFunc` (see `route/handle_func.go`)
+2. **Handle function** — `base.HandleFunc`
 
 ## Config package
 

@@ -27,8 +27,8 @@ type Interface interface {
 	// RouteCommands returns list of all commands in this handler
 	RouteCommands() []string
 
-	// Route adds a new route and it's handlers for this handler
-	Route(string, any) error
+	// Route adds a new route and its handler.
+	Route(string, HandleFunc) error
 
 	// Type returns the type of the handler
 	Type() config.HandlerType

@@ -7,6 +7,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
@@ -25,7 +26,7 @@ type TestBaseHandlerSuite struct {
 	tcpClient     *client.Socket
 	inprocClient  *client.Socket
 	logger        *log.Logger
-	routes        map[string]interface{}
+	routes        map[string]base.HandleFunc
 }
 
 // todo test in-process and external types of the handlers
@@ -43,7 +44,7 @@ func (test *TestBaseHandlerSuite) SetupTest() {
 	test.inprocHandler = NewConcurrent()
 
 	// Socket to talk to clients
-	test.routes = make(map[string]interface{}, 2)
+	test.routes = make(map[string]base.HandleFunc, 2)
 	test.routes["command_1"] = func(request message.RequestInterface) message.ReplyInterface {
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
 	}

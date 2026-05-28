@@ -7,8 +7,8 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -438,8 +438,8 @@ func (c *Instance) Start() error {
 	return <-ready
 }
 
-func (c *Instance) handle(reply chan message.ReplyInterface, req message.RequestInterface, handleInterface interface{}) {
-	result := route.Handle(req, handleInterface)
+func (c *Instance) handle(reply chan message.ReplyInterface, req message.RequestInterface, handleFunc base.HandleFunc) {
+	result := base.Handle(req, handleFunc)
 	reply <- result
 }
 
@@ -492,9 +492,9 @@ func (c *Instance) processMessage(ctx context.Context, cancel context.CancelFunc
 	//}
 	//request.AddRequestStack(c.serviceUrl, c.config.Category, c.config.Instances[0].Id)
 
-	handleInterface, err := route.Route(request.CommandName(), *c.routes)
+	handleFunc, err := base.FindRoute(request.CommandName(), *c.routes)
 	if err != nil {
-		reply := request.Fail(fmt.Sprintf("route.Route(%s): %v", request.CommandName(), err))
+		reply := request.Fail(fmt.Sprintf("base.FindRoute(%s): %v", request.CommandName(), err))
 		finishErr := c.processingFinished(parent, handler, reply)
 		if cancel != nil {
 			cancel()
@@ -506,7 +506,7 @@ func (c *Instance) processMessage(ctx context.Context, cancel context.CancelFunc
 	}
 
 	reply := make(chan message.ReplyInterface)
-	go c.handle(reply, request, handleInterface)
+	go c.handle(reply, request, handleFunc)
 
 	// We use a similar pattern to the HTTP server
 	// that we saw in the earlier example

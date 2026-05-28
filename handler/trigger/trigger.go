@@ -11,7 +11,6 @@ import (
 	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
-	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -57,7 +56,7 @@ func (handler *Trigger) TriggerClient() *clientConfig.Client {
 }
 
 // Route adds a route along with its handler to this handler
-func (handler *Trigger) Route(_ string, _ interface{}) error {
+func (handler *Trigger) Route(_ string, _ base.HandleFunc) error {
 	return fmt.Errorf("trigger doesn't support routing")
 }
 
@@ -188,7 +187,7 @@ func (handler *Trigger) Start() error {
 		return fmt.Errorf("logger not set")
 	}
 
-	if err := handler.Handler.Route(route.Any, handler.onTrigger); err != nil {
+	if err := handler.Handler.Route(base.Any, handler.onTrigger); err != nil {
 		return fmt.Errorf("handler.Route: %w", err)
 	}
 

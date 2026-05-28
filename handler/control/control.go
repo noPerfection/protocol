@@ -8,7 +8,6 @@ import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -119,13 +118,13 @@ func (m *Manager) Start() error {
 				continue
 			}
 
-			handleInterface, err := route.Route(req.CommandName(), m.Routes)
+			handleFunc, err := base.FindRoute(req.CommandName(), m.Routes)
 			if err != nil {
-				m.sendReply(socket, req, req.Fail(fmt.Sprintf("route.Route(%s): %v", req.CommandName(), err)))
+				m.sendReply(socket, req, req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err)))
 				continue
 			}
 
-			m.sendReply(socket, req, route.Handle(req, handleInterface))
+			m.sendReply(socket, req, base.Handle(req, handleFunc))
 		}
 
 		m.SetClose(false)

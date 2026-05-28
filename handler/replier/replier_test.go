@@ -24,7 +24,7 @@ type TestReplierSuite struct {
 	handlerConfig  *concurrent.Config
 	managingClient *zmq.Socket
 	logger         *log.Logger
-	routes         map[string]interface{}
+	routes         map[string]base.HandleFunc
 }
 
 func (test *TestReplierSuite) SetupTest() {
@@ -37,7 +37,7 @@ func (test *TestReplierSuite) SetupTest() {
 	test.replier = New()
 
 	// Socket to talk to clients
-	test.routes = make(map[string]interface{}, 2)
+	test.routes = make(map[string]base.HandleFunc, 2)
 	test.routes["command_1"] = func(request message.RequestInterface) message.ReplyInterface {
 		time.Sleep(time.Millisecond * 100)
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))

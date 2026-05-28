@@ -9,7 +9,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/route"
 
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -22,6 +21,12 @@ const (
 	SocketReady = "ready"
 	SocketNil   = "nil"
 )
+
+// Any route name.
+const Any = "*"
+
+// HandleFunc is the function type that handles a request and returns a reply.
+type HandleFunc = func(message.RequestInterface) message.ReplyInterface
 
 // The Handler is the socket wrapper for the zeromq socket.
 type Handler struct {
@@ -92,19 +97,15 @@ func (c *Handler) SetLogger(parent *log.Logger) error {
 	return nil
 }
 
-// Route adds a route along with its handler to this handler
-func (c *Handler) Route(cmd string, handle any) error {
-	if !route.IsHandleFunc(handle) {
-		return fmt.Errorf("handle is not a valid handle function")
-	}
-
+// Route adds a route along with its handler to this handler.
+func (c *Handler) Route(cmd string, handle HandleFunc) error {
 	c.Routes.Set(cmd, handle)
 
 	return nil
 }
 
 // SetRoutes registers or overwrites multiple routes.
-func (c *Handler) SetRoutes(routes map[string]route.HandleFunc) error {
+func (c *Handler) SetRoutes(routes map[string]HandleFunc) error {
 	if c.status == SocketReady {
 		return fmt.Errorf("can not overwrite handler when handler is running")
 	}
@@ -171,8 +172,33 @@ func (c *Handler) Socket() *zmq.Socket {
 	return c.socket
 }
 
+// FindRoute returns the command handler or the catch-all handler.
+func FindRoute(cmd string, routeFuncs datatype.KeyValue) (HandleFunc, error) {
+	var handle any
+
+	if routeFuncs.Exist(cmd) {
+		handle = routeFuncs[cmd]
+	} else if routeFuncs.Exist(Any) {
+		handle = routeFuncs[Any]
+	} else {
+		return nil, fmt.Errorf("the '%s' command handler not found", cmd)
+	}
+
+	handleFunc, ok := handle.(HandleFunc)
+	if !ok {
+		return nil, fmt.Errorf("the '%s' command handler is not a valid handle function", cmd)
+	}
+
+	return handleFunc, nil
+}
+
+// Handle calls the handle func for the request.
+func Handle(req message.RequestInterface, handle HandleFunc) message.ReplyInterface {
+	return handle(req)
+}
+
 // Does nothing, simply returns the data
-var anyHandler = func(request message.RequestInterface) message.ReplyInterface {
+var anyHandler HandleFunc = func(request message.RequestInterface) message.ReplyInterface {
 	replyParameters := datatype.New().Set("route", request.CommandName())
 
 	reply := request.Ok(replyParameters)
@@ -180,8 +206,8 @@ var anyHandler = func(request message.RequestInterface) message.ReplyInterface {
 }
 
 func AnyRoute(handler *Handler) error {
-	if err := handler.Route(route.Any, anyHandler); err != nil {
-		return fmt.Errorf("failed to '%s' route into the handler: %w", route.Any, err)
+	if err := handler.Route(Any, anyHandler); err != nil {
+		return fmt.Errorf("failed to '%s' route into the handler: %w", Any, err)
 	}
 	return nil
 }
