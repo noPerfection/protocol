@@ -32,7 +32,7 @@ type Trigger struct {
 	handlerType  config.HandlerType
 	broadcasting *datatype.Queue
 	instance     *concurrent.Instance
-	Manager      *control.Manager
+	Manager      base.Interface
 	messageOps   *message.Operations
 	status       string
 }

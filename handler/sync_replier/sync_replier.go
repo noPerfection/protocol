@@ -18,7 +18,7 @@ type SyncReplier struct {
 	*base.Handler
 	handlerType config.HandlerType
 	logger      *log.Logger
-	Manager     *control.Manager
+	Manager     base.Interface
 	messageOps  *message.Operations
 	status      string
 }
@@ -98,8 +98,10 @@ func (c *SyncReplier) setControlRoutes() error {
 		control.HandlerConfig: c.onControlConfig,
 	}
 
-	if err := c.Manager.SetRoutes(routes); err != nil {
-		return fmt.Errorf("manager.SetRoutes: %w", err)
+	for cmd, handle := range routes {
+		if err := c.Manager.Route(cmd, handle); err != nil {
+			return fmt.Errorf("manager.Route('%s'): %w", cmd, err)
+		}
 	}
 
 	return nil
@@ -208,6 +210,6 @@ func (c *SyncReplier) onControlConfig(req message.RequestInterface) message.Repl
 
 func (c *SyncReplier) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	c.Handler.SetClose(true)
-	c.Manager.Close()
+	c.Manager.SetClose(true)
 	return req.Ok(datatype.New())
 }

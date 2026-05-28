@@ -16,7 +16,7 @@ type Concurrent struct {
 	logger                 *log.Logger
 	Frontend               *Frontend
 	InstanceManager        *Parent
-	Manager                *control.Manager
+	Manager                base.Interface
 	instanceManagerStarted bool
 }
 

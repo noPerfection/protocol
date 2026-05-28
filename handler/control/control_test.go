@@ -26,7 +26,7 @@ type TestControlSuite struct {
 	instanceManager *concurrent.Parent
 	frontend        *concurrent.Frontend
 
-	handlerManager *control.Manager
+	handlerManager base.Interface
 
 	inprocConfig *concurrent.Config
 	inprocClient *zmq.Socket
@@ -117,7 +117,7 @@ func (test *TestControlSuite) cleanOut() {
 	}
 
 	if test.handlerManager.Status() == base.SocketReady {
-		test.handlerManager.Close()
+		test.handlerManager.SetClose(true)
 	}
 
 	// Wait a bit for closing
@@ -580,7 +580,7 @@ func (test *TestControlSuite) Test_18_OverwriteRoute() {
 	s.Require().Error(err)
 
 	// Close the handler manager
-	test.handlerManager.Close()
+	test.handlerManager.SetClose(true)
 	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(base.SocketIdle, test.handlerManager.Status())
 

@@ -70,7 +70,7 @@ func (c *Concurrent) onControlClose(req message.RequestInterface) message.ReplyI
 	_ = c.closeControlPart("instance_manager")
 
 	c.Handler.SetClose(true)
-	c.Manager.Close()
+	c.Manager.SetClose(true)
 	return req.Ok(datatype.New())
 }
 

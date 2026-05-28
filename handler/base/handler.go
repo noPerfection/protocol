@@ -71,6 +71,11 @@ func (c *Handler) Config() *config.Handler {
 	return c.config
 }
 
+// Logger returns the handler logger.
+func (c *Handler) Logger() *log.Logger {
+	return c.logger
+}
+
 // SetConfig adds the parameters of the handler from the config.
 func (c *Handler) SetConfig(handler *config.Handler) {
 	c.config = handler
@@ -93,11 +98,22 @@ func (c *Handler) Route(cmd string, handle any) error {
 		return fmt.Errorf("handle is not a valid handle function")
 	}
 
-	if c.Routes.Exist(cmd) {
-		return nil
+	c.Routes.Set(cmd, handle)
+
+	return nil
+}
+
+// SetRoutes registers or overwrites multiple routes.
+func (c *Handler) SetRoutes(routes map[string]route.HandleFunc) error {
+	if c.status == SocketReady {
+		return fmt.Errorf("can not overwrite handler when handler is running")
 	}
 
-	c.Routes.Set(cmd, handle)
+	for cmd, handle := range routes {
+		if err := c.Route(cmd, handle); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

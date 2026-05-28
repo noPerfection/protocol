@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
@@ -18,77 +18,36 @@ const (
 	HandlerClose    = "close"  // Close the handler
 	HandlerConfig   = "config" // Returns the handler configuration
 	ControlCategory = "control"
-
-	socketIdle  = "idle"
-	socketReady = "ready"
 )
 
+// Manager is the control ROUTER socket for a handler.
 type Manager struct {
-	logger *log.Logger
-	config *config.Handler
-	routes datatype.KeyValue
-	status string // It's the socket status, not the handler status
-	close  bool
+	*base.Handler
 }
 
-// New creates a new Manager.
-func New(parent *log.Logger) *Manager {
+var _ base.Interface = (*Manager)(nil)
+
+// New creates a control handler.
+func New(parent *log.Logger) base.Interface {
 	logger := parent.Child("control")
 
 	return &Manager{
-		routes: datatype.New(),
-		status: socketIdle,
-		logger: logger,
+		Handler: base.New(logger),
 	}
 }
 
-// SetConfig sets the link to the configuration of the Manager.
-func (m *Manager) SetConfig(config *config.Handler) {
-	m.config = config
+// SetClose is intentionally disabled for control handlers.
+func (m *Manager) SetClose(_ bool) {
+	m.Handler.Logger().Warn("Handler controls can not be closed. Please don't call it")
 }
 
-// Status returns the socket status of the Manager.
-func (m *Manager) Status() string {
-	return m.status
-}
-
-// PartStatuses returns statuses of the base handler parts.
-//
-// Intended to be used by the extending handlers.
-func (m *Manager) PartStatuses() datatype.KeyValue {
-	return datatype.New()
-}
-
-// Close adds a close signal to the Manager socket loop.
-func (m *Manager) Close() {
-	m.close = true
-}
-
-// SetRoutes registers or overwrites control routes.
-func (m *Manager) SetRoutes(routes map[string]route.HandleFunc) error {
-	if m.status == socketReady {
-		return fmt.Errorf("can not overwrite handler when Manager is running")
-	}
-
-	for cmd, handle := range routes {
-		m.routes.Set(cmd, handle)
-	}
-
-	return nil
-}
-
-// Route registers or overwrites one control route.
-func (m *Manager) Route(cmd string, handle route.HandleFunc) error {
-	return m.SetRoutes(map[string]route.HandleFunc{cmd: handle})
-}
-
-// Start the Manager.
+// Start binds the control ROUTER socket and serves registered routes.
 func (m *Manager) Start() error {
-	if m.config == nil {
+	if m.Config() == nil {
 		return fmt.Errorf("no config")
 	}
-	if m.config.Category != ControlCategory {
-		return fmt.Errorf("I cant start a handler in a %s category, It must be %s", m.config.Category, ControlCategory)
+	if m.Config().Category != ControlCategory {
+		return fmt.Errorf("I cant start a handler in a %s category, It must be %s", m.Config().Category, ControlCategory)
 	}
 
 	ready := make(chan error)
@@ -100,33 +59,33 @@ func (m *Manager) Start() error {
 			return
 		}
 
-		url := config.ExternalUrl(m.config.Id, m.config.Port)
-		err = socket.Bind(url)
-		if err != nil {
+		url := config.ExternalUrl(m.Config().Id, m.Config().Port)
+		if err := socket.Bind(url); err != nil {
+			_ = socket.Close()
 			ready <- fmt.Errorf("socket.Bind('%s'): %w", url, err)
 			return
 		}
 
+		m.SetSocket(socket)
+
 		poller := zmq.NewPoller()
 		poller.Add(socket, zmq.POLLIN)
 
-		m.status = socketReady
+		m.SetSocketReady()
 
-		// Exit from Start function
 		ready <- nil
 
 		for {
-			if m.close {
-				err = poller.RemoveBySocket(socket)
-				if err != nil {
-					m.logger.Error("poller.RemoveBySocket", "error", err)
+			if m.Closed() {
+				if err := poller.RemoveBySocket(socket); err != nil {
+					m.Logger().Error("poller.RemoveBySocket", "error", err)
 				}
 				break
 			}
 
 			sockets, err := poller.Poll(time.Millisecond)
 			if err != nil {
-				m.logger.Error("poller.Poll", "error", err)
+				m.Logger().Error("poller.Poll", "error", err)
 				break
 			}
 
@@ -136,71 +95,48 @@ func (m *Manager) Start() error {
 
 			raw, err := socket.RecvMessage(0)
 			if err != nil {
-				m.logger.Error("socket.RecvMessage", "error", err)
+				m.Logger().Error("socket.RecvMessage", "error", err)
 				break
 			}
 
 			req, err := message.NewReq(raw)
 			if err != nil {
-				m.logger.Error("message.NewReq", "messages", raw, "error", err)
+				m.Logger().Error("message.NewReq", "messages", raw, "error", err)
 				continue
 			}
 
-			handleInterface, err := route.Route(req.CommandName(), m.routes)
+			handleInterface, err := route.Route(req.CommandName(), m.Routes)
 			if err != nil {
-				reply := req.Fail(fmt.Sprintf("route.Route(%s): %v", req.CommandName(), err))
-				replyStr, err := reply.ZmqEnvelope()
-				if err != nil {
-					reply := req.Fail(fmt.Sprintf("failed to convert reply [%v] to string", reply))
-					replyStr, err := reply.ZmqEnvelope()
-					if err != nil {
-						m.logger.Error("req.Fail.String", "request", req, "reply", reply, "error", err)
-						continue
-					}
-					_, err = socket.SendMessage(replyStr)
-					if err != nil {
-						m.logger.Error("socket.SendMessage", "reply", reply, "error", err)
-					}
-				} else {
-					_, err = socket.SendMessage(replyStr)
-					if err != nil {
-						m.logger.Error("socket.SendMessage", "reply", reply, "error", err)
-					}
-				}
+				m.sendReply(socket, req, req.Fail(fmt.Sprintf("route.Route(%s): %v", req.CommandName(), err)))
 				continue
 			}
 
-			reply := route.Handle(req, handleInterface)
-			replyStr, err := reply.ZmqEnvelope()
-			if err != nil {
-				reply := req.Fail(fmt.Sprintf("failed to convert handle reply [%v] to string", reply))
-				replyStr, err := reply.ZmqEnvelope()
-				if err != nil {
-					m.logger.Error("req.Fail.String", "request", req, "reply", reply, "error", err)
-					continue
-				}
-				_, err = socket.SendMessage(replyStr)
-				if err != nil {
-					m.logger.Error("socket.SendMessage", "reply", reply, "error", err)
-					continue
-				}
-			} else {
-				_, err = socket.SendMessage(replyStr)
-				if err != nil {
-					m.logger.Error("socket.SendMessage", "reply", reply, "error", err)
-					continue
-				}
-			}
+			m.sendReply(socket, req, route.Handle(req, handleInterface))
 		}
 
-		m.status = socketIdle
-		m.close = false
+		m.SetClose(false)
 
-		closeErr := socket.Close()
-		if closeErr != nil {
-			m.logger.Error("socket.Close", "error", err)
+		if err := socket.Close(); err != nil {
+			m.Logger().Error("socket.Close", "error", err)
 		}
+		m.SetSocket(nil)
 	}(ready)
 
 	return <-ready
+}
+
+func (m *Manager) sendReply(socket *zmq.Socket, req message.RequestInterface, reply message.ReplyInterface) {
+	replyStr, err := reply.ZmqEnvelope()
+	if err != nil {
+		fail := req.Fail(fmt.Sprintf("failed to convert reply [%v] to string", reply))
+		replyStr, err = fail.ZmqEnvelope()
+		if err != nil {
+			m.Logger().Error("req.Fail.ZmqEnvelope", "request", req, "reply", reply, "error", err)
+			return
+		}
+	}
+
+	if _, err := socket.SendMessage(replyStr); err != nil {
+		m.Logger().Error("socket.SendMessage", "reply", reply, "error", err)
+	}
 }
