@@ -25,8 +25,7 @@ The `base` package defines `Handler` and `base.Interface`. Do not use `base.Hand
 A route has three parts:
 
 1. **Command** — name the client sends in the request
-2. **Handle function** — `route.HandleFunc0` … `HandleFuncN` (see `route/handle_func.go`)
-3. **Dependencies** (optional) — service IDs whose `client-lib` sockets are injected into the handler
+2. **Handle function** — `route.HandleFunc` (see `route/handle_func.go`)
 
 ## Config package
 
@@ -69,6 +68,14 @@ Runs routes and handle functions. Two sockets:
 - **Manager socket** — close/control (e.g. `CLOSE` command)
 
 Instances push status to the instance manager’s pull socket. The instance manager connects to each instance’s manager and handler endpoints.
+
+#### Why instances exist
+
+Instances are the handler's worker pool. They keep route execution separate from the external frontend socket, which lets the frontend continue accepting and queueing messages while a route is busy. This also keeps ZeroMQ socket ownership clear: each part runs in its own goroutine and owns its sockets, because ZeroMQ sockets are not thread-safe.
+
+Different handler types use the same plumbing with different concurrency rules. `SyncReplier` allows one instance and handles requests serially. `Replier` can add multiple instances, usually up to CPU count, so several requests can be processed in parallel behind one external endpoint.
+
+The instance layer also gives the handler operational controls: instances report `ready`, `handling`, and `close` states, can be added or deleted through the manager, and can be drained through their manager socket. For a minimal one-route service this is heavier than a direct function call, but it provides a ZMQ-safe worker pool with status and lifecycle management.
 
 ### Frontend
 

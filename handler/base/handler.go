@@ -5,12 +5,9 @@ package base
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/client"
-	clientConfig "github.com/noPerfection/protocol/client/config"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/frontend"
 	"github.com/noPerfection/protocol/handler/handler_manager"
@@ -27,10 +24,6 @@ type Handler struct {
 	socket                 *zmq.Socket
 	logger                 *log.Logger
 	Routes                 datatype.KeyValue
-	RouteDeps              datatype.KeyValue
-	depIds                 []string
-	depConfigs             datatype.KeyValue
-	DepClients             datatype.KeyValue
 	Frontend               *frontend.Frontend
 	InstanceManager        *instance_manager.Parent
 	instanceManagerStarted bool
@@ -43,10 +36,6 @@ func New() *Handler {
 	return &Handler{
 		logger:                 nil,
 		Routes:                 datatype.New(),
-		RouteDeps:              datatype.New(),
-		depIds:                 make([]string, 0),
-		depConfigs:             datatype.New(),
-		DepClients:             datatype.New(),
 		Frontend:               frontend.New(),
 		InstanceManager:        nil,
 		instanceManagerStarted: false,
@@ -106,38 +95,6 @@ func (c *Handler) SetLogger(parent *log.Logger) error {
 	return nil
 }
 
-// AddDepByService adds the config of the dependency. Intended to be called by Service not by developer
-func (c *Handler) AddDepByService(dep *clientConfig.Client) error {
-	if c.AddedDepByService(dep.Id) {
-		return fmt.Errorf("dependency configuration already added")
-	}
-
-	if !slices.Contains(c.depIds, dep.Id) {
-		return fmt.Errorf("no handler depends on '%s'", dep.Id)
-	}
-
-	c.depConfigs.Set(dep.Id, dep)
-	return nil
-}
-
-// AddedDepByService returns true if the configuration exists
-func (c *Handler) AddedDepByService(id string) bool {
-	return c.depConfigs.Exist(id)
-}
-
-// addDep adds the dependency id required by one of the Routes.
-// Already added dependency id skipped.
-func (c *Handler) addDep(id string) {
-	if !slices.Contains(c.depIds, id) {
-		c.depIds = append(c.depIds, id)
-	}
-}
-
-// DepIds return the list of extension names required by this handler.
-func (c *Handler) DepIds() []string {
-	return c.depIds
-}
-
 // A reply sends to the caller the message.
 //
 // If a handler doesn't support replying (for example, PULL handler),
@@ -158,48 +115,17 @@ func (c *Handler) reply(socket *zmq.Socket, message message.ReplyInterface) erro
 	return nil
 }
 
-// Calls handler.reply() with the error message.
-func (c *Handler) replyError(socket *zmq.Socket, err error) error {
-	return c.reply(socket, c.InstanceManager.MessageOps.EmptyReq().Fail(err.Error()))
-}
-
 // Route adds a route along with its handler to this handler
-func (c *Handler) Route(cmd string, handle any, depIds ...string) error {
+func (c *Handler) Route(cmd string, handle any) error {
 	if !route.IsHandleFunc(handle) {
 		return fmt.Errorf("handle is not a valid handle function")
-	}
-	depAmount := route.DepAmount(handle)
-	if !route.IsHandleFuncWithDeps(handle, len(depIds)) {
-		return fmt.Errorf("the '%s' command handler requires %d dependencies, but route has %d dependencies", cmd, depAmount, len(depIds))
 	}
 
 	if c.Routes.Exist(cmd) {
 		return nil
 	}
 
-	for _, dep := range depIds {
-		c.addDep(dep)
-	}
-
 	c.Routes.Set(cmd, handle)
-	if len(depIds) > 0 {
-		c.RouteDeps.Set(cmd, depIds)
-	}
-
-	return nil
-}
-
-// depConfigsAdded checks that the required DepClients are added into the handler.
-// If no DepClients are added by calling handler.addDep(), then it will return nil.
-func (c *Handler) depConfigsAdded() error {
-	if len(c.depIds) != len(c.depConfigs) {
-		return fmt.Errorf("required dependencies and configurations are not matching")
-	}
-	for _, id := range c.depIds {
-		if !c.depConfigs.Exist(id) {
-			return fmt.Errorf("'%s' dependency configuration not added", id)
-		}
-	}
 
 	return nil
 }
@@ -210,32 +136,6 @@ func (c *Handler) Type() config.HandlerType {
 		return config.UnknownType
 	}
 	return c.config.Type
-}
-
-// initDepClients will set up the extension clients for this handler.
-// It will be called by c.Start(), automatically.
-//
-// The reason for why we call it by c.Start() is due to the thread-safety.
-//
-// The handler is intended to be called as the goroutine.
-// And if the sockets are not initiated within the same goroutine,
-// then zeromq doesn't guarantee the socket work as it's intended.
-func (c *Handler) initDepClients() error {
-	for _, depInterface := range c.depConfigs {
-		depConfig := depInterface.(*clientConfig.Client)
-
-		if c.DepClients.Exist(depConfig.Id) {
-			return fmt.Errorf("DepClients.Exist('%s')", depConfig.Id)
-		}
-
-		depClient, err := client.New(depConfig)
-		if err != nil {
-			return fmt.Errorf("client.NewReq('%s', '%d'): %w", depConfig.Id, depConfig.Port, err)
-		}
-		c.DepClients.Set(depConfig.Id, depClient)
-	}
-
-	return nil
 }
 
 // StartInstanceManager starts the instance Manager and listens to its events
@@ -294,7 +194,7 @@ func (c *Handler) StartInstanceManager() error {
 
 			if req.CommandName() == instance_manager.EventReady {
 				if !firstInstance {
-					instanceId, err = c.InstanceManager.AddInstance(c.config.Type, &c.Routes, &c.RouteDeps, &c.DepClients)
+					instanceId, err = c.InstanceManager.AddInstance(c.config.Type, &c.Routes)
 					if err != nil {
 						c.logger.Error("InstanceManager.AddInstance", "id", c.config.Id, "event", req.CommandName(), "type", c.config.Type, "error", err)
 						continue
@@ -353,17 +253,11 @@ func (c *Handler) Start() error {
 	if c.config == nil {
 		return fmt.Errorf("configuration not set")
 	}
-	if err := c.depConfigsAdded(); err != nil {
-		return fmt.Errorf("depConfigsAdded: %w", err)
-	}
 	if c.InstanceManager == nil {
 		return fmt.Errorf("instance Manager not set")
 	}
 	if c.Frontend == nil {
 		return fmt.Errorf("frontend not set")
-	}
-	if err := c.initDepClients(); err != nil {
-		return fmt.Errorf("initDepClients: %w", err)
 	}
 
 	// Adding the first instance Manager

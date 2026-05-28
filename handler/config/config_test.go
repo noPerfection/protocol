@@ -15,7 +15,7 @@ type TestConfigSuite struct {
 func (test *TestConfigSuite) SetupTest() {
 }
 
-// Test_10_IsValid tests setting of the route dependencies
+// Test_10_IsValid tests handler type validation.
 func (test *TestConfigSuite) Test_10_IsValid() {
 	s := test.Suite.Require
 

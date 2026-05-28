@@ -71,7 +71,7 @@ func (publisher *SDSIn) Type() config.HandlerType {
 }
 
 // Route returns an error because SDSIn publishes io.Writer messages and has no request routes.
-func (publisher *SDSIn) Route(_ string, _ interface{}, _ ...string) error {
+func (publisher *SDSIn) Route(_ string, _ interface{}) error {
 	return fmt.Errorf("sdsin doesn't support routing")
 }
 

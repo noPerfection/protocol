@@ -1,13 +1,11 @@
 package base
 
 import (
-	"slices"
 	"testing"
 	"time"
 
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
-	clientConfig "github.com/noPerfection/protocol/client/config"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/frontend"
 	"github.com/noPerfection/protocol/handler/instance_manager"
@@ -75,123 +73,29 @@ func (test *TestBaseHandlerSuite) SetupTest() {
 	s.Require().NoError(test.tcpHandler.SetLogger(test.logger))
 }
 
-// Test_11_Deps tests setting of the route dependencies
-func (test *TestBaseHandlerSuite) Test_11_Deps() {
+func (test *TestBaseHandlerSuite) Test_11_Route() {
 	s := &test.Suite
 
-	// Handler must not have dependencies yet
-	s.Require().Empty(test.inprocHandler.DepIds())
-	s.Require().Empty(test.tcpHandler.DepIds())
-
-	test.routes["command_3"] = func(request message.RequestInterface, _ *client.Socket, _ *client.Socket) message.ReplyInterface {
+	test.routes["command_3"] = func(request message.RequestInterface) message.ReplyInterface {
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
 	}
 
-	// Adding a new route with the dependencies
-	err := test.inprocHandler.Route("command_3", test.routes["command_3"], "dep_1", "dep_2")
+	err := test.inprocHandler.Route("command_3", test.routes["command_3"])
 	s.Require().NoError(err)
-	err = test.tcpHandler.Route("command_3", test.routes["command_3"], "dep_1", "dep_2")
+	err = test.tcpHandler.Route("command_3", test.routes["command_3"])
 	s.Require().NoError(err)
 
-	s.Require().Len(test.inprocHandler.DepIds(), 2)
-	s.Require().Len(test.tcpHandler.DepIds(), 2)
+	err = test.tcpHandler.Route("command_4", test.routes["command_3"])
+	s.Require().NoError(err)
 
-	// Trying to route the handler with inconsistent dependencies must fail
-	err = test.tcpHandler.Route("command_4", test.routes["command_3"]) // command_3 handler requires two dependencies
-	s.Require().Error(err)
+	err = test.tcpHandler.Route("command_5", test.routes["command_2"])
+	s.Require().NoError(err)
 
-	err = test.tcpHandler.Route("command_5", test.routes["command_2"], "dep_1", "dep_2") // command_2 handler not requires any dependencies
-	s.Require().Error(err)
-
-	// Adding a new command with already added dependency should be fine
-	test.routes["command_4"] = func(request message.RequestInterface, _ *client.Socket, _ *client.Socket) message.ReplyInterface {
+	test.routes["command_4"] = func(request message.RequestInterface) message.ReplyInterface {
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
 	}
-	err = test.inprocHandler.Route("command_4", test.routes["command_4"], "dep_1", "dep_3") // command_3 handler requires two dependencies
+	err = test.inprocHandler.Route("command_4", test.routes["command_4"])
 	s.Require().NoError(err)
-
-	depIds := test.inprocHandler.DepIds()
-	s.Require().Len(depIds, 3)
-	s.Require().EqualValues([]string{"dep_1", "dep_2", "dep_3"}, depIds)
-
-}
-
-// Test_12_DepConfig tests setting of the dependency configurations
-func (test *TestBaseHandlerSuite) Test_12_DepConfig() {
-	s := &test.Suite
-
-	s.Require().NotNil(test.inprocHandler.logger)
-
-	test.routes = make(map[string]interface{}, 2)
-	test.routes["command_1"] = func(request message.RequestInterface) message.ReplyInterface {
-		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
-	}
-	test.routes["command_2"] = func(request message.RequestInterface) message.ReplyInterface {
-		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
-	}
-	test.routes["command_3"] = func(request message.RequestInterface, _ *client.Socket, _ *client.Socket) message.ReplyInterface {
-		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
-	}
-	test.routes["command_4"] = func(request message.RequestInterface, _ *client.Socket, _ *client.Socket) message.ReplyInterface {
-		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
-	}
-
-	err := test.inprocHandler.Route("command_1", test.routes["command_1"])
-	s.Require().NoError(err)
-	err = test.inprocHandler.Route("command_2", test.routes["command_2"])
-	s.Require().NoError(err)
-	err = test.inprocHandler.Route("command_3", test.routes["command_3"], "dep_1", "dep_2")
-	s.Require().NoError(err)
-	err = test.inprocHandler.Route("command_4", test.routes["command_4"], "dep_1", "dep_3") // command_3 handler requires two dependencies
-	s.Require().NoError(err)
-
-	// No dependency configurations were added yet
-	s.Require().Error(test.inprocHandler.depConfigsAdded())
-
-	// No dependency config should be given
-	depIds := test.inprocHandler.DepIds()
-	//AddDepByService
-	for _, id := range depIds {
-		s.Require().False(test.inprocHandler.AddedDepByService(id))
-	}
-
-	// Adding the dependencies
-	for _, id := range depIds {
-		depConfig := &clientConfig.Client{
-			Id:         id,
-			ServiceUrl: "github.com/sds-framework/" + id,
-			Port:       0,
-		}
-
-		s.Require().NoError(test.inprocHandler.AddDepByService(depConfig))
-	}
-
-	// There should be dependency configurations now
-	for _, id := range depIds {
-		s.Require().True(test.inprocHandler.AddedDepByService(id))
-	}
-
-	// All dependency configurations were added
-	s.Require().NoError(test.inprocHandler.depConfigsAdded())
-
-	// trying to add the configuration for the dependency that doesn't exist should fail
-	depId := "not_exist"
-	s.Require().False(slices.Contains(depIds, depId))
-	depConfig := &clientConfig.Client{
-		Id:         depId,
-		ServiceUrl: "github.com/sds-framework/" + depId,
-		Port:       0,
-	}
-	s.Require().Error(test.inprocHandler.AddDepByService(depConfig))
-
-	// Trying to add the configuration that was already added should fail
-	depId = depIds[0]
-	depConfig = &clientConfig.Client{
-		Id:         depId,
-		ServiceUrl: "github.com/sds-framework/" + depId,
-		Port:       0,
-	}
-	s.Require().Error(test.inprocHandler.AddDepByService(depConfig))
 }
 
 // Test_13_InstanceManager tests setting of the instance Manager and then listening to it.

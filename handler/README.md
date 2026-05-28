@@ -96,11 +96,7 @@ Send requests with [client-lib](https://github.com/noPerfection/protocol/client)
 **Route handler signature** (`route` package):
 
 ```go
-// No dependencies
 func(req message.RequestInterface) message.ReplyInterface
-
-// With one or more service dependencies (see Tutorial: Dependencies)
-func(req message.RequestInterface, dep *client.Socket) message.ReplyInterface
 ```
 
 **Success / failure replies:**
@@ -114,8 +110,6 @@ return req.Fail("something went wrong")
 
 ```go
 err := handler.Route("my_command", myHandler)
-// With dependencies:
-err := handler.Route("other_command", myHandler, "dep_service_id")
 ```
 
 ---
@@ -258,42 +252,6 @@ if err != nil {
 }
 instanceId, err := mc.AddInstance()
 ```
-
----
-
-### Tutorial: Dependencies (call other services)
-
-Routes can depend on other SDS services. Declare dependency IDs on the route; the service calls `AddDepByService` before `Start()`.
-
-```go
-import "github.com/noPerfection/protocol/client"
-
-// Route: needs two dependency sockets
-err := handler.Route("aggregate", aggregateHandler, "users", "orders")
-
-func aggregateHandler(
-	req message.RequestInterface,
-	users *client.Socket,
-	orders *client.Socket,
-) message.ReplyInterface {
-	// use users.Request(...), orders.Request(...)
-	return req.Ok(key_value.New())
-}
-```
-
-Register configs (typically from your service bootstrap):
-
-```go
-usersCfg := clientConfig.New("github.com/sds-framework/users", "users", 0, zmq.REQ)
-usersCfg.UrlFunc(clientConfig.Url)
-handler.AddDepByService(usersCfg)
-
-ordersCfg := clientConfig.New("github.com/sds-framework/orders", "orders", 0, zmq.REQ)
-ordersCfg.UrlFunc(clientConfig.Url)
-handler.AddDepByService(ordersCfg)
-```
-
-`Start()` fails if a route references a dependency that was not registered.
 
 ---
 
@@ -461,7 +419,7 @@ To expose a handler over HTTP or another protocol, add a **pair** layer on the f
 ## Typical lifecycle
 
 ```
-New() → SetConfig() → SetLogger() → Route(...) → [AddDepByService(...)] → Start()
+New() → SetConfig() → SetLogger() → Route(...) → Start()
 ```
 
 | Step | Notes |
@@ -469,7 +427,6 @@ New() → SetConfig() → SetLogger() → Route(...) → [AddDepByService(...)] 
 | `SetConfig` | Required before `SetLogger` |
 | `SetLogger` | Child logger per handler id |
 | `Route` | Command name must be unique |
-| `AddDepByService` | Called by service, not inside handler-lib |
 | `Start` | Starts frontend, instance manager, handler manager; blocks until parts are ready |
 
 Check health: `handler.Status()` (empty string = running) or `manager_client.HandlerStatus()`.

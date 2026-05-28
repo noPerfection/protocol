@@ -29,8 +29,6 @@ type HandlerManager struct {
 	startInstanceManager func() error
 	config               *config.Handler
 	routes               datatype.KeyValue
-	routeDeps            datatype.KeyValue
-	depClients           datatype.KeyValue
 	status               string // It's the socket status, not the handler status
 	close                bool
 }
@@ -44,8 +42,6 @@ func New(parent *log.Logger, frontend *frontend.Frontend, instanceManager *insta
 		instanceManager:      instanceManager,
 		startInstanceManager: startInstanceManager,
 		routes:               datatype.New(),
-		routeDeps:            datatype.New(),
-		depClients:           datatype.New(),
 		status:               SocketIdle,
 		logger:               logger,
 	}
@@ -185,7 +181,7 @@ func (m *HandlerManager) setRoutes() {
 
 	// Add a new instance, but it doesn't check that instance was added
 	onAddInstance := func(req message.RequestInterface) message.ReplyInterface {
-		instanceId, err := m.instanceManager.AddInstance(m.config.Type, &m.routes, &m.routeDeps, &m.depClients)
+		instanceId, err := m.instanceManager.AddInstance(m.config.Type, &m.routes)
 		if err != nil {
 			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", m.config.Type, err))
 		}
@@ -246,7 +242,7 @@ func (m *HandlerManager) setRoutes() {
 // Route overrides the default route with the given handle.
 // Returns an error if the command is not supported.
 // Returns an error if HandlerManager is running.
-func (m *HandlerManager) Route(cmd string, handle route.HandleFunc0) error {
+func (m *HandlerManager) Route(cmd string, handle route.HandleFunc) error {
 	if m.status == SocketReady {
 		return fmt.Errorf("can not overwrite handler when HandlerManager is running")
 	}
@@ -319,7 +315,7 @@ func (m *HandlerManager) Start() error {
 				continue
 			}
 
-			handleInterface, depNames, err := route.Route(req.CommandName(), m.routes, m.routeDeps)
+			handleInterface, err := route.Route(req.CommandName(), m.routes)
 			if err != nil {
 				reply := req.Fail(fmt.Sprintf("route.Route(%s): %v", req.CommandName(), err))
 				replyStr, err := reply.ZmqEnvelope()
@@ -343,9 +339,7 @@ func (m *HandlerManager) Start() error {
 				continue
 			}
 
-			depClients := route.FilterExtensionClients(depNames, m.depClients)
-
-			reply := route.Handle(req, handleInterface, depClients)
+			reply := route.Handle(req, handleInterface)
 			replyStr, err := reply.ZmqEnvelope()
 			if err != nil {
 				reply := req.Fail(fmt.Sprintf("failed to convert handle reply [%v] to string", reply))
@@ -377,8 +371,8 @@ func (m *HandlerManager) Start() error {
 
 		// Since routes are over-writeable, as extending handlers might add new parts.
 		// We don't call frontend or instanceManager directly.
-		partsHandle := m.routes[config.Parts].(func(message.RequestInterface) message.ReplyInterface)
-		closeHandle := m.routes[config.ClosePart].(func(message.RequestInterface) message.ReplyInterface)
+		partsHandle := m.routes[config.Parts].(route.HandleFunc)
+		closeHandle := m.routes[config.ClosePart].(route.HandleFunc)
 
 		defReq := message.Request{Command: config.Parts, Parameters: datatype.New()}
 		var req message.RequestInterface = &defReq

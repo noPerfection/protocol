@@ -7,7 +7,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/route"
 	"github.com/noPerfection/protocol/message"
@@ -41,8 +40,6 @@ type Instance struct {
 	parentId    string
 	handlerType config.HandlerType
 	routes      *datatype.KeyValue // handler routing
-	routeDeps   *datatype.KeyValue // handler deps
-	depClients  *datatype.KeyValue
 	messageOps  *message.Operations
 	logger      *log.Logger
 	close       bool
@@ -58,8 +55,6 @@ func New(handlerType config.HandlerType, id string, parentId string, parent *log
 		parentId:    parentId,
 		handlerType: handlerType,
 		routes:      nil,
-		routeDeps:   nil,
-		depClients:  nil,
 		logger:      logger,
 		close:       false,
 		status:      PREPARE,
@@ -91,15 +86,9 @@ func (c *Instance) replyError(socket *zmq.Socket, err error) error {
 	return c.reply(socket, c.messageOps.EmptyReq().Fail(err.Error()))
 }
 
-// SetRoutes set the reference to the functions and dependencies from the Handler.
-func (c *Instance) SetRoutes(routes *datatype.KeyValue, routeDeps *datatype.KeyValue) {
+// SetRoutes sets the reference to the handler routes.
+func (c *Instance) SetRoutes(routes *datatype.KeyValue) {
 	c.routes = routes
-	c.routeDeps = routeDeps
-}
-
-// SetClients set the reference to the socket clients
-func (c *Instance) SetClients(clients *datatype.KeyValue) {
-	c.depClients = clients
 }
 
 func (c *Instance) SetMessageOps(ops *message.Operations) {
@@ -449,8 +438,8 @@ func (c *Instance) Start() error {
 	return <-ready
 }
 
-func (c *Instance) handle(reply chan message.ReplyInterface, req message.RequestInterface, handleInterface interface{}, depClients []*client.Socket) {
-	result := route.Handle(req, handleInterface, depClients)
+func (c *Instance) handle(reply chan message.ReplyInterface, req message.RequestInterface, handleInterface interface{}) {
+	result := route.Handle(req, handleInterface)
 	reply <- result
 }
 
@@ -503,7 +492,7 @@ func (c *Instance) processMessage(ctx context.Context, cancel context.CancelFunc
 	//}
 	//request.AddRequestStack(c.serviceUrl, c.config.Category, c.config.Instances[0].Id)
 
-	handleInterface, depNames, err := route.Route(request.CommandName(), *c.routes, *c.routeDeps)
+	handleInterface, err := route.Route(request.CommandName(), *c.routes)
 	if err != nil {
 		reply := request.Fail(fmt.Sprintf("route.Route(%s): %v", request.CommandName(), err))
 		finishErr := c.processingFinished(parent, handler, reply)
@@ -516,10 +505,8 @@ func (c *Instance) processMessage(ctx context.Context, cancel context.CancelFunc
 		return
 	}
 
-	depClients := route.FilterExtensionClients(depNames, *c.depClients)
-
 	reply := make(chan message.ReplyInterface)
-	go c.handle(reply, request, handleInterface, depClients)
+	go c.handle(reply, request, handleInterface)
 
 	// We use a similar pattern to the HTTP server
 	// that we saw in the earlier example

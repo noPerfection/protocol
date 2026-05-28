@@ -275,8 +275,7 @@ func (test *TestHandlerManagerSuite) Test_14_InstanceAmount() {
 	s.Require().Zero(instanceAmount)
 
 	// Add a new instance
-	empty := datatype.New()
-	instanceId, err := test.instanceManager.AddInstance(test.inprocConfig.Type, &test.routes, &empty, &empty)
+	instanceId, err := test.instanceManager.AddInstance(test.inprocConfig.Type, &test.routes)
 	s.Require().NoError(err)
 
 	// Wait a bit for instance initialization
@@ -322,8 +321,7 @@ func (test *TestHandlerManagerSuite) Test_15_InstanceAmount() {
 	s.Require().Zero(instanceAmount)
 
 	// Add a new instance
-	empty := datatype.New()
-	instanceId, err := test.instanceManager.AddInstance(test.inprocConfig.Type, &test.routes, &empty, &empty)
+	instanceId, err := test.instanceManager.AddInstance(test.inprocConfig.Type, &test.routes)
 	s.Require().NoError(err)
 
 	// Wait a bit for instance initialization
@@ -401,8 +399,7 @@ func (test *TestHandlerManagerSuite) Test_16_MessageAmount() {
 	s.Require().Zero(procAmount)
 
 	// Add a new instance that will start processing the message
-	empty := datatype.New()
-	_, err = test.instanceManager.AddInstance(test.inprocConfig.Type, &test.routes, &empty, &empty)
+	_, err = test.instanceManager.AddInstance(test.inprocConfig.Type, &test.routes)
 	s.Require().NoError(err)
 
 	// Wait a bit for instance initialization

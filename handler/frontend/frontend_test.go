@@ -45,8 +45,6 @@ func (test *TestFrontendSuite) instanceManager() (string, string, *instance_mana
 		return req.Ok(datatype.New().Set("id", id))
 	}
 	routes := datatype.New().Set(cmd, handleHello)
-	routeDeps := datatype.New()
-	depClients := datatype.New()
 
 	// Added Instance Manager
 	logger, err := log.New(test.handleConfig.Id, true)
@@ -56,7 +54,7 @@ func (test *TestFrontendSuite) instanceManager() (string, string, *instance_mana
 	s.Require().NoError(instanceManager.Start())
 
 	time.Sleep(time.Millisecond * 50) // wait until it updates the status
-	instanceId, err := instanceManager.AddInstance(test.handleConfig.Type, &routes, &routeDeps, &depClients)
+	instanceId, err := instanceManager.AddInstance(test.handleConfig.Type, &routes)
 	s.Require().NoError(err)
 
 	time.Sleep(time.Millisecond * 50) // wait until the instance will be loaded

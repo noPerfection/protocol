@@ -57,7 +57,7 @@ func (handler *Trigger) TriggerClient() *clientConfig.Client {
 }
 
 // Route adds a route along with its handler to this handler
-func (handler *Trigger) Route(_ string, _ interface{}, _ ...string) error {
+func (handler *Trigger) Route(_ string, _ interface{}) error {
 	return fmt.Errorf("trigger doesn't support routing")
 }
 
@@ -220,7 +220,7 @@ func (handler *Trigger) Start() error {
 			return req.Fail("only one instance allowed in sync replier")
 		}
 
-		instanceId, err := m.InstanceManager.AddInstance(m.Config().Type, &m.Routes, &m.RouteDeps, &m.DepClients)
+		instanceId, err := m.InstanceManager.AddInstance(m.Config().Type, &m.Routes)
 		if err != nil {
 			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", m.Config().Type, err))
 		}

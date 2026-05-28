@@ -41,7 +41,7 @@ func (c *SyncReplier) Start() error {
 			return req.Fail("only one instance allowed in sync replier")
 		}
 
-		instanceId, err := c.InstanceManager.AddInstance(c.Config().Type, &c.Routes, &c.RouteDeps, &c.DepClients)
+		instanceId, err := c.InstanceManager.AddInstance(c.Config().Type, &c.Routes)
 		if err != nil {
 			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", c.Config().Type, err))
 		}

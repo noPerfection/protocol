@@ -6,7 +6,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/instance"
 	"github.com/noPerfection/protocol/message"
@@ -25,9 +24,7 @@ type TestInstanceSuite struct {
 	handle1  interface{}
 	parentId string
 
-	clients   datatype.KeyValue
-	routes    datatype.KeyValue
-	routeDeps datatype.KeyValue
+	routes datatype.KeyValue
 }
 
 // Make sure that Account is set to five
@@ -38,7 +35,7 @@ func (test *TestInstanceSuite) SetupTest() {
 		return request.Ok(datatype.New())
 	}
 	// delays 1 second for testing ready instances
-	handle1 := func(request message.RequestInterface, _ *client.Socket) message.ReplyInterface {
+	handle1 := func(request message.RequestInterface) message.ReplyInterface {
 		time.Sleep(time.Second)
 		return request.Ok(datatype.New())
 	}
@@ -89,16 +86,12 @@ func (test *TestInstanceSuite) Test_11_AddInstance() {
 	test.routes = datatype.New().
 		Set("handle_0", test.handle0).
 		Set("handle_1", test.handle1)
-	test.routeDeps = datatype.New().
-		Set("handle_1", []string{"dep_1"})
-	test.clients = datatype.New().
-		Set("handle_1", &client.Socket{})
 
 	// Make sure that there are no instances
 	s.Require().Len(test.parent.instances, 0)
 
 	// Adding a new instance when manager not yet started must fail
-	_, err := test.parent.AddInstance(config.SyncReplierType, &test.routes, &test.routeDeps, &test.clients)
+	_, err := test.parent.AddInstance(config.SyncReplierType, &test.routes)
 	s.Require().Error(err)
 
 	// Start instance manager
@@ -109,7 +102,7 @@ func (test *TestInstanceSuite) Test_11_AddInstance() {
 	s.Require().Equal(Running, test.parent.Status())
 
 	// Now adding a new instance should work
-	instanceId, err := test.parent.AddInstance(config.SyncReplierType, &test.routes, &test.routeDeps, &test.clients)
+	instanceId, err := test.parent.AddInstance(config.SyncReplierType, &test.routes)
 	s.Require().NoError(err)
 
 	// Wait a bit for instance initialization
@@ -129,6 +122,10 @@ func (test *TestInstanceSuite) Test_11_AddInstance() {
 // Test_12_Ready tests the handling requests by ready worker.
 func (test *TestInstanceSuite) Test_12_Ready() {
 	s := &test.Suite
+
+	test.routes = datatype.New().
+		Set("handle_0", test.handle0).
+		Set("handle_1", test.handle1)
 
 	// request to send
 	req := message.Request{Command: "handle_1", Parameters: datatype.New()}
@@ -150,9 +147,9 @@ func (test *TestInstanceSuite) Test_12_Ready() {
 	s.Require().Equal(Running, test.parent.Status())
 
 	// Now adding a new instance should work
-	instanceId, err := test.parent.AddInstance(config.SyncReplierType, &test.routes, &test.routeDeps, &test.clients)
+	instanceId, err := test.parent.AddInstance(config.SyncReplierType, &test.routes)
 	s.Require().NoError(err)
-	instanceId2, err := test.parent.AddInstance(config.SyncReplierType, &test.routes, &test.routeDeps, &test.clients)
+	instanceId2, err := test.parent.AddInstance(config.SyncReplierType, &test.routes)
 	s.Require().NoError(err)
 
 	// Instances are in the parent
