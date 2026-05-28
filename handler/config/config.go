@@ -2,16 +2,15 @@ package config
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
 
 type Handler struct {
-	Type     HandlerType `json:"type" yaml:"type"`
-	Category string      `json:"category" yaml:"category"`
-	Port     uint64      `json:"port" yaml:"port"`
-	Id       string      `json:"id" yaml:"id"`
+	Type             HandlerType `json:"type" yaml:"type"`
+	Category         string      `json:"category" yaml:"category"`
+	message.Endpoint `json:",inline" yaml:",inline"`
 }
 
 func (handler *Handler) HandlerType() HandlerType {
@@ -30,8 +29,7 @@ func NewHandler(as HandlerType, id string, category string, port uint64) *Handle
 	return &Handler{
 		Type:     as,
 		Category: category,
-		Id:       id,
-		Port:     port,
+		Endpoint: message.NewEndpoint(id, port),
 	}
 }
 
@@ -70,49 +68,6 @@ func SocketType(handlerType HandlerType) zmq.Type {
 	return zmq.Type(-1)
 }
 
-// ExternalUrl creates the ZeroMQ endpoint for the handler to bind.
-//
-// When Port is non-zero and Id is localhost or a 127.0.0.* address, returns tcp://*:{Port}.
-// When Port is non-zero otherwise, returns tcp://{Id}:{Port}.
-// When Port is 0 and Id has the prefix "tmp", returns ipc:///{Id} for a filesystem IPC socket.
-// When Port is 0 otherwise, returns inproc://{Id} for in-process communication.
-//
-// Clients should connect using the same Id and Port with ConnectUrl.
-func ExternalUrl(id string, port uint64) string {
-	if port == 0 {
-		if strings.HasPrefix(id, "tmp") {
-			return fmt.Sprintf("ipc:///%s", id)
-		}
-		return fmt.Sprintf("inproc://%s", id)
-	}
-	if isLocalhost(id) {
-		return fmt.Sprintf("tcp://*:%d", port)
-	}
-	return fmt.Sprintf("tcp://%s:%d", id, port)
-}
-
-func isLocalhost(id string) bool {
-	return id == "" || id == "localhost" || strings.HasPrefix(id, "127.0.0.")
-}
-
-// ConnectUrl creates the ZeroMQ endpoint for a subscriber to connect.
-//
-// When Port is non-zero, returns tcp://{Id}:{Port}.
-// When Port is 0 and Id has the prefix "tmp", returns ipc:///{Id}.
-// When Port is 0 otherwise, returns inproc://{Id}.
-func ConnectUrl(id string, port uint64) string {
-	if port == 0 {
-		if strings.HasPrefix(id, "tmp") {
-			return fmt.Sprintf("ipc:///%s", id)
-		}
-		return fmt.Sprintf("inproc://%s", id)
-	}
-	if isLocalhost(id) {
-		return fmt.Sprintf("tcp://localhost:%d", port)
-	}
-	return fmt.Sprintf("tcp://%s:%d", id, port)
-}
-
 // CanReply returns true if the given Handler has to reply back to the user.
 // It's the opposite of CanTrigger.
 func CanReply(handlerType HandlerType) bool {
@@ -125,14 +80,9 @@ func CanTrigger(handlerType HandlerType) bool {
 	return handlerType == PublisherType
 }
 
-// IsInproc returns true if the handler is not a remote handler.
-func (handler *Handler) IsInproc() bool {
-	return handler.Port == 0
-}
-
 // IsInprocBroadcast returns true if the publisher is not a remote.
 func (trigger *Trigger) IsInprocBroadcast() bool {
-	return trigger.BroadcastPort == 0
+	return message.NewEndpoint(trigger.BroadcastId, trigger.BroadcastPort).IsInproc()
 }
 
 // ByCategory returns handlers filtered by the category.

@@ -77,7 +77,7 @@ func (test *TestPublisherSuite) subscribe() {
 	s.Require().NoError(sub.SetSubscribe(""))
 	// It won't work if the trigger is using a tcp protocol.
 	// For tcp protocol, use clientConfig.Url()
-	url := config.ExternalUrl(test.config.BroadcastId, test.config.BroadcastPort)
+	url := message.NewEndpoint(test.config.BroadcastId, test.config.BroadcastPort).ClientUrl()
 	err = sub.Connect(url)
 
 	s.Require().NoError(err)

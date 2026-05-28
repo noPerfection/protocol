@@ -118,8 +118,8 @@ err := handler.Route("my_command", myHandler)
 
 | Field | Description |
 |-------|-------------|
-| `Id` | Endpoint identity (used in ZMQ URL) |
-| `Port` | `0` = local (inproc or ipc); non-zero = TCP |
+| `Endpoint.Id` | Endpoint identity (used in ZMQ URL) |
+| `Endpoint.Port` | `0` = local (inproc or ipc); non-zero = TCP |
 | `Type` | Set automatically by `sync_replier`, `replier`, etc. |
 | `Category` | Logical grouping |
 | `InstanceAmount` | Hint for instance count (service may manage instances) |
@@ -133,16 +133,11 @@ cfg := config.NewInternalHandler(config.SyncReplierType, "my_service", "my_servi
 // TCP on an explicit port. Local IDs bind on all interfaces.
 cfg := config.NewHandler(config.ReplierType, "localhost", "api", 5555)
 
-// Manual config
-cfg := &config.Handler{
-	Type:     config.ReplierType,
-	Category: "api",
-	Id:       "api_1",
-	Port:     5555,
-}
+bindURL := cfg.HandlerUrl()
+clientURL := cfg.ClientUrl()
 ```
 
-**External URL** (`config.ExternalUrl`) — where the handler **binds**:
+**Handler URL** (`Endpoint.HandlerUrl`) — where the handler **binds**:
 
 | Port | Id | Bind URL |
 |------|-----|----------|
@@ -151,19 +146,14 @@ cfg := &config.Handler{
 | 0 | starts with `tmp` | `ipc:///{Id}` (filesystem socket) |
 | 0 | otherwise | `inproc://{Id}` |
 
-Clients use the same `Id` and `Port` with `config.ConnectUrl` (`tcp://{Id}:{Port}` for TCP).
+Clients use the same `Id` and `Port` with `Endpoint.ClientUrl` (`tcp://{Id}:{Port}` for TCP).
 
 Control endpoints are created by `control.CreateInternalConfig(handlerCfg)`. Internal control ids use the `{Id}_control` suffix with category `"control"`.
 
 **IPC example** — use an id under `/tmp/`:
 
 ```go
-cfg := &config.Handler{
-	Type:     config.SyncReplierType,
-	Category: "worker",
-	Id:       "tmp/my-worker.sock", // binds ipc:///tmp/my-worker.sock
-	Port:     0,
-}
+cfg := config.NewHandler(config.SyncReplierType, "tmp/my-worker.sock", "worker", 0)
 ```
 
 Remove the socket file when the handler stops.
@@ -279,7 +269,7 @@ req := message.Request{Command: "publish", Parameters: key_value.New().Set("even
 reply, err := trigger.Request(&req)
 ```
 
-Subscribers connect to `config.ExternalUrl(triggerCfg.BroadcastId, triggerCfg.BroadcastPort)` with a ZMQ SUB socket (or use `client-lib` with SUB).
+Subscribers connect to `message.NewEndpoint(triggerCfg.BroadcastId, triggerCfg.BroadcastPort).HandlerUrl()` with a ZMQ SUB socket (or use `client-lib` with SUB).
 
 ---
 

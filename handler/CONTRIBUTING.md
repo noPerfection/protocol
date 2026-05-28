@@ -33,14 +33,14 @@ Handler configuration lives in `config`:
 
 | File / type | Role |
 |-------------|------|
-| `Handler` | Id, Port, Type, Category |
+| `Handler` | Type, Category, embedded message Endpoint |
 | `Trigger` | Publisher broadcast settings |
-| `controller.go` | `ExternalUrl`, `NewHandler`, handler types |
+| `config.go` | `NewHandler`, handler types |
 | `internal.go` | Internal `inproc://` URLs (manager, instance manager, instances) |
 
 ### Handler URLs (external)
 
-`config.ExternalUrl` is for external sockets. Control endpoints are created by `control.CreateInternalConfig`.
+`message.Endpoint.HandlerUrl` is for external sockets. Control endpoints are created by `control.CreateInternalConfig`.
 
 | Port | Id | Bind URL |
 |------|-----|----------|
@@ -49,7 +49,7 @@ Handler configuration lives in `config`:
 | 0 | starts with `tmp` | `ipc:///{Id}` |
 | 0 | otherwise | `inproc://{Id}` |
 
-Clients use the same `Id` and `Port` with [`client-lib/config.Url`](https://github.com/noPerfection/protocol/client).
+Clients use the same `Id` and `Port` with `message.Endpoint.ClientUrl` or [`client-lib/config.Url`](https://github.com/noPerfection/protocol/client).
 
 ## Internal parts
 

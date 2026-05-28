@@ -64,7 +64,7 @@ func (test *TestReplierSuite) SetupTest() {
 	test.managingClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
 	managerConfig := control.CreateInternalConfig(test.handlerConfig.Handler)
-	managerUrl := config.ConnectUrl(managerConfig.Id, managerConfig.Port)
+	managerUrl := managerConfig.ClientUrl()
 	err = test.managingClient.Connect(managerUrl)
 	s.Require().NoError(err)
 }
@@ -181,7 +181,7 @@ func (test *TestReplierSuite) Test_11_Request() {
 	// Let's create a client
 	client, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	externalUrl := config.ExternalUrl(test.handlerConfig.Id, test.handlerConfig.Port)
+	externalUrl := test.handlerConfig.ClientUrl()
 	err = client.Connect(externalUrl)
 	s.Require().NoError(err)
 

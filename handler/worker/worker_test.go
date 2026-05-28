@@ -69,7 +69,7 @@ func (test *TestWorkerSuite) SetupTest() {
 	s.Require().NoError(err)
 
 	test.handlerConfig = concurrent.NewInternalConfig(config.WorkerType, "test", "test")
-	inprocUrl := config.ExternalUrl(test.handlerConfig.Id, test.handlerConfig.Port)
+	inprocUrl := test.handlerConfig.ClientUrl()
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.worker.SetLogger(test.logger))
@@ -82,7 +82,7 @@ func (test *TestWorkerSuite) SetupTest() {
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
 	managerConfig := control.CreateInternalConfig(test.handlerConfig.Handler)
-	managerUrl := config.ConnectUrl(managerConfig.Id, managerConfig.Port)
+	managerUrl := managerConfig.ClientUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
 

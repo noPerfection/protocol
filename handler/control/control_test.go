@@ -84,7 +84,7 @@ func (test *TestControlSuite) SetupTest() {
 	inprocClient, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
 	managerConfig := control.CreateInternalConfig(test.inprocConfig.Handler)
-	err = inprocClient.Connect(config.ConnectUrl(managerConfig.Id, managerConfig.Port))
+	err = inprocClient.Connect(managerConfig.ClientUrl())
 	s.Require().NoError(err)
 	test.inprocClient = inprocClient
 }
@@ -93,7 +93,7 @@ func (test *TestControlSuite) SetupTest() {
 func (test *TestControlSuite) reconnectClient() {
 	s := &test.Suite
 	managerConfig := control.CreateInternalConfig(test.inprocConfig.Handler)
-	url := config.ConnectUrl(managerConfig.Id, managerConfig.Port)
+	url := managerConfig.ClientUrl()
 
 	err := test.inprocClient.Disconnect(url)
 	s.Require().NoError(err)
@@ -362,7 +362,7 @@ func (test *TestControlSuite) Test_16_MessageAmount() {
 	clientType := clientConfig.TargetToClient(config.SocketType(test.inprocConfig.Type))
 	clientSocket, err := zmq.NewSocket(clientType)
 	s.Require().NoError(err)
-	clientUrl := config.ExternalUrl(test.inprocConfig.Id, test.inprocConfig.Port)
+	clientUrl := test.inprocConfig.ClientUrl()
 	err = clientSocket.Connect(clientUrl)
 	s.Require().NoError(err)
 

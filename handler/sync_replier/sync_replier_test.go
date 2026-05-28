@@ -66,11 +66,11 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
 	managerConfig := control.CreateInternalConfig(test.handlerConfig)
-	managerUrl := config.ConnectUrl(managerConfig.Id, managerConfig.Port)
+	managerUrl := managerConfig.ClientUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
 
-	externalUrl := config.ExternalUrl(test.handlerConfig.Id, test.handlerConfig.Port)
+	externalUrl := test.handlerConfig.ClientUrl()
 	externalClient, err := client.NewRaw(zmq.REP, externalUrl)
 	s.Require().NoError(err)
 	test.externalClient = externalClient

@@ -74,7 +74,7 @@ func (test *TestTriggerSuite) subscribe() {
 	s.Require().NoError(sub.SetSubscribe(""))
 	// It won't work if the trigger is using a tcp protocol.
 	// For tcp protocol, use clientConfig.Url()
-	url := config.ExternalUrl(test.config.BroadcastId, test.config.BroadcastPort)
+	url := message.NewEndpoint(test.config.BroadcastId, test.config.BroadcastPort).ClientUrl()
 	err = sub.Connect(url)
 
 	s.Require().NoError(err)
@@ -172,7 +172,7 @@ func (test *TestTriggerSuite) Test_14_Start() {
 
 	// Now let's close it
 	managerConfig := control.CreateInternalConfig(test.config.Handler)
-	triggerClient, err := client.NewRaw(config.SocketType(test.config.Type), config.ConnectUrl(managerConfig.Id, managerConfig.Port))
+	triggerClient, err := client.NewRaw(config.SocketType(test.config.Type), managerConfig.ClientUrl())
 	s.Require().NoError(err)
 	reply, err := triggerClient.Request(&message.Request{
 		Command:    control.HandlerClose,

@@ -7,6 +7,7 @@ import (
 	"github.com/noPerfection/protocol/client"
 	clientConfig "github.com/noPerfection/protocol/client/config"
 	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/message"
 )
 
 // Config converts the external handler config into the paired one
@@ -14,8 +15,7 @@ func Config(originalConfig *config.Handler) *config.Handler {
 	pairConfig := &config.Handler{
 		Type:     config.PairType,
 		Category: originalConfig.Category + "_pair",
-		Id:       originalConfig.Id + "_pair",
-		Port:     0,
+		Endpoint: message.NewEndpoint(originalConfig.Id+"_pair", 0),
 	}
 	return pairConfig
 }

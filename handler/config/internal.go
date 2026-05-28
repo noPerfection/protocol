@@ -3,12 +3,14 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/noPerfection/protocol/message"
 )
 
 // UrlToFileName converts the given url to the file name.
 // Simply it replaces the slashes with dots.
 //
-// ExternalUrl returns the full url to connect to the orchestra.
+// HandlerUrl returns the full url to connect to the orchestra.
 //
 // The orchestra url is defined from the main service's url.
 //
@@ -18,7 +20,7 @@ import (
 //	contextUrl = "orchestra.github.com.ahmetson.sample-service"
 //
 // This url is set as the handler's name in the config.
-// Then the handler package will generate an inproc:// or ipc:// url from config.ExternalUrl.
+// Then the handler package will generate an inproc:// or ipc:// url from Endpoint.HandlerUrl.
 func UrlToFileName(url string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(url, "/", "."), "\\", ".")
 }
@@ -28,8 +30,7 @@ func NewInternalHandler(as HandlerType, id string, category string) *Handler {
 	return &Handler{
 		Type:     as,
 		Category: category,
-		Id:       id,
-		Port:     0,
+		Endpoint: message.NewEndpoint(id, 0),
 	}
 }
 

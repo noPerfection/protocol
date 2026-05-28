@@ -113,7 +113,7 @@ func (test *TestFrontendSuite) Test_11_External() {
 	s.Require().NoError(err)
 
 	// user that will send the messages
-	clientUrl := config.ExternalUrl(test.frontend.externalConfig.Id, test.frontend.externalConfig.Port)
+	clientUrl := test.frontend.externalConfig.ClientUrl()
 	user, err := zmq.NewSocket(zmq.DEALER)
 	s.Require().NoError(err)
 	err = user.Connect(clientUrl)
@@ -185,9 +185,7 @@ func (test *TestFrontendSuite) Test_11_External_ipc() {
 	defer os.Remove(ipcPath)
 
 	test.handleConfig = &Config{
-		Handler: &config.Handler{
-			Type: config.SyncReplierType, Category: "test", Id: ipcId, Port: 0,
-		},
+		Handler:        config.NewHandler(config.SyncReplierType, ipcId, "test", 0),
 		InstanceAmount: 1,
 	}
 	test.frontend = NewFrontend()
@@ -198,7 +196,7 @@ func (test *TestFrontendSuite) Test_11_External_ipc() {
 	err = test.frontend.prepareExternalSocket()
 	s.Require().NoError(err)
 
-	clientUrl := config.ExternalUrl(test.frontend.externalConfig.Id, test.frontend.externalConfig.Port)
+	clientUrl := test.frontend.externalConfig.ClientUrl()
 	s.Require().Equal("ipc:///"+ipcId, clientUrl)
 
 	user, err := zmq.NewSocket(zmq.DEALER)
@@ -324,7 +322,7 @@ func (test *TestFrontendSuite) Test_13_Run() {
 	// (before 1 second of instance handling expires).
 	// The third request should not be added to the queue, since the queue is full.
 	// User will be idle
-	clientUrl := config.ExternalUrl(test.frontend.externalConfig.Id, test.frontend.externalConfig.Port)
+	clientUrl := test.frontend.externalConfig.ClientUrl()
 	user, err := zmq.NewSocket(zmq.DEALER)
 	s.Require().NoError(err)
 	err = user.Connect(clientUrl)

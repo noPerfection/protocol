@@ -52,12 +52,7 @@ func New() *Trigger {
 // TriggerClient is the client parameters to trigger this handler
 func (handler *Trigger) TriggerClient() *clientConfig.Client {
 	handlerConfig := handler.Handler.Config()
-	client := &clientConfig.Client{
-		ServiceUrl: "",
-		Id:         handlerConfig.Id,
-		Port:       handlerConfig.Port,
-		TargetType: config.SocketType(triggerType),
-	}
+	client := clientConfig.New("", handlerConfig.Id, handlerConfig.Port, config.SocketType(triggerType))
 	return client.UrlFunc(clientConfig.Url)
 }
 
@@ -112,7 +107,7 @@ func (handler *Trigger) startBroadcaster() error {
 			return
 		}
 
-		pubUrl := config.ExternalUrl(handler.id, handler.port)
+		pubUrl := message.NewEndpoint(handler.id, handler.port).HandlerUrl()
 		err = socket.Bind(pubUrl)
 		if err != nil {
 			ready <- fmt.Errorf("socket.Bind('%s'): %v", pubUrl, err)
@@ -234,7 +229,7 @@ func (handler *Trigger) Start() error {
 		_ = parent.Close()
 		return fmt.Errorf("zmq.NewSocket('%s'): %w", triggerType, err)
 	}
-	triggerUrl := config.ExternalUrl(handler.Config().Id, handler.Config().Port)
+	triggerUrl := handler.Config().HandlerUrl()
 	if err := triggerSocket.Bind(triggerUrl); err != nil {
 		_ = triggerSocket.Close()
 		_ = instanceClient.Close()
@@ -250,7 +245,7 @@ func (handler *Trigger) Start() error {
 		return fmt.Errorf("zmq.NewSocket('manager'): %w", err)
 	}
 	managerConfig := control.CreateInternalConfig(handler.Config().Handler)
-	managerUrl := config.ExternalUrl(managerConfig.Id, managerConfig.Port)
+	managerUrl := managerConfig.HandlerUrl()
 	if err := manager.Bind(managerUrl); err != nil {
 		_ = manager.Close()
 		_ = triggerSocket.Close()

@@ -61,37 +61,6 @@ func (test *TestConfigSuite) Test_11_IsLocal() {
 	s().True(trigger.IsInprocBroadcast())
 }
 
-func (test *TestConfigSuite) Test_12_ExternalUrl_tcp() {
-	test.Require().Equal("tcp://sample:6000", ExternalUrl("sample", 6000))
-}
-
-func (test *TestConfigSuite) Test_12_ExternalUrl_tcp_localhost() {
-	test.Require().Equal("tcp://*:6000", ExternalUrl("localhost", 6000))
-	test.Require().Equal("tcp://*:6000", ExternalUrl("127.0.0.1", 6000))
-}
-
-func (test *TestConfigSuite) Test_13_ExternalUrl_inproc() {
-	test.Require().Equal("inproc://my-service", ExternalUrl("my-service", 0))
-}
-
-func (test *TestConfigSuite) Test_14_ExternalUrl_ipc_tmp() {
-	test.Require().Equal("ipc:///tmp-test.sock", ExternalUrl("tmp-test.sock", 0))
-}
-
-func (test *TestConfigSuite) Test_15_ConnectUrl_tcp() {
-	test.Require().Equal("tcp://sample:6000", ConnectUrl("sample", 6000))
-	test.Require().Equal("tcp://localhost:6000", ConnectUrl("localhost", 6000))
-	test.Require().Equal("tcp://localhost:6000", ConnectUrl("127.0.0.1", 6000))
-}
-
-func (test *TestConfigSuite) Test_16_ConnectUrl_inproc() {
-	test.Require().Equal("inproc://my-service", ConnectUrl("my-service", 0))
-}
-
-func (test *TestConfigSuite) Test_17_ConnectUrl_ipc_tmp() {
-	test.Require().Equal("ipc:///tmp-test.sock", ConnectUrl("tmp-test.sock", 0))
-}
-
 // a normal test function and pass our suite to suite.Run
 func TestConfig(t *testing.T) {
 	suite.Run(t, new(TestConfigSuite))

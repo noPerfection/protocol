@@ -113,7 +113,7 @@ func (c *SyncReplier) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
 	}
 
-	externalUrl := config.ExternalUrl(c.Config().Id, c.Config().Port)
+	externalUrl := c.Config().HandlerUrl()
 	if err := socket.Bind(externalUrl); err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("external.Bind('%s'): %w", externalUrl, err)

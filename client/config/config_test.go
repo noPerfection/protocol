@@ -70,7 +70,7 @@ func (test *TestConfigSuite) Test_13_Url_tcp() {
 	require := test.Require
 
 	client := New("github.com/sds-framework/service", "sample", 6000, zmq.REP)
-	require().Equal("tcp://localhost:6000", Url(client))
+	require().Equal("tcp://sample:6000", Url(client))
 }
 
 func (test *TestConfigSuite) Test_14_Url_ipc_tmp() {

@@ -2,27 +2,23 @@
 package config
 
 import (
-	"fmt"
-	"strings"
-
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
 
 // A Client parameters to connect to the dep
 type Client struct {
-	ServiceUrl string   `json:"url" yaml:"url"` // Url link of the service
-	Id         string   `json:"id" yaml:"id"`
-	Port       uint64   `json:"port" yaml:"port"`
-	TargetType zmq.Type `json:"zmq_type,omitempty" yaml:"zmq_type,omitempty"` // The service's socket type
-	urlFunc    func(*Client) string
+	ServiceUrl       string `json:"url" yaml:"url"` // Url link of the service
+	message.Endpoint `json:",inline" yaml:",inline"`
+	TargetType       zmq.Type `json:"zmq_type,omitempty" yaml:"zmq_type,omitempty"` // The service's socket type
+	urlFunc          func(*Client) string
 }
 
 // New Client
 func New(serviceUrl string, id string, port uint64, socketType zmq.Type) *Client {
 	return &Client{
 		ServiceUrl: serviceUrl,
-		Id:         id,
-		Port:       port,
+		Endpoint:   message.NewEndpoint(id, port),
 		TargetType: socketType,
 		urlFunc:    nil,
 	}
@@ -45,17 +41,11 @@ func (client *Client) Url() string {
 
 // Url creates the ZeroMQ endpoint for the client to connect to.
 //
-// When Port is non-zero, returns tcp://localhost:{Port}.
+// When Port is non-zero, returns the endpoint's TCP client URL.
 // When Port is 0 and Id has the prefix "tmp", returns ipc:///{Id} for a filesystem IPC socket.
 // When Port is 0 otherwise, returns inproc://{Id} for in-process communication.
 func Url(client *Client) string {
-	if client.Port == 0 {
-		if strings.HasPrefix(client.Id, "tmp") {
-			return fmt.Sprintf("ipc:///%s", client.Id)
-		}
-		return fmt.Sprintf("inproc://%s", client.Id)
-	}
-	return fmt.Sprintf("tcp://localhost:%d", client.Port)
+	return client.ClientUrl()
 }
 
 // IsTarget checks that given zeromq socket type is the handler type

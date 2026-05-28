@@ -104,7 +104,7 @@ func (f *Frontend) prepareExternalSocket() error {
 		return fmt.Errorf("external.SetRcvhwm(1): %w", err)
 	}
 
-	url := config.ExternalUrl(f.externalConfig.Id, f.externalConfig.Port)
+	url := f.externalConfig.HandlerUrl()
 	err = external.Bind(url)
 	if err != nil {
 		return fmt.Errorf("external(%s).Bind(%s): %v", f.externalConfig.Type, url, err)

@@ -73,7 +73,7 @@ func (m *Manager) Start() error {
 			return
 		}
 
-		url := config.ExternalUrl(m.Config().Id, m.Config().Port)
+		url := m.Config().HandlerUrl()
 		if err := socket.Bind(url); err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("socket.Bind('%s'): %w", url, err)
