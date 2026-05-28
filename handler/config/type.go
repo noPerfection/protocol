@@ -14,7 +14,7 @@ const (
 	ReplierType HandlerType = "Replier"
 	PairType    HandlerType = "Pair"
 	UnknownType HandlerType = ""
-	WorkerType              = "Worker" // Workers are receiving the messages but don't return any result to the caller.
+	WorkerType  HandlerType = "Worker" // Workers are receiving the messages but don't return any result to the caller.
 )
 
 // IsValid checks whether the given string is the valid or not.
