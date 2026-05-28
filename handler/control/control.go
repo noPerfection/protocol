@@ -15,6 +15,7 @@ import (
 
 const (
 	HandlerStatus   = "status"
+	HandlerStart    = "start"  // Close the handler
 	HandlerClose    = "close"  // Close the handler
 	HandlerConfig   = "config" // Returns the handler configuration
 	ControlCategory = "control"
