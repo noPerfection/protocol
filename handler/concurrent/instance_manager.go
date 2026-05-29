@@ -349,7 +349,7 @@ func (parent *Parent) Handler(instanceId string) *zmq.Socket {
 // Returns generated instance id and error.
 // Returns error if instance manager is not running.
 // Returns error if instance client socket creation fails.
-func (parent *Parent) AddInstance(handlerType config.HandlerType, router base.Router) (string, error) {
+func (parent *Parent) AddInstance(handlerType config.HandlerType, router *base.Handler) (string, error) {
 	if parent.Status() != Running {
 		return "", fmt.Errorf("instance_manager is not running. unexpected status: %s", parent.Status())
 	}

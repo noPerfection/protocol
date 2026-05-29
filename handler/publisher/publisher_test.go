@@ -1,13 +1,12 @@
 package publisher
 
 import (
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
@@ -15,25 +14,18 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// Define the suite, and absorb the built-in basic suite
-// functionality from testify - including a T() method which
-// returns the current testing orchestra
 type TestPublisherSuite struct {
 	suite.Suite
 	pub           *Publisher
-	config        *config.Trigger
+	config        *config.Handler
 	managerClient *zmq.Socket
 	sub           *zmq.Socket
-	trigger       *client.Socket
 	logger        *log.Logger
-
-	subscribed  chan []string
-	closeClient bool
-	poller      *zmq.Poller
+	subscribed    chan []string
+	closeClient   bool
+	poller        *zmq.Poller
 }
 
-// Make sure that Account is set to five
-// before each test
 func (test *TestPublisherSuite) SetupTest() {
 	s := &test.Suite
 
@@ -43,41 +35,30 @@ func (test *TestPublisherSuite) SetupTest() {
 
 	test.pub = New()
 
-	handlerConfig := config.NewInternalHandler(config.SyncReplierType, "test", "test")
-	triggerConfig, err := config.InternalTriggerAble(handlerConfig, config.PublisherType)
-	s.Require().NoError(err)
-	test.config = triggerConfig
+	test.config = config.NewInternalHandler(config.PublisherType, "test", "test")
 
-	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.pub.SetLogger(test.logger))
 
-	// Setting the configuration
-	// Setting the logger should be successful
 	test.pub.SetConfig(test.config)
-	s.Require().Equal(config.ReplierType, test.pub.Config().Type) // the trigger is rewritten
+	s.Require().Equal(config.PublisherType, test.pub.Config().Type)
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
-	// Start the trigger
-	triggerClientConfig := test.pub.TriggerClient()
-	triggerClient, err := client.New(triggerClientConfig)
+	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	test.trigger = triggerClient
+	managerConfig := control.CreateInternalConfig(test.config)
+	s.Require().NoError(test.managerClient.Connect(managerConfig.ClientUrl()))
 
 	go test.subscribe()
-	// wait a bit for initialization
 	time.Sleep(time.Millisecond * 50)
 }
 
-// subscribe to the handler.
 func (test *TestPublisherSuite) subscribe() {
 	s := &test.Suite
 
 	sub, err := zmq.NewSocket(zmq.SUB)
 	s.Require().NoError(err)
 	s.Require().NoError(sub.SetSubscribe(""))
-	// It won't work if the trigger is using a tcp protocol.
-	// For tcp protocol, use clientConfig.Url()
-	url := message.NewEndpoint(test.config.BroadcastId, test.config.BroadcastPort).ClientUrl()
+	url := test.config.ClientUrl()
 	err = sub.Connect(url)
 
 	s.Require().NoError(err)
@@ -110,56 +91,143 @@ func (test *TestPublisherSuite) TearDownTest() {
 	s := &test.Suite
 
 	test.closeClient = true
-	// wait a bit for closing a subscriber
 	time.Sleep(time.Millisecond * 20)
 
-	err := test.trigger.Close()
-	s.Require().NoError(err)
-
-	// Wait a bit for the closing of publisher and trigger
+	s.Require().NoError(test.sub.Close())
+	s.Require().NoError(test.managerClient.Close())
 	time.Sleep(time.Millisecond * 100)
 }
 
-// Test_10_Start make sure started publisher is trigger-able and can be subscribed
+func (test *TestPublisherSuite) restartSubscriber() {
+	s := &test.Suite
+
+	test.closeClient = true
+	time.Sleep(time.Millisecond * 20)
+
+	s.Require().NoError(test.sub.Close())
+
+	go test.subscribe()
+	time.Sleep(time.Millisecond * 50)
+}
+
+func (test *TestPublisherSuite) req(request message.Request) message.ReplyInterface {
+	s := &test.Suite
+
+	reqStr, err := request.ZmqEnvelope()
+	s.Require().NoError(err)
+
+	_, err = test.managerClient.SendMessage(reqStr)
+	s.Require().NoError(err)
+
+	raw, err := test.managerClient.RecvMessage(0)
+	s.Require().NoError(err)
+
+	reply, err := message.NewRep(raw)
+	s.Require().NoError(err)
+
+	return reply
+}
+
+func (test *TestPublisherSuite) sendNumberedBroadcasts(start uint64, amount uint64) {
+	s := &test.Suite
+
+	for number := start; number < start+amount; number++ {
+		reply := test.req(message.Request{
+			Command:    Broadcast,
+			Parameters: datatype.New().Set("number", number),
+		})
+		s.Require().True(reply.IsOK())
+		time.Sleep(time.Millisecond * 2)
+	}
+}
+
+func (test *TestPublisherSuite) receiveNumbers(start uint64, amount uint64) {
+	s := &test.Suite
+
+	for number := start; number < start+amount; number++ {
+		select {
+		case raw := <-test.subscribed:
+			req, err := message.NewReq(raw)
+			s.Require().NoError(err)
+			s.Require().Equal(Broadcast, req.CommandName())
+
+			received, err := req.RouteParameters().Uint64Value("number")
+			s.Require().NoError(err)
+			s.Require().Equal(number, received)
+		case <-time.After(time.Second * 2):
+			s.Require().Failf("timeout for subscribing", "expected number %d", number)
+		}
+	}
+}
+
+func (test *TestPublisherSuite) messageAmount() uint64 {
+	s := &test.Suite
+
+	reply := test.req(message.Request{Command: MessageAmount, Parameters: datatype.New()})
+	s.Require().True(reply.IsOK())
+
+	amount, err := reply.ReplyParameters().Uint64Value("broadcasting_length")
+	s.Require().NoError(err)
+
+	return amount
+}
+
+func (test *TestPublisherSuite) requireMessageAmount(expected uint64) {
+	s := &test.Suite
+
+	deadline := time.After(time.Second * 2)
+	tick := time.Tick(time.Millisecond * 5)
+	for {
+		amount := test.messageAmount()
+		if amount == expected {
+			return
+		}
+
+		select {
+		case <-deadline:
+			s.Require().Equal(expected, amount)
+			return
+		case <-tick:
+		}
+	}
+}
+
 func (test *TestPublisherSuite) Test_10_Start() {
 	s := &test.Suite
 
 	err := test.pub.Start()
 	s.Require().NoError(err)
 
-	// Wait a bit for initialization
 	time.Sleep(time.Millisecond * 100)
 
-	// Make sure that everything works
-	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
-	err = test.trigger.Submit(&req)
+	statusReply := test.req(message.Request{Command: control.HandlerStatus, Parameters: datatype.New()})
+	s.Require().True(statusReply.IsOK())
+	status, err := statusReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
+	s.Require().Equal(base.SocketReady, status)
 
-	test.logger.Info("waiting a subscribed message")
+	test.sendNumberedBroadcasts(0, 10)
+	test.receiveNumbers(0, 10)
+	test.requireMessageAmount(0)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		isTimeout := false
-		select {
-		case _ = <-test.subscribed:
-			isTimeout = false
-		case <-time.After(time.Second * 2):
-			// call timed out
-			isTimeout = true
-		}
-		wg.Done()
-		s.Require().False(isTimeout, "timeout for subscribing")
-	}()
-	wg.Wait()
+	closeReply := test.req(message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
+	s.Require().True(closeReply.IsOK())
 
-	// Close the handler
-	req.Command = control.HandlerClose
-	s.Require().NoError(test.trigger.Submit(&req))
+	test.sendNumberedBroadcasts(10, 10)
+	test.requireMessageAmount(10)
+
+	test.restartSubscriber()
+
+	startReply := test.req(message.Request{Command: control.HandlerStart, Parameters: datatype.New()})
+	s.Require().True(startReply.IsOK())
+
+	test.receiveNumbers(10, 10)
+	test.requireMessageAmount(0)
+
+	closeReply = test.req(message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
+	s.Require().True(closeReply.IsOK())
 }
 
-// In order for 'go test' to run this suite, we need to create
-// a normal test function and pass our suite to suite.Run
 func TestPublisher(t *testing.T) {
 	suite.Run(t, new(TestPublisherSuite))
 }

@@ -24,7 +24,6 @@ func (test *TestConfigSuite) Test_10_IsValid() {
 }
 
 // Test_11_IsLocal tests the handler is remote or not with Handler.
-// Tests the Handler.IsInproc and Trigger.IsInprocBroadcast methods.
 func (test *TestConfigSuite) Test_11_IsLocal() {
 	s := test.Require
 
@@ -39,26 +38,11 @@ func (test *TestConfigSuite) Test_11_IsLocal() {
 	s().Equal(port, handler.Port)
 	s().False(handler.IsInproc())
 
-	broadcastId := "broadcast.example.com"
-	broadcastPort := uint64(6001)
-
-	trigger, err := TriggerAble(SyncReplierType, id, category, port, PublisherType, broadcastId, broadcastPort)
-	s().NoError(err)
-	s().Equal(broadcastId, trigger.BroadcastId)
-	s().Equal(broadcastPort, trigger.BroadcastPort)
-	s().False(trigger.IsInproc())
-	s().False(trigger.IsInprocBroadcast())
-
 	// Testing the inproc handler
 	handler = NewInternalHandler(SyncReplierType, id, category)
 	s().Equal(category, handler.Category)
 	s().Equal(id, handler.Id)
 	s().True(handler.IsInproc())
-
-	trigger, err = TriggerAble(SyncReplierType, id, category, 0, PublisherType, broadcastId, 0)
-	s().NoError(err)
-	s().True(trigger.IsInproc())
-	s().True(trigger.IsInprocBroadcast())
 }
 
 // a normal test function and pass our suite to suite.Run

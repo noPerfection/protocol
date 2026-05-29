@@ -8,7 +8,7 @@ type HandlerType string
 const (
 	// SyncReplierType handlers process a one request at a time.
 	SyncReplierType HandlerType = "SyncReplier"
-	// PublisherType handlers broadcast the message to all subscribers. It's a trigger-able handler.
+	// PublisherType handlers broadcast messages to all subscribers.
 	PublisherType HandlerType = "Publisher"
 	// ReplierType handlers are the asynchronous ReplierType. It's a traditional client-server's server.
 	ReplierType HandlerType = "Replier"

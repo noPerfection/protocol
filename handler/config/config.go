@@ -1,8 +1,6 @@
 package config
 
 import (
-	"fmt"
-
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -17,13 +15,6 @@ func (handler *Handler) HandlerType() HandlerType {
 	return handler.Type
 }
 
-type Trigger struct {
-	*Handler
-	BroadcastPort uint64      `json:"broadcast_port" yaml:"broadcast_port"`
-	BroadcastId   string      `json:"broadcast_id" yaml:"broadcast_id"`
-	BroadcastType HandlerType `json:"broadcast_type" yaml:"broadcast_type"`
-}
-
 // NewHandler returns a Handler configuration with the given HandlerType, ID, category, and port.
 func NewHandler(as HandlerType, id string, category string, port uint64) *Handler {
 	return &Handler{
@@ -31,24 +22,6 @@ func NewHandler(as HandlerType, id string, category string, port uint64) *Handle
 		Category: category,
 		Endpoint: message.NewEndpoint(id, port),
 	}
-}
-
-// TriggerAble returns a Trigger configuration with the given handler and broadcast fields.
-//
-// The broadcast type defines the publishing parameter.
-func TriggerAble(handlerType HandlerType, id string, category string, port uint64, broadcastType HandlerType, broadcastId string, broadcastPort uint64) (*Trigger, error) {
-	if !CanTrigger(broadcastType) {
-		return nil, fmt.Errorf("the '%s' handler type is not trigger-able", broadcastType)
-	}
-
-	trigger := &Trigger{
-		Handler:       NewHandler(handlerType, id, category, port),
-		BroadcastPort: broadcastPort,
-		BroadcastType: broadcastType,
-		BroadcastId:   broadcastId,
-	}
-
-	return trigger, nil
 }
 
 // SocketType gets the ZMQ analog of the handler type
@@ -69,20 +42,8 @@ func SocketType(handlerType HandlerType) zmq.Type {
 }
 
 // CanReply returns true if the given Handler has to reply back to the user.
-// It's the opposite of CanTrigger.
 func CanReply(handlerType HandlerType) bool {
 	return handlerType == ReplierType || handlerType == SyncReplierType || handlerType == PairType
-}
-
-// CanTrigger returns true if the given Handler must not reply back to the user.
-// Only publishers are trigger-able.
-func CanTrigger(handlerType HandlerType) bool {
-	return handlerType == PublisherType
-}
-
-// IsInprocBroadcast returns true if the publisher is not a remote.
-func (trigger *Trigger) IsInprocBroadcast() bool {
-	return message.NewEndpoint(trigger.BroadcastId, trigger.BroadcastPort).IsInproc()
 }
 
 // ByCategory returns handlers filtered by the category.

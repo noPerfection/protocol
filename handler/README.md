@@ -241,35 +241,37 @@ instanceId, err := mc.AddInstance()
 
 ---
 
-### Tutorial: Publisher (broadcast + trigger)
+### Tutorial: Publisher (broadcast + manager)
 
 A **Publisher** has:
 
 - **Broadcast socket** — subscribers connect (SUB)
-- **Trigger socket** — send a message to publish (via `TriggerClient()`)
+- **Manager socket** — control and broadcast via the `broadcast` command
 
 ```go
+import (
+	"github.com/noPerfection/protocol/handler/control"
+	"github.com/noPerfection/protocol/handler/publisher"
+)
+
 pub := publisher.New()
 
-baseCfg := config.NewInternalHandler(config.SyncReplierType, "events", "events")
-triggerCfg, err := config.InternalTriggerAble(baseCfg, config.PublisherType)
-if err != nil {
-	log.Fatal(err)
-}
+pubCfg := config.NewInternalHandler(config.PublisherType, "events", "events")
 
-pub.SetConfig(triggerCfg)
+pub.SetConfig(pubCfg)
 pub.SetLogger(logger)
 pub.Start()
 
-// Client that triggers a broadcast
-triggerClientCfg := pub.TriggerClient()
-trigger, _ := client.New(triggerClientCfg)
+managerCfg := control.CreateInternalConfig(pubCfg)
+manager, _ := client.NewRaw(zmq.REQ, managerCfg.ClientUrl())
 
-req := message.Request{Command: "publish", Parameters: key_value.New().Set("event", "updated")}
-reply, err := trigger.Request(&req)
+req := message.Request{Command: publisher.Broadcast, Parameters: key_value.New().Set("event", "updated")}
+reply, err := manager.Request(&req)
 ```
 
-Subscribers connect to `message.NewEndpoint(triggerCfg.BroadcastId, triggerCfg.BroadcastPort).HandlerUrl()` with a ZMQ SUB socket (or use `client-lib` with SUB).
+Manager commands: `start` and `close` control the broadcaster; `message-amount` returns `broadcasting_length`; `status`, `config`, and `broadcast` behave like other handlers.
+
+Subscribers connect to `pubCfg.ClientUrl()` with a ZMQ SUB socket (or use `client-lib` with SUB).
 
 ---
 

@@ -34,7 +34,6 @@ Handler configuration lives in `config`:
 | File / type | Role |
 |-------------|------|
 | `Handler` | Type, Category, embedded message Endpoint |
-| `Trigger` | Publisher broadcast settings |
 | `config.go` | `NewHandler`, handler types |
 | `internal.go` | Internal `inproc://` URLs (manager, instance manager, instances) |
 

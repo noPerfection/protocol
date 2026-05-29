@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/noPerfection/protocol/message"
@@ -32,20 +31,4 @@ func NewInternalHandler(as HandlerType, id string, category string) *Handler {
 		Category: category,
 		Endpoint: message.NewEndpoint(id, 0),
 	}
-}
-
-// InternalTriggerAble Converts the Handler to Trigger of the given type for internal use
-func InternalTriggerAble(handler *Handler, as HandlerType) (*Trigger, error) {
-	if !CanTrigger(as) {
-		return nil, fmt.Errorf("the '%s' handler type is not trigger-able", as)
-	}
-
-	trigger := &Trigger{
-		Handler:       handler,
-		BroadcastPort: 0,
-		BroadcastType: as,
-		BroadcastId:   "broadcast_" + handler.Id,
-	}
-
-	return trigger, nil
 }

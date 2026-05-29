@@ -39,7 +39,7 @@ type Instance struct {
 	Id          string
 	parentId    string
 	handlerType config.HandlerType
-	router      base.Router
+	router      *base.Handler
 	messageOps  *message.Operations
 	logger      *log.Logger
 	close       bool
@@ -87,7 +87,7 @@ func (c *Instance) replyError(socket *zmq.Socket, err error) error {
 }
 
 // SetRouter sets the handler used for route lookups.
-func (c *Instance) SetRouter(router base.Router) {
+func (c *Instance) SetRouter(router *base.Handler) {
 	c.router = router
 }
 
