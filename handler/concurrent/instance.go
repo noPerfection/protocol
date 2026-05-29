@@ -39,7 +39,7 @@ type Instance struct {
 	Id          string
 	parentId    string
 	handlerType config.HandlerType
-	routes      *datatype.KeyValue // handler routing
+	router      base.Router
 	messageOps  *message.Operations
 	logger      *log.Logger
 	close       bool
@@ -54,7 +54,7 @@ func NewInstance(handlerType config.HandlerType, id string, parentId string, par
 		Id:          id,
 		parentId:    parentId,
 		handlerType: handlerType,
-		routes:      nil,
+		router:      nil,
 		logger:      logger,
 		close:       false,
 		status:      PREPARE,
@@ -86,9 +86,9 @@ func (c *Instance) replyError(socket *zmq.Socket, err error) error {
 	return c.reply(socket, c.messageOps.EmptyReq().Fail(err.Error()))
 }
 
-// SetRoutes sets the reference to the handler routes.
-func (c *Instance) SetRoutes(routes *datatype.KeyValue) {
-	c.routes = routes
+// SetRouter sets the handler used for route lookups.
+func (c *Instance) SetRouter(router base.Router) {
+	c.router = router
 }
 
 func (c *Instance) SetMessageOps(ops *message.Operations) {
@@ -492,7 +492,7 @@ func (c *Instance) processMessage(ctx context.Context, cancel context.CancelFunc
 	//}
 	//request.AddRequestStack(c.serviceUrl, c.config.Category, c.config.Instances[0].Id)
 
-	handleFunc, err := base.FindRoute(request.CommandName(), *c.routes)
+	handleFunc, err := c.router.FindRoute(request.CommandName())
 	if err != nil {
 		reply := request.Fail(fmt.Sprintf("base.FindRoute(%s): %v", request.CommandName(), err))
 		finishErr := c.processingFinished(parent, handler, reply)

@@ -13,6 +13,8 @@ import (
 // handler.SetConfig(Config)
 // handler.Route("hello", onHello)
 type Interface interface {
+	FindRoute(string) (HandleFunc, error)
+
 	Config() *config.Handler
 	// SetConfig adds the parameters of the handler from the Config
 	SetConfig(*config.Handler)

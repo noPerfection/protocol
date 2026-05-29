@@ -7,6 +7,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -26,7 +27,7 @@ type TestInstanceSuite struct {
 	handle1   interface{}
 	parentId  string
 
-	routes datatype.KeyValue
+	router *base.Handler
 }
 
 // Make sure that Account is set to five
@@ -45,6 +46,13 @@ func (test *TestInstanceSuite) SetupTest() {
 	test.parentId = "parent_0"
 }
 
+func (test *TestInstanceSuite) testRouter() *base.Handler {
+	router := base.New()
+	test.Require().NoError(router.Route("handle_0", test.handle0.(base.HandleFunc)))
+	test.Require().NoError(router.Route("handle_1", test.handle1.(base.HandleFunc)))
+	return router
+}
+
 func (test *TestInstanceSuite) Test_0_New() {
 	s := &test.Suite
 
@@ -59,41 +67,35 @@ func (test *TestInstanceSuite) Test_0_New() {
 	s.Require().Equal(PREPARE, test.instance0.Status())
 }
 
-// Test_10_SetRoutes tests the setting routes references from handler.
-// If the routes are changed by the parent, then instances should have the updated routes.
+// Test_10_SetRouter tests the setting router references from handler.
+// If the routes are changed by the parent, then instances should see updated lookups.
 // Let's test it here. We imitate a parent. And set the routes.
 // Then we update the route.
-func (test *TestInstanceSuite) Test_10_SetRoutes() {
+func (test *TestInstanceSuite) Test_10_SetRouter() {
 	s := &test.Suite
 
-	test.routes = datatype.New()
-	// Before setting the routes, the instance should have a nil there
-	s.Require().Nil(test.instance0.routes)
+	test.router = base.New()
+	// Before setting the router, the instance should have a nil there
+	s.Require().Nil(test.instance0.router)
 
 	// Update the routes
-	test.instance0.SetRoutes(&test.routes)
+	test.instance0.SetRouter(test.router)
 
-	// Now, the instance should have the empty routes since we added empty routes
-	s.Require().NotNil(test.instance0.routes)
-	s.Require().Len(*test.instance0.routes, 0)
+	// Now, the instance should have the empty router since we added empty routes
+	s.Require().NotNil(test.instance0.router)
+	s.Require().Empty(test.router.RouteCommands())
 
 	// Let's imitate the handler updated the routes
-	test.routes.Set("handle_0", test.handle0)
-	s.Require().Len(*test.instance0.routes, 1)
+	s.Require().NoError(test.router.Route("handle_0", test.handle0.(base.HandleFunc)))
+	s.Require().Len(test.router.RouteCommands(), 1)
 
-	test.routes.Set("handle_1", test.handle1)
-	s.Require().Len(*test.instance0.routes, 2)
+	s.Require().NoError(test.router.Route("handle_1", test.handle1.(base.HandleFunc)))
+	s.Require().Len(test.router.RouteCommands(), 2)
 
 	// Make sure that instance's routes lint to the valid parameters.
-	for routeCmdName := range test.routes {
-		found := false
-		for cmdName := range *test.instance0.routes {
-			if routeCmdName == cmdName {
-				found = true
-				break
-			}
-		}
-		s.Require().True(found, fmt.Sprintf("the '%s' not found", routeCmdName))
+	for _, routeCmdName := range test.router.RouteCommands() {
+		_, err := test.instance0.router.FindRoute(routeCmdName)
+		s.Require().NoError(err, fmt.Sprintf("the '%s' not found", routeCmdName))
 	}
 }
 
@@ -186,16 +188,14 @@ func (test *TestInstanceSuite) Test_13_Handle() {
 func (test *TestInstanceSuite) Test_14_HandleRouter() {
 	s := &test.Suite
 
-	test.routes = datatype.New()
-	test.routes.Set("handle_0", test.handle0)
-	test.routes.Set("handle_1", test.handle1)
+	test.router = test.testRouter()
 
 	handlerType := config.ReplierType
 	id := "instance_1"
 	logger, _ := log.New("instance_test", true)
 
 	test.instance1 = NewInstance(handlerType, id, test.parentId, logger)
-	test.instance1.SetRoutes(&test.routes)
+	test.instance1.SetRouter(test.router)
 	test.instance1.SetMessageOps(message.DefaultMessage())
 
 	// Let's start the instance
@@ -248,16 +248,14 @@ func (test *TestInstanceSuite) Test_14_HandleRouter() {
 func (test *TestInstanceSuite) Test_15_HandleDealer() {
 	s := &test.Suite
 
-	test.routes = datatype.New()
-	test.routes.Set("handle_0", test.handle0)
-	test.routes.Set("handle_1", test.handle1)
+	test.router = test.testRouter()
 
 	handlerType := config.SyncReplierType
 	id := "instance_1"
 	logger, _ := log.New("instance_test", true)
 
 	test.instance1 = NewInstance(handlerType, id, test.parentId, logger)
-	test.instance1.SetRoutes(&test.routes)
+	test.instance1.SetRouter(test.router)
 	test.instance1.SetMessageOps(message.DefaultMessage())
 
 	// Let's start the instance
@@ -310,16 +308,14 @@ func (test *TestInstanceSuite) Test_15_HandleDealer() {
 func (test *TestInstanceSuite) Test_15_HandleDealerRouter() {
 	s := &test.Suite
 
-	test.routes = datatype.New()
-	test.routes.Set("handle_0", test.handle0)
-	test.routes.Set("handle_1", test.handle1)
+	test.router = test.testRouter()
 
 	handlerType := config.ReplierType
 	id := "instance_1"
 	logger, _ := log.New("instance_test", true)
 
 	test.instance1 = NewInstance(handlerType, id, test.parentId, logger)
-	test.instance1.SetRoutes(&test.routes)
+	test.instance1.SetRouter(test.router)
 	test.instance1.SetMessageOps(message.DefaultMessage())
 
 	// Let's start the instance

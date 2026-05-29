@@ -138,7 +138,7 @@ func (test *TestWorkerSuite) Test_10_Start() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.Ready, status)
+	s.Require().Equal(base.SocketReady, status)
 
 	req = message.Request{Command: concurrent.InstanceAmount, Parameters: datatype.New()}
 	reply = test.req(test.managerClient, req)

@@ -12,10 +12,10 @@ func TestMisc(t *testing.T) {
 	require.Len(t, requiredMetadata(), 2)
 
 	handler := New()
-	require.Empty(t, handler.Routes)
+	require.Empty(t, handler.RouteCommands())
 
 	require.NoError(t, AnyRoute(handler))
-	require.NotEmpty(t, handler.Routes)
+	require.NotEmpty(t, handler.RouteCommands())
 }
 
 func TestFindRoute(t *testing.T) {

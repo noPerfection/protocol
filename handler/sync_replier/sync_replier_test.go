@@ -1,6 +1,7 @@
 package sync_replier
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -42,9 +43,11 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	// Socket to talk to clients
 	test.routes = make(map[string]base.HandleFunc, 2)
 	test.routes["command_1"] = func(request message.RequestInterface) message.ReplyInterface {
+		time.Sleep(time.Millisecond * 100)
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
 	}
 	test.routes["command_2"] = func(request message.RequestInterface) message.ReplyInterface {
+		time.Sleep(time.Millisecond * 200)
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
 	}
 
@@ -53,7 +56,8 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	err = test.syncReplier.Route("command_2", test.routes["command_2"])
 	s.Require().NoError(err)
 
-	test.handlerConfig = config.NewInternalHandler(config.SyncReplierType, "test", "test")
+	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
+	test.handlerConfig = config.NewInternalHandler(config.SyncReplierType, testID, "test")
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.syncReplier.SetLogger(test.logger))
@@ -76,6 +80,15 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	test.externalClient = externalClient
 }
 
+func (test *TestSyncReplierSuite) newExternalClient() *client.Socket {
+	s := &test.Suite
+
+	externalClient, err := client.NewRaw(zmq.REP, test.handlerConfig.ClientUrl())
+	s.Require().NoError(err)
+
+	return externalClient
+}
+
 func (test *TestSyncReplierSuite) req(client *zmq.Socket, request message.Request) message.ReplyInterface {
 	s := &test.Suite
 
@@ -94,8 +107,25 @@ func (test *TestSyncReplierSuite) req(client *zmq.Socket, request message.Reques
 	return reply
 }
 
+func (test *TestSyncReplierSuite) handlerStatus() string {
+	s := &test.Suite
+
+	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
+	reply := test.req(test.managerClient, req)
+	s.Require().True(reply.IsOK())
+
+	status, err := reply.ReplyParameters().StringValue("status")
+	s.Require().NoError(err)
+
+	return status
+}
+
 func (test *TestSyncReplierSuite) cleanOut() {
 	s := &test.Suite
+
+	if test.externalClient != nil {
+		s.Require().NoError(test.externalClient.Close())
+	}
 
 	err := test.managerClient.Close()
 	s.Require().NoError(err)
@@ -104,39 +134,98 @@ func (test *TestSyncReplierSuite) cleanOut() {
 	time.Sleep(time.Millisecond * 100)
 }
 
-// Test_10_Start starts the sync replier and makes sure that it can not have more than 1 instance.
-func (test *TestSyncReplierSuite) Test_10_Start() {
+func (test *TestSyncReplierSuite) Test_10_StartHandlesOneRequestAtATime() {
 	s := &test.Suite
 
 	err := test.syncReplier.Start()
 	s.Require().NoError(err)
 
-	// Wait a bit for initialization
-	time.Sleep(time.Millisecond * 100)
+	s.Require().Equal(base.SocketReady, test.syncReplier.Status())
+	s.Require().NotNil(test.syncReplier.Socket())
 
-	// Make sure that everything works
-	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
+	secondClient := test.newExternalClient()
+	defer func() { _ = secondClient.Close() }()
+
+	type requestResult struct {
+		command string
+		reply   message.ReplyInterface
+		err     error
+	}
+
+	start := make(chan struct{})
+	results := make(chan requestResult, 2)
+	request := func(externalClient *client.Socket, command string) {
+		<-start
+		req := message.Request{Command: command, Parameters: datatype.New()}
+		reply, err := externalClient.Request(&req)
+		results <- requestResult{command: command, reply: reply, err: err}
+	}
+
+	go request(test.externalClient, "command_1")
+	go request(secondClient, "command_2")
+
+	startedAt := time.Now()
+	close(start)
+
+	for i := 0; i < 2; i++ {
+		result := <-results
+		s.Require().NoError(result.err)
+		s.Require().True(result.reply.IsOK())
+		id, err := result.reply.ReplyParameters().StringValue("id")
+		s.Require().NoError(err)
+		s.Require().Equal(result.command, id)
+	}
+
+	s.Require().GreaterOrEqual(time.Since(startedAt), time.Millisecond*280)
+
+	// Close the handler
+	req := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
 	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
-	status, err := reply.ReplyParameters().StringValue("status")
+	// clean out
+	test.cleanOut()
+}
+
+func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
+	s := &test.Suite
+
+	err := test.syncReplier.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(base.Ready, status)
+	s.Require().Equal(base.SocketReady, test.handlerStatus())
 
-	s.Require().NotNil(test.syncReplier.Socket())
+	req := message.Request{Command: "command_1", Parameters: datatype.New()}
+	reply, err := test.externalClient.Request(&req)
+	s.Require().NoError(err)
+	s.Require().True(reply.IsOK())
 
-	// Testing the external connection
-	req = message.Request{Command: "command_1", Parameters: datatype.New()}
+	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReply := test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+	time.Sleep(time.Millisecond * 150) // run loop processes close asynchronously
+
+	test.externalClient.Timeout(time.Second).Attempt(1)
+	reply, err = test.externalClient.Request(&req)
+	s.Require().Error(err)
+	s.Require().Nil(reply)
+	s.Require().Equal(base.SocketNil, test.handlerStatus())
+
+	controlReq = message.Request{Command: control.HandlerStart, Parameters: datatype.New()}
+	controlReply = test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+	status, err := controlReply.ReplyParameters().StringValue("status")
+	s.Require().NoError(err)
+	s.Require().Equal(base.SocketReady, status)
+	s.Require().Equal(base.SocketReady, test.handlerStatus())
+
 	reply, err = test.externalClient.Request(&req)
 	s.Require().NoError(err)
 	s.Require().True(reply.IsOK())
 
-	// Close the handler
-	req.Command = control.HandlerClose
-	reply = test.req(test.managerClient, req)
-	s.Require().True(reply.IsOK())
+	controlReq = message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReply = test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
 
-	// clean out
 	test.cleanOut()
 }
 

@@ -119,7 +119,7 @@ func (c *Concurrent) StartInstanceManager() error {
 
 			if req.CommandName() == EventReady {
 				if !firstInstance {
-					instanceId, err = c.InstanceManager.AddInstance(c.config.Type, &c.Routes)
+					instanceId, err = c.InstanceManager.AddInstance(c.config.Type, c.Handler)
 					if err != nil {
 						c.logger.Error("InstanceManager.AddInstance", "id", c.config.Id, "event", req.CommandName(), "type", c.config.Type, "error", err)
 						continue

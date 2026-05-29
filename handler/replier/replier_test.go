@@ -114,7 +114,7 @@ func (test *TestReplierSuite) Test_10_Start() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.Ready, status)
+	s.Require().Equal(base.SocketReady, status)
 
 	// By default, the handler creates a socket.
 	// Trying to add a new socket, it will throw an error
@@ -159,7 +159,7 @@ func (test *TestReplierSuite) Test_11_Request() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.Ready, status)
+	s.Require().Equal(base.SocketReady, status)
 
 	// By default, the handler creates a socket.
 	// Trying to add a new socket, it will throw an error

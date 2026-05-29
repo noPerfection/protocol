@@ -15,36 +15,33 @@ import (
 
 type SyncReplier struct {
 	*base.Handler
-	handlerType config.HandlerType
-	logger      *log.Logger
-	Manager     base.Interface
-	messageOps  *message.Operations
-	status      string
+	Manager    base.Interface
+	messageOps *message.Operations
 }
+
+var _ base.Interface = (*SyncReplier)(nil)
 
 // New SyncReplier returned
 func New() *SyncReplier {
 	handler := base.New()
 	return &SyncReplier{
-		Handler:     handler,
-		handlerType: config.SyncReplierType,
-		messageOps:  message.DefaultMessage(),
+		Handler:    handler,
+		messageOps: message.DefaultMessage(),
+		Manager:    control.New(),
 	}
 }
 
 // SetConfig adds the parameters of the handler from the config.
 func (c *SyncReplier) SetConfig(handler *config.Handler) {
-	handler.Type = config.SyncReplierType
 	c.Handler.SetConfig(handler)
+	c.Manager.SetConfig(control.CreateInternalConfig(c.Config()))
 }
 
 func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 	if err := c.Handler.SetLogger(parent); err != nil {
 		return err
 	}
-	c.logger = parent.Child(c.Config().Id)
-	c.Manager = control.New(parent)
-	c.Manager.SetConfig(control.CreateInternalConfig(c.Config()))
+	c.Manager.SetLogger(parent.Child(control.ControlCategory))
 	return nil
 }
 
@@ -53,57 +50,46 @@ func (c *SyncReplier) Type() config.HandlerType {
 	return config.SyncReplierType
 }
 
-func (c *SyncReplier) Status() string {
-	return c.status
-}
-
 // Start the handler directly, not by goroutine
 func (c *SyncReplier) Start() error {
 	if c.Config() == nil {
 		return fmt.Errorf("configuration not set")
 	}
-	if c.logger == nil {
+	if c.Config().Type != config.SyncReplierType {
+		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.SyncReplierType)
+	}
+	if c.Manager == nil {
+		return fmt.Errorf("manager not set")
+	}
+
+	if c.Logger() == nil {
 		return fmt.Errorf("logger not set")
 	}
 
-	if err := c.setControlRoutes(); err != nil {
-		return err
-	}
+	c.setControlRoutes()
 
 	if err := c.bindExternal(); err != nil {
 		return err
 	}
 
 	c.Handler.SetClose(false)
-	if err := c.Manager.Start(); err != nil {
-		c.cleanup()
-		return fmt.Errorf("manager.Start: %w", err)
+	if c.Manager.Status() != base.SocketReady {
+		if err := c.Manager.Start(); err != nil {
+			c.cleanup()
+			return fmt.Errorf("manager.Start: %w", err)
+		}
 	}
 
-	c.status = base.Ready
 	go c.run()
 
 	return nil
 }
 
-func (c *SyncReplier) setControlRoutes() error {
-	if c.Manager == nil {
-		return fmt.Errorf("control manager not initiated. call SetConfig and SetLogger")
-	}
-
-	routes := map[string]base.HandleFunc{
-		control.HandlerStatus: c.onControlStatus,
-		control.HandlerClose:  c.onControlClose,
-		control.HandlerConfig: c.onControlConfig,
-	}
-
-	for cmd, handle := range routes {
-		if err := c.Manager.Route(cmd, handle); err != nil {
-			return fmt.Errorf("manager.Route('%s'): %w", cmd, err)
-		}
-	}
-
-	return nil
+func (c *SyncReplier) setControlRoutes() {
+	c.Manager.Route(control.HandlerStatus, c.onControlStatus)
+	c.Manager.Route(control.HandlerStart, c.onControlStart)
+	c.Manager.Route(control.HandlerClose, c.onControlClose)
+	c.Manager.Route(control.HandlerConfig, c.onControlConfig)
 }
 
 func (c *SyncReplier) bindExternal() error {
@@ -126,7 +112,6 @@ func (c *SyncReplier) bindExternal() error {
 func (c *SyncReplier) run() {
 	socket := c.Socket()
 	if socket == nil {
-		c.status = "external socket not set"
 		return
 	}
 
@@ -136,7 +121,6 @@ func (c *SyncReplier) run() {
 	for !c.Handler.Closed() {
 		sockets, err := poller.Poll(time.Millisecond)
 		if err != nil {
-			c.status = err.Error()
 			break
 		}
 
@@ -145,8 +129,7 @@ func (c *SyncReplier) run() {
 				continue
 			}
 			if err := c.handleRequest(socket); err != nil {
-				c.logger.Error("sync_replier.handleRequest", "error", err)
-				c.status = err.Error()
+				c.Logger().Error("sync_replier.handleRequest", "error", err)
 			}
 		}
 	}
@@ -167,7 +150,7 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 		return c.sendReply(socket, reply)
 	}
 
-	handleFunc, err := base.FindRoute(req.CommandName(), c.Routes)
+	handleFunc, err := c.FindRoute(req.CommandName())
 	if err != nil {
 		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err)))
 	}
@@ -191,24 +174,30 @@ func (c *SyncReplier) cleanup() {
 	if socket := c.Socket(); socket != nil {
 		_ = socket.Close()
 	}
-	c.Handler.SetSocketNil()
-	c.status = ""
+	c.Handler.SetSocket(nil)
 }
 
 func (c *SyncReplier) onControlStatus(req message.RequestInterface) message.ReplyInterface {
-	status := base.Incomplete
-	if c.Handler.Status() == base.SocketReady && !c.Handler.Closed() {
-		status = base.Ready
-	}
-	return req.Ok(datatype.New().Set("status", status))
+	return req.Ok(datatype.New().Set("status", c.Handler.Status()))
 }
 
 func (c *SyncReplier) onControlConfig(req message.RequestInterface) message.ReplyInterface {
 	return req.Ok(datatype.New().Set("config", c.Config()))
 }
 
+func (c *SyncReplier) onControlStart(req message.RequestInterface) message.ReplyInterface {
+	if c.Handler.Status() == base.SocketReady {
+		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Handler.Status()))
+	}
+	if err := c.Start(); err != nil {
+		return req.Fail(err.Error())
+	}
+	return req.Ok(datatype.New().Set("status", c.Handler.Status()))
+}
+
 func (c *SyncReplier) onControlClose(req message.RequestInterface) message.ReplyInterface {
-	c.Handler.SetClose(true)
-	c.Manager.SetClose(true)
+	if c.Handler.Status() == base.SocketReady {
+		c.Handler.SetClose(true)
+	}
 	return req.Ok(datatype.New())
 }

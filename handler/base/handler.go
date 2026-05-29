@@ -16,7 +16,6 @@ import (
 
 const (
 	Incomplete  = "incomplete"
-	Ready       = "ready"
 	SocketIdle  = "idle"
 	SocketReady = "ready"
 	SocketNil   = "nil"
@@ -33,7 +32,7 @@ type Handler struct {
 	config *config.Handler
 	socket *zmq.Socket
 	logger *log.Logger
-	Routes datatype.KeyValue
+	routes datatype.KeyValue
 	status string
 	close  bool
 }
@@ -42,7 +41,7 @@ type Handler struct {
 // Optionally you can set the logger.
 func New(logger ...*log.Logger) *Handler {
 	h := &Handler{
-		Routes: datatype.New(),
+		routes: datatype.New(),
 		status: SocketNil,
 		close:  false,
 	}
@@ -56,15 +55,15 @@ func New(logger ...*log.Logger) *Handler {
 
 // IsRouteExist returns true if the given route exists
 func (c *Handler) IsRouteExist(command string) bool {
-	return c.Routes.Exist(command)
+	return c.routes.Exist(command)
 }
 
 // RouteCommands returns list of all route commands
 func (c *Handler) RouteCommands() []string {
-	commands := make([]string, len(c.Routes))
+	commands := make([]string, len(c.routes))
 
 	i := 0
-	for command := range c.Routes {
+	for command := range c.routes {
 		commands[i] = command
 		i++
 	}
@@ -99,7 +98,7 @@ func (c *Handler) SetLogger(parent *log.Logger) error {
 
 // Route adds a route along with its handler to this handler.
 func (c *Handler) Route(cmd string, handle HandleFunc) error {
-	c.Routes.Set(cmd, handle)
+	c.routes.Set(cmd, handle)
 
 	return nil
 }
@@ -117,6 +116,10 @@ func (c *Handler) SetRoutes(routes map[string]HandleFunc) error {
 	}
 
 	return nil
+}
+
+func (c *Handler) FindRoute(cmd string) (HandleFunc, error) {
+	return FindRoute(cmd, c.routes)
 }
 
 // Type returns the handler type. If the configuration is not set, returns config.UnknownType.

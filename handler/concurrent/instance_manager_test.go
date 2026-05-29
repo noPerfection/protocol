@@ -6,6 +6,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/message"
 
@@ -23,7 +24,7 @@ type TestInstanceManagerSuite struct {
 	handle1  interface{}
 	parentId string
 
-	routes datatype.KeyValue
+	router *base.Handler
 }
 
 // Make sure that Account is set to five
@@ -42,6 +43,13 @@ func (test *TestInstanceManagerSuite) SetupTest() {
 	test.handle0 = handle0
 	test.handle1 = handle1
 	test.parentId = "parent_0"
+}
+
+func (test *TestInstanceManagerSuite) testRouter() *base.Handler {
+	router := base.New()
+	test.Require().NoError(router.Route("handle_0", test.handle0.(base.HandleFunc)))
+	test.Require().NoError(router.Route("handle_1", test.handle1.(base.HandleFunc)))
+	return router
 }
 
 func (test *TestInstanceManagerSuite) Test_0_New() {
@@ -82,15 +90,13 @@ func (test *TestInstanceManagerSuite) Test_10_Close() {
 func (test *TestInstanceManagerSuite) Test_11_AddInstance() {
 	s := &test.Suite
 
-	test.routes = datatype.New().
-		Set("handle_0", test.handle0).
-		Set("handle_1", test.handle1)
+	test.router = test.testRouter()
 
 	// Make sure that there are no instances
 	s.Require().Len(test.parent.instances, 0)
 
 	// Adding a new instance when manager not yet started must fail
-	_, err := test.parent.AddInstance(config.SyncReplierType, &test.routes)
+	_, err := test.parent.AddInstance(config.SyncReplierType, test.router)
 	s.Require().Error(err)
 
 	// Start instance manager
@@ -101,7 +107,7 @@ func (test *TestInstanceManagerSuite) Test_11_AddInstance() {
 	s.Require().Equal(Running, test.parent.Status())
 
 	// Now adding a new instance should work
-	instanceId, err := test.parent.AddInstance(config.SyncReplierType, &test.routes)
+	instanceId, err := test.parent.AddInstance(config.SyncReplierType, test.router)
 	s.Require().NoError(err)
 
 	// Wait a bit for instance initialization
@@ -122,9 +128,7 @@ func (test *TestInstanceManagerSuite) Test_11_AddInstance() {
 func (test *TestInstanceManagerSuite) Test_12_Ready() {
 	s := &test.Suite
 
-	test.routes = datatype.New().
-		Set("handle_0", test.handle0).
-		Set("handle_1", test.handle1)
+	test.router = test.testRouter()
 
 	// request to send
 	req := message.Request{Command: "handle_1", Parameters: datatype.New()}
@@ -146,9 +150,9 @@ func (test *TestInstanceManagerSuite) Test_12_Ready() {
 	s.Require().Equal(Running, test.parent.Status())
 
 	// Now adding a new instance should work
-	instanceId, err := test.parent.AddInstance(config.SyncReplierType, &test.routes)
+	instanceId, err := test.parent.AddInstance(config.SyncReplierType, test.router)
 	s.Require().NoError(err)
-	instanceId2, err := test.parent.AddInstance(config.SyncReplierType, &test.routes)
+	instanceId2, err := test.parent.AddInstance(config.SyncReplierType, test.router)
 	s.Require().NoError(err)
 
 	// Instances are in the parent

@@ -203,7 +203,7 @@ func (handler *Trigger) Start() error {
 
 	instanceId := handler.Config().Id + "_instance"
 	handler.instance = concurrent.NewInstance(triggerType, instanceId, handler.Config().Id, handler.logger)
-	handler.instance.SetRoutes(&handler.Routes)
+	handler.instance.SetRouter(handler.Handler)
 	handler.instance.SetMessageOps(handler.messageOps)
 	if err := handler.instance.Start(); err != nil {
 		_ = parent.Close()
@@ -262,7 +262,7 @@ func (handler *Trigger) Start() error {
 	}
 
 	handler.Handler.SetClose(false)
-	handler.status = base.Ready
+	handler.status = base.SocketReady
 	go handler.run(parent, triggerSocket, instanceClient, manager)
 
 	return nil
@@ -407,7 +407,7 @@ func (handler *Trigger) managerStatus() string {
 	if handler.instance != nil &&
 		handler.instance.Status() == concurrent.READY &&
 		handler.broadcasterStatus() == BroadcasterRunning {
-		return base.Ready
+		return base.SocketReady
 	}
 	return base.Incomplete
 }

@@ -43,7 +43,7 @@ func (c *Replier) Start() error {
 			return req.Fail(fmt.Sprintf("max amount of instances (%d) reached", c.maxInstanceAmount))
 		}
 
-		instanceId, err := c.InstanceManager.AddInstance(c.Config().Type, &c.Routes)
+		instanceId, err := c.InstanceManager.AddInstance(c.Config().Type, c.Handler)
 		if err != nil {
 			return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", c.Config().Type, err))
 		}

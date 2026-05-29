@@ -28,11 +28,9 @@ type Manager struct {
 var _ base.Interface = (*Manager)(nil)
 
 // New creates a control handler.
-func New(parent *log.Logger) base.Interface {
-	logger := parent.Child("control")
-
+func New(parent ...*log.Logger) base.Interface {
 	return &Manager{
-		Handler: base.New(logger),
+		Handler: base.New(parent...),
 	}
 }
 
@@ -40,6 +38,7 @@ func DefaultManagerId(handlerId string) string {
 	return handlerId + "_control"
 }
 
+// Usually, managers are internally called processes and managed by services
 func CreateInternalConfig(handler *config.Handler) *config.Handler {
 	id := handler.Id
 	if handler.Port == 0 {
@@ -118,7 +117,7 @@ func (m *Manager) Start() error {
 				continue
 			}
 
-			handleFunc, err := base.FindRoute(req.CommandName(), m.Routes)
+			handleFunc, err := m.FindRoute(req.CommandName())
 			if err != nil {
 				m.sendReply(socket, req, req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err)))
 				continue

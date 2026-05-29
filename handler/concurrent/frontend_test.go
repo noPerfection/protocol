@@ -9,6 +9,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/pair"
 	"github.com/noPerfection/protocol/message"
@@ -43,7 +44,8 @@ func (test *TestFrontendSuite) instanceManager() (string, string, *Parent) {
 		}
 		return req.Ok(datatype.New().Set("id", id))
 	}
-	routes := datatype.New().Set(cmd, handleHello)
+	router := base.New()
+	s.Require().NoError(router.Route(cmd, handleHello))
 
 	// Added Instance Manager
 	logger, err := log.New(test.handleConfig.Id, true)
@@ -53,7 +55,7 @@ func (test *TestFrontendSuite) instanceManager() (string, string, *Parent) {
 	s.Require().NoError(instanceManager.Start())
 
 	time.Sleep(time.Millisecond * 50) // wait until it updates the status
-	instanceId, err := instanceManager.AddInstance(test.handleConfig.Type, &routes)
+	instanceId, err := instanceManager.AddInstance(test.handleConfig.Type, router)
 	s.Require().NoError(err)
 
 	time.Sleep(time.Millisecond * 50) // wait until the instance will be loaded

@@ -52,7 +52,7 @@ func (c *Concurrent) onControlStatus(req message.RequestInterface) message.Reply
 
 	params := datatype.New()
 	if frontendStatus == RUNNING && instanceStatus == Running {
-		params.Set("status", base.Ready)
+		params.Set("status", base.SocketReady)
 	} else {
 		params.Set("status", base.Incomplete).
 			Set("parts", c.controlPartStatuses())
@@ -153,7 +153,7 @@ func (c *Concurrent) onMessageAmount(req message.RequestInterface) message.Reply
 }
 
 func (c *Concurrent) onAddInstance(req message.RequestInterface) message.ReplyInterface {
-	instanceId, err := c.InstanceManager.AddInstance(c.config.HandlerType(), &c.Routes)
+	instanceId, err := c.InstanceManager.AddInstance(c.config.HandlerType(), c.Handler)
 	if err != nil {
 		return req.Fail(fmt.Sprintf("instanceManager.AddInstance(%s): %v", c.config.HandlerType(), err))
 	}

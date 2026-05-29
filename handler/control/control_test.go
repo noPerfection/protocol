@@ -275,7 +275,7 @@ func (test *TestControlSuite) Test_14_InstanceAmount() {
 	s.Require().Zero(instanceAmount)
 
 	// Add a new instance
-	instanceId, err := test.instanceManager.AddInstance(test.inprocConfig.Type, &test.routes)
+	instanceId, err := test.instanceManager.AddInstance(test.inprocConfig.Type, test.handler.Handler)
 	s.Require().NoError(err)
 
 	// Wait a bit for instance initialization
@@ -321,7 +321,7 @@ func (test *TestControlSuite) Test_15_InstanceAmount() {
 	s.Require().Zero(instanceAmount)
 
 	// Add a new instance
-	instanceId, err := test.instanceManager.AddInstance(test.inprocConfig.Type, &test.routes)
+	instanceId, err := test.instanceManager.AddInstance(test.inprocConfig.Type, test.handler.Handler)
 	s.Require().NoError(err)
 
 	// Wait a bit for instance initialization
@@ -399,7 +399,7 @@ func (test *TestControlSuite) Test_16_MessageAmount() {
 	s.Require().Zero(procAmount)
 
 	// Add a new instance that will start processing the message
-	_, err = test.instanceManager.AddInstance(test.inprocConfig.Type, &test.routes)
+	_, err = test.instanceManager.AddInstance(test.inprocConfig.Type, test.handler.Handler)
 	s.Require().NoError(err)
 
 	// Wait a bit for instance initialization
@@ -441,13 +441,13 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 	s := &test.Suite
 	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
 
-	// Test setup runs all parts, status must be base.Ready
+	// Test setup runs all parts, status must be base.SocketReady
 	reply := test.req(req)
 	s.Require().True(reply.IsOK())
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.Ready, status)
+	s.Require().Equal(base.SocketReady, status)
 
 	//
 	// Turn the status to incomplete
@@ -553,7 +553,7 @@ func (test *TestControlSuite) Test_17_MessageAmount() {
 
 	status, err = reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.Ready, status)
+	s.Require().Equal(base.SocketReady, status)
 
 	// Clean
 	test.cleanOut()
@@ -570,7 +570,7 @@ func (test *TestControlSuite) Test_18_OverwriteRoute() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.Ready, status)
+	s.Require().Equal(base.SocketReady, status)
 
 	// Overriding must fail when handler manager is running
 	overwritten := "overwritten"
