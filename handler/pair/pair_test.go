@@ -18,7 +18,7 @@ type TestPairSuite struct {
 }
 
 func (test *TestPairSuite) SetupTest() {
-	test.externalConfig = config.NewHandler(config.ReplierType, "external_1", "external_main", 100)
+	test.externalConfig = config.New(config.ReplierType, "external_1", "external_main", 100)
 }
 
 // Test_0_Config tests converting external configuration to the pair type

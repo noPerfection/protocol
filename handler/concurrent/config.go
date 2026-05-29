@@ -15,7 +15,7 @@ type Config struct {
 // NewConfig returns a concurrent handler configuration with a default instance amount.
 func NewConfig(as config.HandlerType, id string, category string, port uint64) *Config {
 	return &Config{
-		Handler:        config.NewHandler(as, id, category, port),
+		Handler:        config.New(as, id, category, port),
 		InstanceAmount: 1,
 	}
 }
@@ -23,7 +23,7 @@ func NewConfig(as config.HandlerType, id string, category string, port uint64) *
 // NewInternalConfig returns a concurrent handler configuration for in-process use.
 func NewInternalConfig(as config.HandlerType, id string, category string) *Config {
 	return &Config{
-		Handler:        config.NewInternalHandler(as, id, category),
+		Handler:        config.New(as, id, category, 0),
 		InstanceAmount: 1,
 	}
 }

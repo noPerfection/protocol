@@ -15,8 +15,8 @@ func (handler *Handler) HandlerType() HandlerType {
 	return handler.Type
 }
 
-// NewHandler returns a Handler configuration with the given HandlerType, ID, category, and port.
-func NewHandler(as HandlerType, id string, category string, port uint64) *Handler {
+// New returns a Handler configuration with the given HandlerType, ID, category, and port.
+func New(as HandlerType, id string, category string, port uint64) *Handler {
 	return &Handler{
 		Type:     as,
 		Category: category,

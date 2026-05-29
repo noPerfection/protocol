@@ -57,7 +57,7 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	s.Require().NoError(err)
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	test.handlerConfig = config.NewInternalHandler(config.SyncReplierType, testID, "test")
+	test.handlerConfig = config.New(config.SyncReplierType, testID, "test", 0)
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.syncReplier.SetLogger(test.logger))

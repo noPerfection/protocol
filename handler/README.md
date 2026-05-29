@@ -51,7 +51,7 @@ import (
 func main() {
 	handler := sync_replier.New()
 
-	handlerConfig := config.NewInternalHandler(config.SyncReplierType, "my_service", "my_service")
+	handlerConfig := config.New(config.SyncReplierType, "my_service", "my_service", 0)
 	handler.SetConfig(handlerConfig)
 
 	logger, err := loglib.New("my_service", true)
@@ -88,7 +88,7 @@ Send requests with [client-lib](https://github.com/noPerfection/protocol/client)
 ### Tutorial: Your first route
 
 1. Create a handler (`sync_replier.New()` or `replier.New()`).
-2. Build config (`config.NewInternalHandler` for in-process, or `config.NewHandler` for TCP).
+2. Build config with `config.New` (`port = 0` for in-process, non-zero for TCP).
 3. `SetConfig` → `SetLogger` → register routes → `Start()`.
 
 **Route handler signature** (`base.HandleFunc`):
@@ -128,10 +128,10 @@ err := handler.Route("my_command", myHandler)
 
 ```go
 // In-process (same process), id "my_service" -> inproc://my_service
-cfg := config.NewInternalHandler(config.SyncReplierType, "my_service", "my_service")
+cfg := config.New(config.SyncReplierType, "my_service", "my_service", 0)
 
 // TCP on an explicit port. Local IDs bind on all interfaces.
-cfg := config.NewHandler(config.ReplierType, "localhost", "api", 5555)
+cfg := config.New(config.ReplierType, "localhost", "api", 5555)
 
 bindURL := cfg.HandlerUrl()
 clientURL := cfg.ClientUrl()
@@ -153,7 +153,7 @@ Control endpoints are created by `control.CreateInternalConfig(handlerCfg)`. Int
 **IPC example** — use an id under `/tmp/`:
 
 ```go
-cfg := config.NewHandler(config.SyncReplierType, "tmp/my-worker.sock", "worker", 0)
+cfg := config.New(config.SyncReplierType, "tmp/my-worker.sock", "worker", 0)
 ```
 
 Remove the socket file when the handler stops.
@@ -218,7 +218,7 @@ Use the same `Id` and `Port` as the handler config so bind and connect URLs matc
 ```go
 handler := replier.New()
 
-cfg := config.NewHandler(config.ReplierType, "localhost", "api", 5555)
+cfg := config.New(config.ReplierType, "localhost", "api", 5555)
 handler.SetConfig(cfg)
 // SetLogger, Route, Start — same as SyncReplier
 
@@ -256,7 +256,7 @@ import (
 
 pub := publisher.New()
 
-pubCfg := config.NewInternalHandler(config.PublisherType, "events", "events")
+pubCfg := config.New(config.PublisherType, "events", "events", 0)
 
 pub.SetConfig(pubCfg)
 pub.SetLogger(logger)

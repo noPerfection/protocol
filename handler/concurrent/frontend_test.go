@@ -187,7 +187,7 @@ func (test *TestFrontendSuite) Test_11_External_ipc() {
 	defer os.Remove(ipcPath)
 
 	test.handleConfig = &Config{
-		Handler:        config.NewHandler(config.SyncReplierType, ipcId, "test", 0),
+		Handler:        config.New(config.SyncReplierType, ipcId, "test", 0),
 		InstanceAmount: 1,
 	}
 	test.frontend = NewFrontend()

@@ -32,14 +32,14 @@ func (test *TestConfigSuite) Test_11_IsLocal() {
 	port := uint64(6000)
 
 	// Testing the remote handler
-	handler := NewHandler(SyncReplierType, id, category, port)
+	handler := New(SyncReplierType, id, category, port)
 	s().Equal(category, handler.Category)
 	s().Equal(id, handler.Id)
 	s().Equal(port, handler.Port)
 	s().False(handler.IsInproc())
 
 	// Testing the inproc handler
-	handler = NewInternalHandler(SyncReplierType, id, category)
+	handler = New(SyncReplierType, id, category, 0)
 	s().Equal(category, handler.Category)
 	s().Equal(id, handler.Id)
 	s().True(handler.IsInproc())

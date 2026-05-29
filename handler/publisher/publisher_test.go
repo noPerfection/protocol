@@ -35,7 +35,7 @@ func (test *TestPublisherSuite) SetupTest() {
 
 	test.pub = New()
 
-	test.config = config.NewInternalHandler(config.PublisherType, "test", "test")
+	test.config = config.New(config.PublisherType, "test", "test", 0)
 
 	s.Require().Error(test.pub.SetLogger(test.logger))
 

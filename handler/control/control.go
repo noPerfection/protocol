@@ -45,7 +45,7 @@ func CreateInternalConfig(handler *config.Handler) *config.Handler {
 		id = DefaultManagerId(handler.Id)
 	}
 
-	return config.NewHandler(handler.Type, id, ControlCategory, 0)
+	return config.New(handler.Type, id, ControlCategory, 0)
 }
 
 // SetClose is intentionally disabled for control handlers.
