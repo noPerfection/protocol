@@ -34,18 +34,9 @@ func New(parent ...*log.Logger) base.Interface {
 	}
 }
 
-func DefaultManagerId(handlerId string) string {
-	return handlerId + "_control"
-}
-
 // Usually, managers are internally called processes and managed by services
 func CreateInternalConfig(handler *config.Handler) *config.Handler {
-	id := handler.Id
-	if handler.Port == 0 {
-		id = DefaultManagerId(handler.Id)
-	}
-
-	return config.New(handler.Type, id, ControlCategory, 0)
+	return config.New(config.SyncReplierType, handler.Id+"_control", ControlCategory, 0)
 }
 
 // SetClose is intentionally disabled for control handlers.
@@ -60,6 +51,9 @@ func (m *Manager) Start() error {
 	}
 	if m.Config().Category != ControlCategory {
 		return fmt.Errorf("I cant start a handler in a %s category, It must be %s", m.Config().Category, ControlCategory)
+	}
+	if m.Config().Type != config.SyncReplierType {
+		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", m.Config().Type, config.SyncReplierType)
 	}
 
 	ready := make(chan error)

@@ -15,7 +15,7 @@ import (
 
 type SyncReplier struct {
 	*base.Handler
-	Manager    base.Interface
+	Control    base.Interface
 	messageOps *message.Operations
 }
 
@@ -27,14 +27,14 @@ func New() *SyncReplier {
 	return &SyncReplier{
 		Handler:    handler,
 		messageOps: message.DefaultMessage(),
-		Manager:    control.New(),
+		Control:    control.New(),
 	}
 }
 
 // SetConfig adds the parameters of the handler from the config.
 func (c *SyncReplier) SetConfig(handler *config.Handler) {
 	c.Handler.SetConfig(handler)
-	c.Manager.SetConfig(control.CreateInternalConfig(c.Config()))
+	c.Control.SetConfig(control.CreateInternalConfig(c.Config()))
 }
 
 func (c *SyncReplier) SetLogger(parent *log.Logger) error {
@@ -42,9 +42,9 @@ func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 		return err
 	}
 	if parent == nil {
-		return c.Manager.SetLogger(nil)
+		return c.Control.SetLogger(nil)
 	}
-	return c.Manager.SetLogger(parent.Child(control.ControlCategory))
+	return c.Control.SetLogger(parent.Child(control.ControlCategory))
 }
 
 // Type returns the handler type. If the configuration is not set, returns config.UnknownType.
@@ -60,8 +60,8 @@ func (c *SyncReplier) Start() error {
 	if c.Config().Type != config.SyncReplierType {
 		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.SyncReplierType)
 	}
-	if c.Manager == nil {
-		return fmt.Errorf("manager not set")
+	if c.Control == nil {
+		return fmt.Errorf("control not set")
 	}
 
 	c.setControlRoutes()
@@ -71,10 +71,10 @@ func (c *SyncReplier) Start() error {
 	}
 
 	c.Handler.SetClose(false)
-	if c.Manager.Status() != base.SocketReady {
-		if err := c.Manager.Start(); err != nil {
+	if c.Control.Status() != base.SocketReady {
+		if err := c.Control.Start(); err != nil {
 			c.cleanup()
-			return fmt.Errorf("manager.Start: %w", err)
+			return fmt.Errorf("control.Start: %w", err)
 		}
 	}
 
@@ -84,10 +84,10 @@ func (c *SyncReplier) Start() error {
 }
 
 func (c *SyncReplier) setControlRoutes() {
-	c.Manager.Route(control.HandlerStatus, c.onControlStatus)
-	c.Manager.Route(control.HandlerStart, c.onControlStart)
-	c.Manager.Route(control.HandlerClose, c.onControlClose)
-	c.Manager.Route(control.HandlerConfig, c.onControlConfig)
+	c.Control.Route(control.HandlerStatus, c.onControlStatus)
+	c.Control.Route(control.HandlerStart, c.onControlStart)
+	c.Control.Route(control.HandlerClose, c.onControlClose)
+	c.Control.Route(control.HandlerConfig, c.onControlConfig)
 }
 
 func (c *SyncReplier) bindExternal() error {

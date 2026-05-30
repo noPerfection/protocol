@@ -104,9 +104,11 @@ myHandler.SetConfig(myConfig) -> myHandler.SetLogger(...) -> myHandler.Route(...
 
 ## Controllers
 
-Handlers start with a control manager that exposes controller routes such as `status`, `config`, `start`, and `close`. The [noPerfection/service](https://github.com/noPerfection/service) module uses these controllers to manage handlers during service lifecycle operations.
+Each handler exposes its controller through the exported `Control` field. The controller is itself a handler and exposes routes such as `status`, `config`, `start`, and `close`.
 
-The control itself is a handler that allows to manage handler itself. You can get its current status, stop, restart it. But as I said, its intended to be handled by the services.
+All controls use the special category `control` (`control.ControlCategory`). This lets the [noPerfection/service](https://github.com/noPerfection/service) module find another service's control handler and manage its handlers through it. In normal handler code, you do not have to use the control handler directly.
+
+By default, `SetConfig` configures `Control` with `control.CreateInternalConfig(yourHandlerConfig)`. If you want the controller somewhere else, call `yourHandler.Control.SetConfig(...)` after `SetConfig` and before `Start`.
 
 ## Configuration
 

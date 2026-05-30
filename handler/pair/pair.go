@@ -22,7 +22,7 @@ type Pair struct {
 	*base.Handler
 	pairW        sync.WaitGroup
 	broadcasting *datatype.Queue
-	Manager      base.Interface
+	Control      base.Interface
 	messageOps   *message.Operations
 }
 
@@ -33,7 +33,7 @@ func New() *Pair {
 	return &Pair{
 		Handler:      base.New(),
 		broadcasting: datatype.NewQueue(),
-		Manager:      control.New(),
+		Control:      control.New(),
 		messageOps:   message.DefaultMessage(),
 	}
 }
@@ -41,7 +41,7 @@ func New() *Pair {
 // SetConfig adds the parameters of the handler from the config.
 func (c *Pair) SetConfig(handler *config.Handler) {
 	c.Handler.SetConfig(handler)
-	c.Manager.SetConfig(control.CreateInternalConfig(c.Handler.Config()))
+	c.Control.SetConfig(control.CreateInternalConfig(c.Handler.Config()))
 }
 
 func (c *Pair) SetLogger(parent *log.Logger) error {
@@ -49,9 +49,9 @@ func (c *Pair) SetLogger(parent *log.Logger) error {
 		return err
 	}
 	if parent == nil {
-		return c.Manager.SetLogger(nil)
+		return c.Control.SetLogger(nil)
 	}
-	return c.Manager.SetLogger(parent.Child(control.ControlCategory))
+	return c.Control.SetLogger(parent.Child(control.ControlCategory))
 }
 
 // Type returns the handler type.
@@ -67,15 +67,15 @@ func (c *Pair) Start() error {
 	if c.Config().Type != config.PairType {
 		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.PairType)
 	}
-	if c.Manager == nil {
-		return fmt.Errorf("manager not set")
+	if c.Control == nil {
+		return fmt.Errorf("control not set")
 	}
 
 	c.setControlRoutes()
 
-	if c.Manager.Status() != base.SocketReady {
-		if err := c.Manager.Start(); err != nil {
-			return fmt.Errorf("manager.Start: %w", err)
+	if c.Control.Status() != base.SocketReady {
+		if err := c.Control.Start(); err != nil {
+			return fmt.Errorf("control.Start: %w", err)
 		}
 	}
 
@@ -87,12 +87,12 @@ func (c *Pair) Start() error {
 }
 
 func (c *Pair) setControlRoutes() {
-	c.Manager.Route(Broadcast, c.onBroadcast)
-	c.Manager.Route(control.HandlerStart, c.onControlStart)
-	c.Manager.Route(control.HandlerClose, c.onControlClose)
-	c.Manager.Route(control.HandlerStatus, c.onControlStatus)
-	c.Manager.Route(control.HandlerConfig, c.onControlConfig)
-	c.Manager.Route(MessageAmount, c.onMessageAmount)
+	c.Control.Route(Broadcast, c.onBroadcast)
+	c.Control.Route(control.HandlerStart, c.onControlStart)
+	c.Control.Route(control.HandlerClose, c.onControlClose)
+	c.Control.Route(control.HandlerStatus, c.onControlStatus)
+	c.Control.Route(control.HandlerConfig, c.onControlConfig)
+	c.Control.Route(MessageAmount, c.onMessageAmount)
 }
 
 func (c *Pair) startPair() error {

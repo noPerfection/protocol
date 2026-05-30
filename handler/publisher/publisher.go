@@ -20,7 +20,7 @@ type Publisher struct {
 	*base.Handler
 	broadcasterW sync.WaitGroup
 	broadcasting *datatype.Queue
-	Manager      base.Interface
+	Control      base.Interface
 }
 
 // New Publisher returned
@@ -28,14 +28,14 @@ func New() *Publisher {
 	return &Publisher{
 		Handler:      base.New(),
 		broadcasting: datatype.NewQueue(),
-		Manager:      control.New(),
+		Control:      control.New(),
 	}
 }
 
 // SetConfig adds the parameters of the handler from the config.
 func (c *Publisher) SetConfig(handler *config.Handler) {
 	c.Handler.SetConfig(handler)
-	c.Manager.SetConfig(control.CreateInternalConfig(c.Handler.Config()))
+	c.Control.SetConfig(control.CreateInternalConfig(c.Handler.Config()))
 }
 
 func (c *Publisher) SetLogger(parent *log.Logger) error {
@@ -43,9 +43,9 @@ func (c *Publisher) SetLogger(parent *log.Logger) error {
 		return err
 	}
 	if parent == nil {
-		return c.Manager.SetLogger(nil)
+		return c.Control.SetLogger(nil)
 	}
-	return c.Manager.SetLogger(parent.Child(control.ControlCategory))
+	return c.Control.SetLogger(parent.Child(control.ControlCategory))
 }
 
 // Type returns the handler type. If the configuration is not set, returns config.UnknownType.
@@ -66,15 +66,15 @@ func (c *Publisher) Start() error {
 	if c.Config().Type != config.PublisherType {
 		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.PublisherType)
 	}
-	if c.Manager == nil {
-		return fmt.Errorf("manager not set")
+	if c.Control == nil {
+		return fmt.Errorf("control not set")
 	}
 
 	c.setControlRoutes()
 
-	if c.Manager.Status() != base.SocketReady {
-		if err := c.Manager.Start(); err != nil {
-			return fmt.Errorf("manager.Start: %w", err)
+	if c.Control.Status() != base.SocketReady {
+		if err := c.Control.Start(); err != nil {
+			return fmt.Errorf("control.Start: %w", err)
 		}
 	}
 
@@ -86,12 +86,12 @@ func (c *Publisher) Start() error {
 }
 
 func (c *Publisher) setControlRoutes() {
-	c.Manager.Route(Broadcast, c.onBroadcast)
-	c.Manager.Route(control.HandlerStart, c.onControlStart)
-	c.Manager.Route(control.HandlerClose, c.onControlStopBroadcaster)
-	c.Manager.Route(control.HandlerStatus, c.onControlStatus)
-	c.Manager.Route(control.HandlerConfig, c.onControlConfig)
-	c.Manager.Route(MessageAmount, c.onMessageAmount)
+	c.Control.Route(Broadcast, c.onBroadcast)
+	c.Control.Route(control.HandlerStart, c.onControlStart)
+	c.Control.Route(control.HandlerClose, c.onControlStopBroadcaster)
+	c.Control.Route(control.HandlerStatus, c.onControlStatus)
+	c.Control.Route(control.HandlerConfig, c.onControlConfig)
+	c.Control.Route(MessageAmount, c.onMessageAmount)
 }
 
 func (c *Publisher) startBroadcaster() error {

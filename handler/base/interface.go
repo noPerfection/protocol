@@ -58,6 +58,6 @@ type Interface interface {
 	Start() error
 
 	// The Status is empty is the handler is running.
-	// Returns an error string if the Manager is not running
+	// Returns an error string if the control is not running
 	Status() string
 }
