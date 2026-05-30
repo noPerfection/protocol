@@ -80,10 +80,6 @@ You may override management routes (not add new route names).
 
 Add a protocol adapter by pairing another handler with the original handler config.
 
-![Pair external diagram](_assets/PairExternal.jpg "Add another layer over external")
-
-*Diagram: [Source](https://drive.google.com/file/d/1B0JOWbrbby9yUy66pMwWnlf8ic18XOs-/view?usp=sharing)*
-
 Flow:
 
 1. Run your protocol server (e.g. HTTP) on the handler port
