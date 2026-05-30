@@ -231,6 +231,7 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().True(controlReply.IsOK())
 	time.Sleep(time.Millisecond * 150) // run loop processes close asynchronously
 
+	s.Require().NoError(test.externalClient.SetSndtimeo(time.Second))
 	s.Require().NoError(test.externalClient.SetRcvtimeo(time.Second))
 	reply, err = test.externalReq(test.externalClient, req)
 	s.Require().Error(err)

@@ -377,6 +377,8 @@ Subscribers connect to `pubCfg.ClientUrl()` with a ZMQ SUB socket (or use `clien
 Use [`client/manager_client`](../client/manager_client) from your service process:
 
 ```go
+import "github.com/noPerfection/protocol/client/manager_client"
+
 mc, err := manager_client.New(handlerConfig)
 if err != nil {
 	log.Fatal(err)
@@ -418,7 +420,6 @@ Check health: `handler.Status()` or `manager_client.HandlerStatus()` returns val
 | `sync_replier/`, `replier/`, `publisher/`, `worker/` | Handler implementations |
 | `config/` | Handler config and URL helpers |
 | `route/` | Route types and dispatch |
-| `manager_client/` | Service-side control client |
 | `pair/` | External protocol pairing |
 
 ## License
