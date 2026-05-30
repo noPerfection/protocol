@@ -39,7 +39,7 @@ func (test *TestPairSuite) SetupTest() {
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
 	test.externalConfig = config.New(config.ReplierType, testID, "external_main", 0)
-	test.pairConfig = Config(test.externalConfig)
+	test.pairConfig = config.New(config.PairType, testID+"_pair", "external_main_pair", 0)
 	test.pair = New()
 
 	s.Require().Error(test.pair.SetLogger(test.logger))
@@ -53,26 +53,6 @@ func (test *TestPairSuite) SetupTest() {
 	s.Require().NoError(err)
 	managerConfig := control.CreateInternalConfig(test.pairConfig)
 	s.Require().NoError(test.managerClient.Connect(managerConfig.ClientUrl()))
-}
-
-// Test_0_Config tests converting external configuration to the pair type
-func (test *TestPairSuite) Test_0_Config() {
-	s := test.Suite.Require
-
-	pairConfig := Config(test.externalConfig)
-	s().Equal(config.PairType, pairConfig.Type)
-	s().Equal(test.externalConfig.Id+"_pair", pairConfig.Id)
-	s().Equal(test.externalConfig.Category+"_pair", pairConfig.Category)
-	s().Zero(pairConfig.Port)
-}
-
-// Test_1_PairClient tests the creation of the pair client for the given external handler.
-func (test *TestPairSuite) Test_1_PairClient() {
-	s := test.Suite.Require
-
-	pairClient, err := NewClient(test.externalConfig)
-	s().NoError(err)
-	s().NotNil(pairClient)
 }
 
 func (test *TestPairSuite) TearDownTest() {

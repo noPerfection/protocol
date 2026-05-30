@@ -8,8 +8,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/client"
-	clientConfig "github.com/noPerfection/protocol/client/config"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
@@ -38,31 +36,6 @@ func New() *Pair {
 		Manager:      control.New(),
 		messageOps:   message.DefaultMessage(),
 	}
-}
-
-// Config converts the external handler config into the paired one
-func Config(originalConfig *config.Handler) *config.Handler {
-	pairConfig := &config.Handler{
-		Type:     config.PairType,
-		Category: originalConfig.Category + "_pair",
-		Endpoint: message.NewEndpoint(originalConfig.Id+"_pair", 0),
-	}
-	return pairConfig
-}
-
-// NewClient returns a client that's connected to the external socket.
-// Requires the original handler configuration.
-// The Client will create a pair socket parameters using Config.
-func NewClient(originalConfig *config.Handler) (*client.Socket, error) {
-	externalConfig := Config(originalConfig)
-	pairConfig := clientConfig.New("", externalConfig.Id, externalConfig.Port, config.SocketType(externalConfig.Type))
-	pairConfig.UrlFunc(clientConfig.Url)
-
-	pairClient, err := client.New(pairConfig)
-	if err != nil {
-		return nil, fmt.Errorf("client.New: %w", err)
-	}
-	return pairClient, nil
 }
 
 // SetConfig adds the parameters of the handler from the config.

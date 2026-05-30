@@ -83,8 +83,8 @@ Add a protocol adapter by pairing another handler with the original handler conf
 Flow:
 
 1. Run your protocol server (e.g. HTTP) on the handler port
-2. Build the paired config with `pair.Config(originalConfig)`
-3. Use `pair.NewClient(originalConfig)` to forward requests into the handler
+2. Configure a `pair.Pair` handler with `config.PairType`
+3. Connect a PAIR client to the pair handler endpoint to forward requests into the handler
 
 See [`pair/pair.go`](pair/pair.go). HTTP example: [web-lib](https://github.com/sds-framework/web-lib).
 
