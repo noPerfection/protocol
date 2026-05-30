@@ -33,7 +33,7 @@ All handlers implement [`base.Interface`](base/interface.go): `SetConfig`, `SetL
 
 ## Quick start
 
-Minimal **SyncReplier** — one instance, in-process endpoint:
+Minimal **SyncReplier** — one handler, in-process endpoint:
 
 ```go
 package main
@@ -382,7 +382,7 @@ if err != nil {
 	log.Fatal(err)
 }
 
-status, parts, err := mc.HandlerStatus()
+status, err := mc.HandlerStatus()
 err = mc.Close()
 ```
 
@@ -392,7 +392,7 @@ Common manager routes are `status`, `config`, `start`, and `close`.
 
 ### Tutorial: HTTP or custom protocols
 
-To expose a handler over HTTP or another protocol, add a **pair** layer on the frontend. See [CONTRIBUTING.md — Frontend (pair layer)](CONTRIBUTING.md#frontend-pair-layer) and [web-lib](https://github.com/sds-framework/web-lib).
+To expose a handler over HTTP or another protocol, add a **pair** handler layer. See [CONTRIBUTING.md — Pair layer](CONTRIBUTING.md#pair-layer) and [web-lib](https://github.com/sds-framework/web-lib).
 
 ---
 

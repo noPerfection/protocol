@@ -1,4 +1,4 @@
-// Package pair adds a layer that forwards incoming messages to the instances and vice versa.
+// Package pair adds a layer that forwards incoming messages through an in-process pair socket.
 package pair
 
 import (

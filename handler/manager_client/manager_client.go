@@ -7,8 +7,9 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/protocol/client"
 	handlerConfig "github.com/noPerfection/protocol/handler/config"
-	"github.com/noPerfection/protocol/handler/handler_manager"
+	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
 	"time"
 )
 
@@ -23,32 +24,8 @@ type Interface interface {
 	Timeout(duration time.Duration)
 	Attempt(uint8)
 
-	// HandlerStatus of the handler. Return status. If the status is incomplete, then returns part statuses
-	HandlerStatus() (string, datatype.KeyValue, error)
-
-	// ClosePart stops the running handler part.
-	// Part could be 'frontend,' 'instance_manager,' optionally a 'broadcaster'
-	ClosePart(part string) error
-
-	// RunPart runs the handler part. If the handler part was running already, returns an error.
-	// Part could be 'frontend,' 'instance_manager,' optionally a 'broadcaster'
-	RunPart(part string) error
-
-	// InstanceAmount that are currently running
-	InstanceAmount() (uint8, error)
-
-	// MessageAmount returns the messages in each part.
-	// Returns queue_length, processing_length, and optionally broadcasting_length
-	MessageAmount() (datatype.KeyValue, error)
-
-	// AddInstance adds a new instance. If successfully added, returns its id.
-	AddInstance() (string, error)
-
-	// DeleteInstance removes the running instance by its id.
-	DeleteInstance(instanceId string) error
-
-	// Parts returns the available parts and message types
-	Parts() ([]string, []string, error)
+	// HandlerStatus returns the handler status.
+	HandlerStatus() (string, error)
 
 	// Id of the handler
 	Id() string
@@ -59,9 +36,8 @@ type Interface interface {
 
 // New client that's connected to the handler
 func New(configHandler *handlerConfig.Handler) (Interface, error) {
-	socketType := handlerConfig.SocketType(configHandler.Type)
-	url := configHandler.ManagerConnectUrl()
-	socket, err := client.NewRaw(socketType, url)
+	managerConfig := control.CreateInternalConfig(configHandler)
+	socket, err := client.NewRaw(zmq.REQ, managerConfig.ClientUrl())
 	if err != nil {
 		return nil, fmt.Errorf("client.New: %w", err)
 	}
@@ -82,13 +58,13 @@ func (c *Client) Attempt(attempt uint8) {
 // Close sends a close signal to the Handler
 func (c *Client) Close() error {
 	req := message.Request{
-		Command:    handlerConfig.HandlerClose,
+		Command:    control.HandlerClose,
 		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
 	if err != nil {
-		return fmt.Errorf("socket.Request(cmd='%s'): %w", handlerConfig.HandlerClose, err)
+		return fmt.Errorf("socket.Request(cmd='%s'): %w", control.HandlerClose, err)
 	}
 	if !reply.IsOK() {
 		return fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
@@ -104,13 +80,13 @@ func (c *Client) Close() error {
 // Config returns the handler configuration
 func (c *Client) Config() (*handlerConfig.Handler, error) {
 	req := message.Request{
-		Command:    handlerConfig.HandlerConfig,
+		Command:    control.HandlerConfig,
 		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
 	if err != nil {
-		return nil, fmt.Errorf("socket.Request('%s'): %w", handlerConfig.HandlerConfig, err)
+		return nil, fmt.Errorf("socket.Request('%s'): %w", control.HandlerConfig, err)
 	}
 	if !reply.IsOK() {
 		return nil, fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
@@ -135,182 +111,24 @@ func (c *Client) Id() string {
 }
 
 // HandlerStatus returns the handler status.
-// If the handler is not ready, then optionally returns parts.
-func (c *Client) HandlerStatus() (string, datatype.KeyValue, error) {
+func (c *Client) HandlerStatus() (string, error) {
 	req := message.Request{
-		Command:    handlerConfig.HandlerStatus,
+		Command:    control.HandlerStatus,
 		Parameters: datatype.New(),
 	}
 
 	reply, err := c.socket.Request(&req)
 	if err != nil {
-		return "", nil, fmt.Errorf("socket.Request('%s'): %w", handlerConfig.HandlerStatus, err)
-	}
-	if !reply.IsOK() {
-		return "", nil, fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
-	}
-
-	status, err := reply.ReplyParameters().StringValue("status")
-	if err != nil {
-		return "", nil, fmt.Errorf("reply.Parameters.GetString('status'): %w", err)
-	}
-	parts := datatype.New()
-	if status != handler_manager.Ready {
-		parts, err = reply.ReplyParameters().NestedValue("parts")
-		if err != nil {
-			return "", nil, fmt.Errorf("reply.Parameters.GetKeyValue('parts'): %w", err)
-		}
-	}
-
-	return status, parts, nil
-}
-
-func (c *Client) Parts() ([]string, []string, error) {
-	req := message.Request{
-		Command:    handlerConfig.Parts,
-		Parameters: datatype.New(),
-	}
-
-	reply, err := c.socket.Request(&req)
-	if err != nil {
-		return nil, nil, fmt.Errorf("socket.Request('%s'): %w", handlerConfig.HandlerStatus, err)
-	}
-	if !reply.IsOK() {
-		return nil, nil, fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
-	}
-
-	parts, err := reply.ReplyParameters().StringsValue("parts")
-	if err != nil {
-		return nil, nil, fmt.Errorf("reply.Parameters.GetString('parts'): %w", err)
-	}
-	messageTypes, err := reply.ReplyParameters().StringsValue("message_types")
-	if err != nil {
-		return nil, nil, fmt.Errorf("reply.Parameters.GetString('message_types'): %w", err)
-	}
-
-	return parts, messageTypes, nil
-}
-
-// ClosePart closes the part of the handler.
-func (c *Client) ClosePart(part string) error {
-	req := message.Request{
-		Command:    handlerConfig.ClosePart,
-		Parameters: datatype.New().Set("part", part),
-	}
-
-	reply, err := c.socket.Request(&req)
-	if err != nil {
-		return fmt.Errorf("socket.Request('%s'): %w", handlerConfig.ClosePart, err)
-	}
-	if !reply.IsOK() {
-		return fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
-	}
-
-	return nil
-}
-
-// RunPart runs the handler part. If the handler part was running already, returns an error.
-// Part could be 'frontend,' 'instance_manager,' optionally a 'broadcaster'
-func (c *Client) RunPart(part string) error {
-	req := message.Request{
-		Command:    handlerConfig.RunPart,
-		Parameters: datatype.New().Set("part", part),
-	}
-
-	reply, err := c.socket.Request(&req)
-	if err != nil {
-		return fmt.Errorf("socket.Request('%s'): %w", handlerConfig.RunPart, err)
-	}
-	if !reply.IsOK() {
-		return fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
-	}
-
-	return nil
-}
-
-// InstanceAmount that are currently running
-func (c *Client) InstanceAmount() (uint8, error) {
-	req := message.Request{
-		Command:    handlerConfig.InstanceAmount,
-		Parameters: datatype.New(),
-	}
-
-	reply, err := c.socket.Request(&req)
-	if err != nil {
-		return 0, fmt.Errorf("socket.Request('%s'): %w", handlerConfig.InstanceAmount, err)
-	}
-	if !reply.IsOK() {
-		return 0, fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
-	}
-
-	instanceAmount, err := reply.ReplyParameters().Uint64Value("instance_amount")
-	if err != nil {
-		return 0, fmt.Errorf("reply.Parameters.GetUint('instance_amount'): %w", err)
-	}
-
-	return uint8(instanceAmount), nil
-}
-
-// MessageAmount returns the messages in each part.
-// Returns queue_length, processing_length, and optionally broadcasting_length
-func (c *Client) MessageAmount() (datatype.KeyValue, error) {
-	req := message.Request{
-		Command:    handlerConfig.MessageAmount,
-		Parameters: datatype.New(),
-	}
-
-	reply, err := c.socket.Request(&req)
-	if err != nil {
-		return nil, fmt.Errorf("socket.Request('%s'): %w", handlerConfig.MessageAmount, err)
-	}
-	if !reply.IsOK() {
-		return nil, fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
-	}
-
-	if len(reply.ReplyParameters()) == 0 {
-		return nil, fmt.Errorf("reply.Parameters is empty")
-	}
-
-	return reply.ReplyParameters(), nil
-}
-
-// AddInstance adds a new instance. If successfully added, returns its id.
-func (c *Client) AddInstance() (string, error) {
-	req := message.Request{
-		Command:    handlerConfig.AddInstance,
-		Parameters: datatype.New(),
-	}
-
-	reply, err := c.socket.Request(&req)
-	if err != nil {
-		return "", fmt.Errorf("socket.Request('%s'): %w", handlerConfig.AddInstance, err)
+		return "", fmt.Errorf("socket.Request('%s'): %w", control.HandlerStatus, err)
 	}
 	if !reply.IsOK() {
 		return "", fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
 	}
 
-	instanceId, err := reply.ReplyParameters().StringValue("instance_id")
+	status, err := reply.ReplyParameters().StringValue("status")
 	if err != nil {
-		return "", fmt.Errorf("reply.Parameters.GetString('instance_id'): %w", err)
+		return "", fmt.Errorf("reply.Parameters.GetString('status'): %w", err)
 	}
 
-	return instanceId, nil
-}
-
-// DeleteInstance removes the running instance by its id.
-func (c *Client) DeleteInstance(instanceId string) error {
-	req := message.Request{
-		Command:    handlerConfig.DeleteInstance,
-		Parameters: datatype.New().Set("instance_id", instanceId),
-	}
-
-	reply, err := c.socket.Request(&req)
-	if err != nil {
-		return fmt.Errorf("socket.Request('%s'): %w", handlerConfig.DeleteInstance, err)
-	}
-	if !reply.IsOK() {
-		return fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
-	}
-
-	return nil
+	return status, nil
 }

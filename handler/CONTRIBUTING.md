@@ -4,7 +4,7 @@ Thank you for contributing. This document covers architecture and internals. For
 
 ## Overview
 
-Handler-lib routes ZeroMQ messages to user-defined Go functions. A handler is split into cooperating parts, each running on its own goroutine and owning its sockets (ZeroMQ sockets are not thread-safe).
+Handler-lib routes ZeroMQ messages to user-defined Go functions. Each handler owns its ZeroMQ socket and starts a control manager for lifecycle commands. ZeroMQ sockets are not thread-safe, so socket reads and writes stay in the goroutine that owns the socket.
 
 ![User and Handler diagram](_assets/Handler.jpg "Handler diagram")
 
@@ -35,7 +35,7 @@ Handler configuration lives in `config`:
 |-------------|------|
 | `Handler` | Type, Category, embedded message Endpoint |
 | `config.go` | `NewHandler`, handler types |
-| `internal.go` | Internal `inproc://` URLs (manager, instance manager, instances) |
+| `control.CreateInternalConfig` | Internal `inproc://` URL for the control manager |
 
 ### Handler URLs (external)
 
@@ -52,47 +52,21 @@ Clients use the same `Id` and `Port` with `message.Endpoint.ClientUrl` or [`clie
 
 ## Internal parts
 
-### Instance manager
+### Handler socket loop
 
-Manages worker instances (`AddInstance`, `DeleteInstance`). Operations are **asynchronous** — a successful method call does not guarantee the instance is ready yet. Subscribe to instance-manager events or poll status.
+Each handler binds its external socket and owns the receive loop for that socket:
 
-- **Pull socket** — receives status pushes from instances
-- **Publisher socket** — broadcasts events to subscribers
-
-### Instance
-
-Runs routes and handle functions. Two sockets:
-
-- **Handler socket** — user requests
-- **Manager socket** — close/control (e.g. `CLOSE` command)
-
-Instances push status to the instance manager’s pull socket. The instance manager connects to each instance’s manager and handler endpoints.
-
-#### Why instances exist
-
-Instances are the handler's worker pool. They keep route execution separate from the external frontend socket, which lets the frontend continue accepting and queueing messages while a route is busy. This also keeps ZeroMQ socket ownership clear: each part runs in its own goroutine and owns its sockets, because ZeroMQ sockets are not thread-safe.
-
-Different handler types use the same plumbing with different concurrency rules. `SyncReplier` allows one instance and handles requests serially. `Replier` can add multiple instances, usually up to CPU count, so several requests can be processed in parallel behind one external endpoint.
-
-The instance layer also gives the handler operational controls: instances report `ready`, `handling`, and `close` states, can be added or deleted through the manager, and can be drained through their manager socket. For a minimal one-route service this is heavier than a direct function call, but it provides a ZMQ-safe worker pool with status and lifecycle management.
-
-### Frontend
-
-Accepts messages on the **external** socket, queues them, and forwards them to ready instances via a consumer loop. Depends on `instance_manager`.
+- `sync_replier` uses REP and handles one request at a time.
+- `replier` uses ROUTER and runs route handlers asynchronously, sending replies back through the owning socket loop.
+- `worker` uses PULL and runs route handlers asynchronously without sending replies.
+- `publisher` uses PUB plus a manager route for broadcast commands.
+- `pair` uses PAIR for protocol adapters and in-process forwarding.
 
 ### Handler manager
 
-Control plane for handler parts (frontend, instance manager, instances). External management goes through `control` routes (`status`, `close`, `add-instance`, etc.) or [`manager_client`](manager_client/manager_client.go).
+The control manager exposes common routes such as `status`, `config`, `start`, and `close`. External management goes through `control` routes or [`manager_client`](manager_client/manager_client.go).
 
-### Recap
-
-```
-instance manager  ←→  instances
-frontend          →   ready instances
-handler manager   →   all parts
-```
-
-Socket closing: parts do not close another thread’s sockets; they signal the owning thread to close them.
+Socket closing should be requested through the handler or control route that owns the socket; do not close a ZeroMQ socket from another goroutine.
 
 ## Overwriting behavior
 
@@ -102,9 +76,9 @@ Handlers can override aspects of parts (custom handlers or SDS services). This d
 
 You may override management routes (not add new route names).
 
-### Frontend (pair layer)
+### Pair layer
 
-Overwrite the external socket by adding a protocol layer paired to the frontend.
+Add a protocol adapter by pairing another handler with the original handler config.
 
 ![Pair external diagram](_assets/PairExternal.jpg "Add another layer over external")
 
@@ -113,14 +87,14 @@ Overwrite the external socket by adding a protocol layer paired to the frontend.
 Flow:
 
 1. Run your protocol server (e.g. HTTP) on the handler port
-2. Call `handler.Frontend.PairExternal()` after `SetConfig`
-3. Use `handler.Frontend.PairClient()` to forward requests into the handler
+2. Build the paired config with `pair.Config(originalConfig)`
+3. Use `pair.NewClient(originalConfig)` to forward requests into the handler
 
 See [`pair/pair.go`](pair/pair.go). HTTP example: [web-lib](https://github.com/sds-framework/web-lib).
 
-### Instance manager
+### Message operations
 
-Override message types via `SetMessageOperations`. Custom messages must implement `message.RequestInterface` and `message.ReplyInterface`. Defaults: `message.Request`, `message.Reply`.
+Handlers that support `SetMessageOperations` can override request and reply parsing. Custom messages must implement `message.RequestInterface` and `message.ReplyInterface`. Defaults: `message.Request`, `message.Reply`.
 
 ## Development
 
