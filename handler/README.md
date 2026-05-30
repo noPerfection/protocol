@@ -25,9 +25,9 @@ Pick the handler that matches your concurrency model:
 | Package | Type | Use when |
 |---------|------|----------|
 | [`sync_replier`](sync_replier) | `SyncReplier` | One request at a time per handler; extra requests wait in queue |
-| [`replier`](replier) | `Replier` | Many concurrent clients; scales instances up to CPU count |
+| [`replier`](replier) | `Replier` | Many concurrent request/reply clients; handlers run asynchronously behind a ROUTER socket |
 | [`publisher`](publisher) | `Publisher` | Broadcast to subscribers; separate **trigger** endpoint to publish |
-| [`worker`](worker) | `Worker` | Consume messages without replying to the caller (PULL) |
+| [`worker`](worker) | `Worker` | Consume fire-and-forget messages without replying to the caller (PULL) |
 
 All handlers implement [`base.Interface`](base/interface.go): `SetConfig`, `SetLogger`, `Route`, `Start`, etc.
 
@@ -122,7 +122,6 @@ err := handler.Route("my_command", myHandler)
 | `Endpoint.Port` | `0` = local (inproc or ipc); non-zero = TCP |
 | `Type` | Set automatically by `sync_replier`, `replier`, etc. |
 | `Category` | Logical grouping |
-| `InstanceAmount` | Hint for instance count (service may manage instances) |
 
 **Helpers:**
 
@@ -213,30 +212,128 @@ Use the same `Id` and `Port` as the handler config so bind and connect URLs matc
 
 ### Tutorial: Replier (concurrent requests)
 
-`replier` allows multiple instances (up to `runtime.NumCPU()`). The service or manager can add instances with the `add-instance` command.
+`replier` binds a ZMQ ROUTER socket and accepts many REQ clients. Incoming requests are read by the socket loop, then route handlers run asynchronously so slow work in one request does not block the handler from receiving later requests.
+
+Replies are routed back to the original client by the ZMQ ROUTER identity frame. `message.NewReq` stores that connection id, and `req.Ok(...)` / `req.Fail(...)` copy it into the reply envelope.
 
 ```go
 handler := replier.New()
 
 cfg := config.New(config.ReplierType, "localhost", "api", 5555)
 handler.SetConfig(cfg)
-// SetLogger, Route, Start — same as SyncReplier
+// SetLogger, Route, Start — same lifecycle as SyncReplier
 
 if err := handler.Start(); err != nil {
 	log.Fatal(err)
 }
 ```
 
-Scale instances via **manager_client**:
+Use `replier` when every request needs a response:
 
 ```go
-import "github.com/noPerfection/protocol/handler/manager_client"
+err := handler.Route("profile", func(req message.RequestInterface) message.ReplyInterface {
+	userID, _ := req.RouteParameters().StringValue("user_id")
+	profile := loadProfile(userID)
+	return req.Ok(key_value.New().Set("profile", profile))
+})
+```
 
-mc, err := manager_client.New(cfg)
-if err != nil {
-	log.Fatal(err)
-}
-instanceId, err := mc.AddInstance()
+---
+
+### Tutorial: Worker (fire-and-forget requests)
+
+`worker` binds a ZMQ PULL socket. Clients send messages with PUSH and do not wait for a reply. The worker reads messages from the socket loop and runs route handlers asynchronously, so processing time does not depend on the number of connected clients.
+
+```go
+handler := worker.New()
+
+cfg := config.New(config.WorkerType, "localhost", "jobs", 5556)
+handler.SetConfig(cfg)
+// SetLogger, Route, Start — same lifecycle as other handlers
+
+err := handler.Route("index_document", func(req message.RequestInterface) message.ReplyInterface {
+	documentID, _ := req.RouteParameters().StringValue("document_id")
+	indexDocument(documentID)
+	return req.Ok(key_value.New())
+})
+```
+
+Use `worker` when the caller only needs to submit work and does not need a response.
+
+---
+
+### Stress tests
+
+The replier and worker packages include stress tests that create many client sockets and simulate internal work per message. The replier stress test uses `50ms` of handler work by default and keeps each client active by sending five request/reply transactions as fast as possible.
+
+Run the default stress tests:
+
+```bash
+go test ./handler/replier -run TestStressTest -v
+go test ./handler/worker -run TestStressTest -v
+```
+
+The replier stress test runs 1,000 clients with 5 requests each by default. It also has opt-in larger scenarios:
+
+- `10,000` clients with `100` requests each (`1,000,000` total requests)
+- `100,000` clients with `5` requests each (`500,000` total requests)
+
+```bash
+REPLIER_STRESS_LARGE=1 go test ./handler/replier -run TestStressTest -v -timeout 25m
+```
+
+For more than 1,000 clients, the test uses a **512-worker pool** so only that many goroutines block in ZMQ at once (Go’s default ~10k thread limit). All client sockets are still created; workers drain a job queue.
+
+Set `REPLIER_HANDLE_TIME` to change the simulated handler delay in milliseconds. Accepted values are `1` through `2000`; the default is `50`.
+
+```bash
+REPLIER_HANDLE_TIME=250 go test ./handler/replier -run TestStressTest -v
+```
+
+Use `-v` to print timing output such as client count, requests per client, total request count, connect time, total request time, max reply time, and throughput.
+
+Example benchmark results with the default handler delay. In this variant, each handler call simulates `50ms` of work per request.
+
+```bash
+ulimit -n 200000
+REPLIER_STRESS_LARGE=1 go test ./handler/replier -run TestStressTest -v -timeout 25m
+```
+
+| Clients | Requests per client | Total requests | Throughput | Duration | Result |
+|---------|---------------------|----------------|------------|----------|--------|
+| `1,000` | `5` | `5,000` | `8,221.33 req/s` | `608ms` | Pass |
+| `10,000` | `100` | `1,000,000` | `8,347.28 req/s` | `1m59.8s` | Pass |
+| `100,000` | `5` | `500,000` | `9,010.06 req/s` | `55.493s` | Pass |
+
+Example benchmark results with the handler delay reduced to the minimum `1ms` per request:
+
+```bash
+ulimit -n 200000
+REPLIER_STRESS_LARGE=1 REPLIER_HANDLE_TIME=1 go test ./handler/replier -run TestStressTest -v -timeout 25m
+```
+
+| Clients | Requests per client | Total requests | Throughput | Duration | Result |
+|---------|---------------------|----------------|------------|----------|--------|
+| `1,000` | `5` | `5,000` | `11,527.30 req/s` | `434ms` | Pass |
+| `10,000` | `100` | `1,000,000` | `12,589.71 req/s` | `1m19.43s` | Pass |
+| `100,000` | `5` | `500,000` | `12,511.81 req/s` | `39.962s` | Pass |
+
+Large client counts require one ZMQ socket per simulated client. If you start handling a large amount of clients or requests, increase the process file descriptor limit first; otherwise the OS can reject new sockets with `too many open files`. Two limits apply:
+
+1. **ZeroMQ** — the default context allows **1024 sockets** (`ZMQ_MAX_SOCKETS`). The stress test raises this in `TestMain`; production code can call `zmq.SetMaxSockets(n)` before creating sockets.
+2. **OS** — each socket also uses file descriptors. The default `ulimit -n` is often 1024 or 4096, so 10k/100k subtests **skip** with a hint if the soft limit is too low.
+
+Raise the OS limit before running large cases:
+
+```bash
+ulimit -n 200000
+REPLIER_STRESS_LARGE=1 go test ./handler/replier -run TestStressTest -v -timeout 25m
+```
+
+To attempt large runs without the pre-check (you may still hit `too many open files`):
+
+```bash
+REPLIER_STRESS_IGNORE_FDLIMIT=1 REPLIER_STRESS_LARGE=1 go test ./handler/replier -run TestStressTest -v
 ```
 
 ---
@@ -286,11 +383,10 @@ if err != nil {
 }
 
 status, parts, err := mc.HandlerStatus()
-instances, err := mc.InstanceAmount()
 err = mc.Close()
 ```
 
-Manager routes are defined in `config` (`status`, `close`, `add-instance`, `delete-instance`, `instance-amount`, etc.).
+Common manager routes are `status`, `config`, `start`, and `close`.
 
 ---
 
@@ -311,9 +407,9 @@ New() → SetConfig() → SetLogger() → Route(...) → Start()
 | `SetConfig` | Required before `SetLogger` |
 | `SetLogger` | Child logger per handler id |
 | `Route` | Command name must be unique |
-| `Start` | Starts frontend, instance manager, handler manager; blocks until parts are ready |
+| `Start` | Binds the handler socket, starts the control manager, and returns when sockets are ready |
 
-Check health: `handler.Status()` (empty string = running) or `manager_client.HandlerStatus()`.
+Check health: `handler.Status()` or `manager_client.HandlerStatus()` returns values like `ready`, `idle`, or `nil`.
 
 ## Project layout
 
@@ -324,16 +420,6 @@ Check health: `handler.Status()` (empty string = running) or `manager_client.Han
 | `route/` | Route types and dispatch |
 | `manager_client/` | Service-side control client |
 | `pair/` | External protocol pairing |
-
-## Related projects
-
-| Repo | Role |
-|------|------|
-| [client-lib](https://github.com/noPerfection/protocol/client) | Connect and send requests |
-| [datatype-lib](https://github.com/noPerfection/datatype) | `message.Request` / `message.Reply` |
-| [log-lib](https://github.com/noPerfection/log) | Logging |
-| [service-lib](https://github.com/sds-framework/service-lib) | Run handlers inside a service |
-| [web-lib](https://github.com/sds-framework/web-lib) | HTTP frontend example |
 
 ## License
 

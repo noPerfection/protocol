@@ -22,6 +22,10 @@ type Replier struct {
 	messageOps *message.Operations
 }
 
+type pendingReply struct {
+	reply message.ReplyInterface
+}
+
 var _ base.Interface = (*Replier)(nil)
 
 // New asynchronous replying handler.
@@ -118,8 +122,11 @@ func (c *Replier) run() {
 
 	poller := zmq.NewPoller()
 	poller.Add(socket, zmq.POLLIN)
+	replies := make(chan pendingReply, 65536)
 
 	for !c.Handler.Closed() {
+		c.flushReplies(socket, replies)
+
 		sockets, err := poller.Poll(time.Millisecond)
 		if err != nil {
 			break
@@ -129,7 +136,7 @@ func (c *Replier) run() {
 			if polled.Socket != socket {
 				continue
 			}
-			if err := c.handleRequest(socket); err != nil {
+			if err := c.handleRequest(socket, replies); err != nil {
 				c.Logger().Error("replier.handleRequest", "error", err)
 			}
 		}
@@ -139,7 +146,20 @@ func (c *Replier) run() {
 	c.cleanup()
 }
 
-func (c *Replier) handleRequest(socket *zmq.Socket) error {
+func (c *Replier) flushReplies(socket *zmq.Socket, replies <-chan pendingReply) {
+	for {
+		select {
+		case pending := <-replies:
+			if err := c.sendReply(socket, pending.reply); err != nil {
+				c.Logger().Error("replier.sendReply", "error", err)
+			}
+		default:
+			return
+		}
+	}
+}
+
+func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply) error {
 	raw, err := socket.RecvMessage(0)
 	if err != nil {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
@@ -148,16 +168,22 @@ func (c *Replier) handleRequest(socket *zmq.Socket) error {
 	req, err := c.messageOps.NewReq(raw)
 	if err != nil {
 		reply := c.messageOps.EmptyReq().Fail(fmt.Sprintf("messageOps.NewReq: %v", err))
-		return c.sendReply(socket, reply)
+		replies <- pendingReply{reply: reply}
+		return nil
 	}
 
 	handleFunc, err := c.FindRoute(req.CommandName())
 	if err != nil {
-		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err)))
+		replies <- pendingReply{reply: req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err))}
+		return nil
 	}
 
-	reply := base.Handle(req, handleFunc)
-	return c.sendReply(socket, reply)
+	go func() {
+		reply := base.Handle(req, handleFunc)
+		replies <- pendingReply{reply: reply}
+	}()
+
+	return nil
 }
 
 func (c *Replier) sendReply(socket *zmq.Socket, reply message.ReplyInterface) error {

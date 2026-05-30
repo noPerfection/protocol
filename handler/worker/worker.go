@@ -155,7 +155,7 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("base.FindRoute(%s): %w", req.CommandName(), err)
 	}
 
-	base.Handle(req, handleFunc)
+	go base.Handle(req, handleFunc)
 	return nil
 }
 
