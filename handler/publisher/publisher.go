@@ -42,6 +42,9 @@ func (c *Publisher) SetLogger(parent *log.Logger) error {
 	if err := c.Handler.SetLogger(parent); err != nil {
 		return err
 	}
+	if parent == nil {
+		return c.Manager.SetLogger(nil)
+	}
 	return c.Manager.SetLogger(parent.Child(control.ControlCategory))
 }
 
@@ -62,9 +65,6 @@ func (c *Publisher) Start() error {
 	}
 	if c.Config().Type != config.PublisherType {
 		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.PublisherType)
-	}
-	if c.Logger() == nil {
-		return fmt.Errorf("logger not set")
 	}
 	if c.Manager == nil {
 		return fmt.Errorf("manager not set")
@@ -132,17 +132,17 @@ func (c *Publisher) startBroadcaster() error {
 			req := c.broadcasting.Pop().(message.RequestInterface)
 			reqStr, err := req.ZmqEnvelope()
 			if err != nil {
-				c.Logger().Error("publisher.broadcasting.Pop", "type", "message.Request", "error", err)
+				c.LogError("publisher.broadcasting.Pop", "type", "message.Request", "error", err)
 				break
 			}
 			if _, err = socket.SendMessageDontwait(reqStr); err != nil {
-				c.Logger().Error("socket.SendMessageDontWait", "request", reqStr, "error", err)
+				c.LogError("socket.SendMessageDontWait", "request", reqStr, "error", err)
 				break
 			}
 		}
 
 		if err := socket.Close(); err != nil {
-			c.Logger().Error("socket.Close", "error", err)
+			c.LogError("socket.Close", "error", err)
 		}
 		c.Handler.SetClose(false)
 		c.Handler.SetSocketNil()

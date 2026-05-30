@@ -44,6 +44,9 @@ func (c *Worker) SetLogger(parent *log.Logger) error {
 	if err := c.Handler.SetLogger(parent); err != nil {
 		return err
 	}
+	if parent == nil {
+		return c.Manager.SetLogger(nil)
+	}
 	return c.Manager.SetLogger(parent.Child(control.ControlCategory))
 }
 
@@ -59,9 +62,6 @@ func (c *Worker) Start() error {
 	}
 	if c.Config().Type != config.WorkerType {
 		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.WorkerType)
-	}
-	if c.Logger() == nil {
-		return fmt.Errorf("logger not set")
 	}
 	if c.Manager == nil {
 		return fmt.Errorf("manager not set")
@@ -130,7 +130,7 @@ func (c *Worker) run() {
 				continue
 			}
 			if err := c.handleRequest(socket); err != nil {
-				c.Logger().Error("worker.handleRequest", "error", err)
+				c.LogError("worker.handleRequest", "error", err)
 			}
 		}
 	}

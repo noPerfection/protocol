@@ -85,15 +85,35 @@ func (c *Handler) SetConfig(handler *config.Handler) {
 	c.config = handler
 }
 
-// SetLogger sets the logger (depends on context).
+// SetLogger sets the logger. Passing nil disables logging.
 func (c *Handler) SetLogger(parent *log.Logger) error {
-	if c.config == nil {
-		return fmt.Errorf("missing configuration")
+	if parent == nil {
+		c.logger = nil
+		return nil
 	}
-	logger := parent.Child(c.config.Id)
-	c.logger = logger
+	if c.config == nil {
+		c.logger = parent
+		return nil
+	}
+	c.logger = parent.Child(c.config.Id)
 
 	return nil
+}
+
+// LogError writes an error log when a logger is configured.
+func (c *Handler) LogError(msg string, args ...interface{}) {
+	if c.logger == nil {
+		return
+	}
+	c.logger.Error(msg, args...)
+}
+
+// LogWarn writes a warning log when a logger is configured.
+func (c *Handler) LogWarn(msg string, args ...interface{}) {
+	if c.logger == nil {
+		return
+	}
+	c.logger.Warn(msg, args...)
 }
 
 // Route adds a route along with its handler to this handler.

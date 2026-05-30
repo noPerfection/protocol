@@ -41,8 +41,10 @@ func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 	if err := c.Handler.SetLogger(parent); err != nil {
 		return err
 	}
-	c.Manager.SetLogger(parent.Child(control.ControlCategory))
-	return nil
+	if parent == nil {
+		return c.Manager.SetLogger(nil)
+	}
+	return c.Manager.SetLogger(parent.Child(control.ControlCategory))
 }
 
 // Type returns the handler type. If the configuration is not set, returns config.UnknownType.
@@ -60,10 +62,6 @@ func (c *SyncReplier) Start() error {
 	}
 	if c.Manager == nil {
 		return fmt.Errorf("manager not set")
-	}
-
-	if c.Logger() == nil {
-		return fmt.Errorf("logger not set")
 	}
 
 	c.setControlRoutes()
@@ -129,7 +127,7 @@ func (c *SyncReplier) run() {
 				continue
 			}
 			if err := c.handleRequest(socket); err != nil {
-				c.Logger().Error("sync_replier.handleRequest", "error", err)
+				c.LogError("sync_replier.handleRequest", "error", err)
 			}
 		}
 	}

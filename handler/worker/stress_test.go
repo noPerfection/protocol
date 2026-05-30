@@ -37,7 +37,7 @@ func TestStressTest(t *testing.T) {
 
 	testID := strings.ReplaceAll(t.Name(), "/", "_")
 	handlerConfig := config.New(config.WorkerType, testID, "test", 0)
-	require.Error(t, worker.SetLogger(logger))
+	require.NoError(t, worker.SetLogger(logger))
 
 	worker.SetConfig(handlerConfig)
 	require.NoError(t, worker.SetLogger(logger))

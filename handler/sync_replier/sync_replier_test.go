@@ -58,8 +58,7 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
 	test.handlerConfig = config.New(config.SyncReplierType, testID, "test", 0)
 
-	// Setting a logger should fail since we don't have a configuration set
-	s.Require().Error(test.syncReplier.SetLogger(test.logger))
+	s.Require().NoError(test.syncReplier.SetLogger(test.logger))
 
 	// Setting the configuration
 	// Setting the logger should be successful
@@ -259,6 +258,31 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().True(controlReply.IsOK())
 
 	test.cleanOut()
+}
+
+func (test *TestSyncReplierSuite) Test_12_StartWithoutLogger() {
+	s := &test.Suite
+	defer test.cleanOut()
+
+	handler := New()
+	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
+	handlerConfig := config.New(config.SyncReplierType, testID, "test", 0)
+	handler.SetConfig(handlerConfig)
+	s.Require().NoError(handler.Route("command_1", test.routes["command_1"]))
+
+	s.Require().NoError(handler.Start())
+	s.Require().Equal(base.SocketReady, handler.Status())
+
+	managerClient, err := zmq.NewSocket(zmq.REQ)
+	s.Require().NoError(err)
+	defer func() { _ = managerClient.Close() }()
+
+	managerConfig := control.CreateInternalConfig(handlerConfig)
+	s.Require().NoError(managerClient.Connect(managerConfig.ClientUrl()))
+
+	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReply := test.req(managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
 }
 
 // In order for 'go test' to run this suite, we need to create

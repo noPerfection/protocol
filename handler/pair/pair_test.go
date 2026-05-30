@@ -42,7 +42,7 @@ func (test *TestPairSuite) SetupTest() {
 	test.pairConfig = config.New(config.PairType, testID+"_pair", "external_main_pair", 0)
 	test.pair = New()
 
-	s.Require().Error(test.pair.SetLogger(test.logger))
+	s.Require().NoError(test.pair.SetLogger(test.logger))
 	test.pair.SetConfig(test.pairConfig)
 	s.Require().NoError(test.pair.SetLogger(test.logger))
 	s.Require().NoError(test.pair.Route("client-message", func(request message.RequestInterface) message.ReplyInterface {

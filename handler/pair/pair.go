@@ -48,6 +48,9 @@ func (c *Pair) SetLogger(parent *log.Logger) error {
 	if err := c.Handler.SetLogger(parent); err != nil {
 		return err
 	}
+	if parent == nil {
+		return c.Manager.SetLogger(nil)
+	}
 	return c.Manager.SetLogger(parent.Child(control.ControlCategory))
 }
 
@@ -63,9 +66,6 @@ func (c *Pair) Start() error {
 	}
 	if c.Config().Type != config.PairType {
 		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.PairType)
-	}
-	if c.Logger() == nil {
-		return fmt.Errorf("logger not set")
 	}
 	if c.Manager == nil {
 		return fmt.Errorf("manager not set")
@@ -133,7 +133,7 @@ func (c *Pair) startPair() error {
 
 			polled, err := poller.Poll(time.Millisecond)
 			if err != nil {
-				c.Logger().Error("poller.Poll", "error", err)
+				c.LogError("poller.Poll", "error", err)
 				break
 			}
 
@@ -142,16 +142,16 @@ func (c *Pair) startPair() error {
 			}
 
 			if err := c.handleRequest(socket); err != nil {
-				c.Logger().Error("pair.handleRequest", "error", err)
+				c.LogError("pair.handleRequest", "error", err)
 				break
 			}
 		}
 
 		if err := poller.RemoveBySocket(socket); err != nil {
-			c.Logger().Error("poller.RemoveBySocket", "error", err)
+			c.LogError("poller.RemoveBySocket", "error", err)
 		}
 		if err := socket.Close(); err != nil {
-			c.Logger().Error("socket.Close", "error", err)
+			c.LogError("socket.Close", "error", err)
 		}
 		c.Handler.SetClose(false)
 		c.Handler.SetSocketNil()
@@ -165,11 +165,11 @@ func (c *Pair) flushBroadcast(socket *zmq.Socket) {
 		req := c.broadcasting.Pop().(message.RequestInterface)
 		envelope, err := req.ZmqEnvelope()
 		if err != nil {
-			c.Logger().Error("request.ZmqEnvelope", "error", err)
+			c.LogError("request.ZmqEnvelope", "error", err)
 			continue
 		}
 		if _, err := socket.SendMessageDontwait(envelope); err != nil {
-			c.Logger().Error("socket.SendMessageDontwait", "error", err)
+			c.LogError("socket.SendMessageDontwait", "error", err)
 			return
 		}
 	}

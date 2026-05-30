@@ -37,7 +37,7 @@ func (test *TestPublisherSuite) SetupTest() {
 
 	test.config = config.New(config.PublisherType, "test", "test", 0)
 
-	s.Require().Error(test.pub.SetLogger(test.logger))
+	s.Require().NoError(test.pub.SetLogger(test.logger))
 
 	test.pub.SetConfig(test.config)
 	s.Require().Equal(config.PublisherType, test.pub.Config().Type)

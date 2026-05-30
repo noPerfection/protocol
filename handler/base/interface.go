@@ -19,8 +19,7 @@ type Interface interface {
 	// SetConfig adds the parameters of the handler from the Config
 	SetConfig(*config.Handler)
 
-	// SetLogger adds the logger. The function accepts a parent, and function derives handler logger
-	// Requires configuration to be set first
+	// SetLogger adds an optional logger. Passing nil disables logging.
 	SetLogger(*log.Logger) error
 
 	// IsRouteExist returns true if the command is registered

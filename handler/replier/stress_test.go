@@ -133,7 +133,7 @@ func runStressTest(t *testing.T, clientAmount int, requestsPerClient int) {
 
 	testID := strings.ReplaceAll(t.Name(), "/", "_")
 	handlerConfig := config.New(config.ReplierType, testID, "test", 0)
-	require.Error(t, replier.SetLogger(logger))
+	require.NoError(t, replier.SetLogger(logger))
 
 	replier.SetConfig(handlerConfig)
 	require.NoError(t, replier.SetLogger(logger))

@@ -55,8 +55,7 @@ func (test *TestReplierSuite) SetupTest() {
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
 	test.handlerConfig = config.New(config.ReplierType, testID, "test", 0)
 
-	// Setting a logger should fail since we don't have a configuration set
-	s.Require().Error(test.replier.SetLogger(test.logger))
+	s.Require().NoError(test.replier.SetLogger(test.logger))
 
 	// Setting the configuration
 	// Setting the logger should be successful

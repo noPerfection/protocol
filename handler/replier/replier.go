@@ -48,6 +48,9 @@ func (c *Replier) SetLogger(parent *log.Logger) error {
 	if err := c.Handler.SetLogger(parent); err != nil {
 		return err
 	}
+	if parent == nil {
+		return c.Manager.SetLogger(nil)
+	}
 	return c.Manager.SetLogger(parent.Child(control.ControlCategory))
 }
 
@@ -63,9 +66,6 @@ func (c *Replier) Start() error {
 	}
 	if c.Config().Type != config.ReplierType {
 		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.ReplierType)
-	}
-	if c.Logger() == nil {
-		return fmt.Errorf("logger not set")
 	}
 	if c.Manager == nil {
 		return fmt.Errorf("manager not set")
@@ -137,7 +137,7 @@ func (c *Replier) run() {
 				continue
 			}
 			if err := c.handleRequest(socket, replies); err != nil {
-				c.Logger().Error("replier.handleRequest", "error", err)
+				c.LogError("replier.handleRequest", "error", err)
 			}
 		}
 	}
@@ -151,7 +151,7 @@ func (c *Replier) flushReplies(socket *zmq.Socket, replies <-chan pendingReply) 
 		select {
 		case pending := <-replies:
 			if err := c.sendReply(socket, pending.reply); err != nil {
-				c.Logger().Error("replier.sendReply", "error", err)
+				c.LogError("replier.sendReply", "error", err)
 			}
 		default:
 			return

@@ -50,7 +50,7 @@ func CreateInternalConfig(handler *config.Handler) *config.Handler {
 
 // SetClose is intentionally disabled for control handlers.
 func (m *Manager) SetClose(_ bool) {
-	m.Handler.Logger().Warn("Handler controls can not be closed. Please don't call it")
+	m.LogWarn("Handler controls can not be closed. Please don't call it")
 }
 
 // Start binds the control ROUTER socket and serves registered routes.
@@ -90,14 +90,14 @@ func (m *Manager) Start() error {
 		for {
 			if m.Closed() {
 				if err := poller.RemoveBySocket(socket); err != nil {
-					m.Logger().Error("poller.RemoveBySocket", "error", err)
+					m.LogError("poller.RemoveBySocket", "error", err)
 				}
 				break
 			}
 
 			sockets, err := poller.Poll(time.Millisecond)
 			if err != nil {
-				m.Logger().Error("poller.Poll", "error", err)
+				m.LogError("poller.Poll", "error", err)
 				break
 			}
 
@@ -107,13 +107,13 @@ func (m *Manager) Start() error {
 
 			raw, err := socket.RecvMessage(0)
 			if err != nil {
-				m.Logger().Error("socket.RecvMessage", "error", err)
+				m.LogError("socket.RecvMessage", "error", err)
 				break
 			}
 
 			req, err := message.NewReq(raw)
 			if err != nil {
-				m.Logger().Error("message.NewReq", "messages", raw, "error", err)
+				m.LogError("message.NewReq", "messages", raw, "error", err)
 				continue
 			}
 
@@ -129,7 +129,7 @@ func (m *Manager) Start() error {
 		m.SetClose(false)
 
 		if err := socket.Close(); err != nil {
-			m.Logger().Error("socket.Close", "error", err)
+			m.LogError("socket.Close", "error", err)
 		}
 		m.SetSocket(nil)
 	}(ready)
@@ -143,12 +143,12 @@ func (m *Manager) sendReply(socket *zmq.Socket, req message.RequestInterface, re
 		fail := req.Fail(fmt.Sprintf("failed to convert reply [%v] to string", reply))
 		replyStr, err = fail.ZmqEnvelope()
 		if err != nil {
-			m.Logger().Error("req.Fail.ZmqEnvelope", "request", req, "reply", reply, "error", err)
+			m.LogError("req.Fail.ZmqEnvelope", "request", req, "reply", reply, "error", err)
 			return
 		}
 	}
 
 	if _, err := socket.SendMessage(replyStr); err != nil {
-		m.Logger().Error("socket.SendMessage", "reply", reply, "error", err)
+		m.LogError("socket.SendMessage", "reply", reply, "error", err)
 	}
 }
