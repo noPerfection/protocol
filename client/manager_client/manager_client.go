@@ -1,16 +1,16 @@
-// Package manager_client creates a client that interacts with the handler manager.
-// Useful for calling it from the service.
+// Package manager_client creates a client that interacts with a handler manager.
 package manager_client
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/protocol/client"
 	handlerConfig "github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
-	"time"
 )
 
 type Client struct {
@@ -19,7 +19,7 @@ type Client struct {
 }
 
 type Interface interface {
-	// Close the handler
+	// Close the handler.
 	Close() error
 	Timeout(duration time.Duration)
 	Attempt(uint8)
@@ -27,14 +27,14 @@ type Interface interface {
 	// HandlerStatus returns the handler status.
 	HandlerStatus() (string, error)
 
-	// Id of the handler
+	// Id of the handler.
 	Id() string
 
-	// Config returns the handler configuration
+	// Config returns the handler configuration.
 	Config() (*handlerConfig.Handler, error)
 }
 
-// New client that's connected to the handler
+// New returns a client connected to the handler's control manager.
 func New(configHandler *handlerConfig.Handler) (Interface, error) {
 	managerConfig := control.CreateInternalConfig(configHandler)
 	socket, err := client.NewRaw(zmq.REQ, managerConfig.ClientUrl())
@@ -45,17 +45,17 @@ func New(configHandler *handlerConfig.Handler) (Interface, error) {
 	return &Client{socket: socket, config: configHandler}, nil
 }
 
-// Timeout of the client socket
+// Timeout updates the client socket timeout.
 func (c *Client) Timeout(duration time.Duration) {
 	c.socket.Timeout(duration)
 }
 
-// Attempt amount for requests
+// Attempt updates the client socket attempt count.
 func (c *Client) Attempt(attempt uint8) {
 	c.socket.Attempt(attempt)
 }
 
-// Close sends a close signal to the Handler
+// Close sends a close signal to the handler.
 func (c *Client) Close() error {
 	req := message.Request{
 		Command:    control.HandlerClose,
@@ -70,14 +70,13 @@ func (c *Client) Close() error {
 		return fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
 	}
 
-	err = c.socket.Close()
-	if err != nil {
+	if err := c.socket.Close(); err != nil {
 		return fmt.Errorf("client.socket.Close: %w", err)
 	}
 	return nil
 }
 
-// Config returns the handler configuration
+// Config returns the handler configuration.
 func (c *Client) Config() (*handlerConfig.Handler, error) {
 	req := message.Request{
 		Command:    control.HandlerConfig,
@@ -94,18 +93,17 @@ func (c *Client) Config() (*handlerConfig.Handler, error) {
 
 	kv, err := reply.ReplyParameters().NestedValue("config")
 	if err != nil {
-		return nil, fmt.Errorf("reply.ReplyParmaters().NestedValue('config'): %w", err)
+		return nil, fmt.Errorf("reply.ReplyParameters().NestedValue('config'): %w", err)
 	}
 	var returnedConfig handlerConfig.Handler
-	err = kv.Interface(&returnedConfig)
-	if err != nil {
+	if err := kv.Interface(&returnedConfig); err != nil {
 		return nil, fmt.Errorf("kv.Interface('handlerConfig.Handler'): %w", err)
 	}
 
 	return &returnedConfig, nil
 }
 
-// Id of the handler that this Client connected to the manager.
+// Id returns the handler id this client connects to.
 func (c *Client) Id() string {
 	return c.config.Id
 }

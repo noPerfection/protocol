@@ -374,7 +374,7 @@ Subscribers connect to `pubCfg.ClientUrl()` with a ZMQ SUB socket (or use `clien
 
 ### Tutorial: Manage a running handler
 
-Use [`manager_client`](manager_client) from your service process:
+Use [`client/manager_client`](../client/manager_client) from your service process:
 
 ```go
 mc, err := manager_client.New(handlerConfig)

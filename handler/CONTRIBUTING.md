@@ -64,7 +64,7 @@ Each handler binds its external socket and owns the receive loop for that socket
 
 ### Handler manager
 
-The control manager exposes common routes such as `status`, `config`, `start`, and `close`. External management goes through `control` routes or [`manager_client`](manager_client/manager_client.go).
+The control manager exposes common routes such as `status`, `config`, `start`, and `close`. External management goes through `control` routes or [`client/manager_client`](../client/manager_client).
 
 Socket closing should be requested through the handler or control route that owns the socket; do not close a ZeroMQ socket from another goroutine.
 

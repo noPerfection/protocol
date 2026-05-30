@@ -7,7 +7,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
@@ -24,7 +23,7 @@ type TestWorkerSuite struct {
 	worker         *Worker
 	handlerConfig  *config.Handler
 	managerClient  *zmq.Socket
-	externalClient *client.Socket
+	externalClient *zmq.Socket
 	logger         *log.Logger
 	routes         map[string]base.HandleFunc
 	cmd1Result     string
@@ -70,7 +69,6 @@ func (test *TestWorkerSuite) SetupTest() {
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
 	test.handlerConfig = config.New(config.WorkerType, testID, "test", 0)
-	inprocUrl := test.handlerConfig.ClientUrl()
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.worker.SetLogger(test.logger))
@@ -87,9 +85,25 @@ func (test *TestWorkerSuite) SetupTest() {
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
 
-	externalClient, err := client.NewRaw(zmq.PULL, inprocUrl)
+	externalClient, err := test.newExternalClient()
 	s.Require().NoError(err)
 	test.externalClient = externalClient
+}
+
+func (test *TestWorkerSuite) newExternalClient() (*zmq.Socket, error) {
+	externalClient, err := zmq.NewSocket(zmq.PUSH)
+	if err != nil {
+		return nil, err
+	}
+	if err := externalClient.SetLinger(0); err != nil {
+		_ = externalClient.Close()
+		return nil, err
+	}
+	if err := externalClient.Connect(test.handlerConfig.ClientUrl()); err != nil {
+		_ = externalClient.Close()
+		return nil, err
+	}
+	return externalClient, nil
 }
 
 func (test *TestWorkerSuite) req(client *zmq.Socket, request message.Request) message.ReplyInterface {
@@ -108,6 +122,15 @@ func (test *TestWorkerSuite) req(client *zmq.Socket, request message.Request) me
 	s.Require().NoError(err)
 
 	return reply
+}
+
+func (test *TestWorkerSuite) submit(client *zmq.Socket, request message.Request) error {
+	reqStr, err := request.ZmqEnvelope()
+	if err != nil {
+		return err
+	}
+	_, err = client.SendMessage("1", "", message.JoinMessages(reqStr))
+	return err
 }
 
 func (test *TestWorkerSuite) cleanOut() {
@@ -150,7 +173,7 @@ func (test *TestWorkerSuite) Test_10_StartHandlesSubmittedMessages() {
 		Command:    "command_1",
 		Parameters: datatype.New().Set("id", cmd1Id),
 	}
-	err = test.externalClient.Submit(&req)
+	err = test.submit(test.externalClient, req)
 	s.Require().NoError(err)
 
 	// Wait a bit for the processing
@@ -180,7 +203,7 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 		Command:    "command_1",
 		Parameters: datatype.New().Set("id", cmd1Id),
 	}
-	err = test.externalClient.Submit(&req)
+	err = test.submit(test.externalClient, req)
 	s.Require().NoError(err)
 	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(cmd1Id, test.cmd1Result)
@@ -198,11 +221,15 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 	s.Require().NoError(err)
 	s.Require().Equal(base.SocketReady, status)
 
+	s.Require().NoError(test.externalClient.Close())
+	test.externalClient, err = test.newExternalClient()
+	s.Require().NoError(err)
+
 	req = message.Request{
 		Command:    "command_2",
 		Parameters: datatype.New().Set("id", cmd2Id),
 	}
-	err = test.externalClient.Submit(&req)
+	err = test.submit(test.externalClient, req)
 	s.Require().NoError(err)
 	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(cmd2Id, test.cmd2Result)

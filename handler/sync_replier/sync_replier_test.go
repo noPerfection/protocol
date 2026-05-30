@@ -7,7 +7,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
@@ -24,7 +23,7 @@ type TestSyncReplierSuite struct {
 	syncReplier    *SyncReplier
 	handlerConfig  *config.Handler
 	managerClient  *zmq.Socket
-	externalClient *client.Socket
+	externalClient *zmq.Socket
 	logger         *log.Logger
 	routes         map[string]base.HandleFunc
 }
@@ -74,19 +73,29 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
 
-	externalUrl := test.handlerConfig.ClientUrl()
-	externalClient, err := client.NewRaw(zmq.REP, externalUrl)
+	externalClient, err := test.newExternalClient()
 	s.Require().NoError(err)
 	test.externalClient = externalClient
 }
 
-func (test *TestSyncReplierSuite) newExternalClient() *client.Socket {
+func (test *TestSyncReplierSuite) newExternalClient() (*zmq.Socket, error) {
 	s := &test.Suite
 
-	externalClient, err := client.NewRaw(zmq.REP, test.handlerConfig.ClientUrl())
-	s.Require().NoError(err)
+	externalClient, err := zmq.NewSocket(zmq.REQ)
+	if err != nil {
+		return nil, err
+	}
+	if err := externalClient.SetLinger(0); err != nil {
+		_ = externalClient.Close()
+		return nil, err
+	}
+	if err := externalClient.Connect(test.handlerConfig.ClientUrl()); err != nil {
+		_ = externalClient.Close()
+		return nil, err
+	}
 
-	return externalClient
+	s.Require().NotNil(externalClient)
+	return externalClient, nil
 }
 
 func (test *TestSyncReplierSuite) req(client *zmq.Socket, request message.Request) message.ReplyInterface {
@@ -105,6 +114,23 @@ func (test *TestSyncReplierSuite) req(client *zmq.Socket, request message.Reques
 	s.Require().NoError(err)
 
 	return reply
+}
+
+func (test *TestSyncReplierSuite) externalReq(client *zmq.Socket, request message.Request) (message.ReplyInterface, error) {
+	reqStr, err := request.ZmqEnvelope()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := client.SendMessage(message.JoinMessages(reqStr)); err != nil {
+		return nil, err
+	}
+
+	raw, err := client.RecvMessage(0)
+	if err != nil {
+		return nil, err
+	}
+
+	return message.NewRep(raw)
 }
 
 func (test *TestSyncReplierSuite) handlerStatus() string {
@@ -143,7 +169,8 @@ func (test *TestSyncReplierSuite) Test_10_StartHandlesOneRequestAtATime() {
 	s.Require().Equal(base.SocketReady, test.syncReplier.Status())
 	s.Require().NotNil(test.syncReplier.Socket())
 
-	secondClient := test.newExternalClient()
+	secondClient, err := test.newExternalClient()
+	s.Require().NoError(err)
 	defer func() { _ = secondClient.Close() }()
 
 	type requestResult struct {
@@ -154,10 +181,10 @@ func (test *TestSyncReplierSuite) Test_10_StartHandlesOneRequestAtATime() {
 
 	start := make(chan struct{})
 	results := make(chan requestResult, 2)
-	request := func(externalClient *client.Socket, command string) {
+	request := func(externalClient *zmq.Socket, command string) {
 		<-start
 		req := message.Request{Command: command, Parameters: datatype.New()}
-		reply, err := externalClient.Request(&req)
+		reply, err := test.externalReq(externalClient, req)
 		results <- requestResult{command: command, reply: reply, err: err}
 	}
 
@@ -195,7 +222,7 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().Equal(base.SocketReady, test.handlerStatus())
 
 	req := message.Request{Command: "command_1", Parameters: datatype.New()}
-	reply, err := test.externalClient.Request(&req)
+	reply, err := test.externalReq(test.externalClient, req)
 	s.Require().NoError(err)
 	s.Require().True(reply.IsOK())
 
@@ -204,8 +231,8 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().True(controlReply.IsOK())
 	time.Sleep(time.Millisecond * 150) // run loop processes close asynchronously
 
-	test.externalClient.Timeout(time.Second).Attempt(1)
-	reply, err = test.externalClient.Request(&req)
+	s.Require().NoError(test.externalClient.SetRcvtimeo(time.Second))
+	reply, err = test.externalReq(test.externalClient, req)
 	s.Require().Error(err)
 	s.Require().Nil(reply)
 	s.Require().Equal(base.SocketNil, test.handlerStatus())
@@ -218,7 +245,11 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().Equal(base.SocketReady, status)
 	s.Require().Equal(base.SocketReady, test.handlerStatus())
 
-	reply, err = test.externalClient.Request(&req)
+	s.Require().NoError(test.externalClient.Close())
+	test.externalClient, err = test.newExternalClient()
+	s.Require().NoError(err)
+
+	reply, err = test.externalReq(test.externalClient, req)
 	s.Require().NoError(err)
 	s.Require().True(reply.IsOK())
 

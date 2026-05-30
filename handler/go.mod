@@ -5,7 +5,6 @@ go 1.19
 require (
 	github.com/noPerfection/datatype v0.0.0
 	github.com/noPerfection/log v0.0.0
-	github.com/noPerfection/protocol/client v0.0.0
 	github.com/noPerfection/protocol/message v0.0.0
 	github.com/pebbe/zmq4 v1.2.10
 	github.com/stretchr/testify v1.8.4
@@ -14,7 +13,6 @@ require (
 replace (
 	github.com/noPerfection/datatype => ../../datatype
 	github.com/noPerfection/log => ../../log
-	github.com/noPerfection/protocol/client => ../client
 	github.com/noPerfection/protocol/message => ../message
 )
 
