@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
@@ -22,7 +22,7 @@ import (
 type TestWorkerSuite struct {
 	suite.Suite
 	worker         *Worker
-	handlerConfig  *concurrent.Config
+	handlerConfig  *config.Handler
 	managerClient  *zmq.Socket
 	externalClient *client.Socket
 	logger         *log.Logger
@@ -68,7 +68,8 @@ func (test *TestWorkerSuite) SetupTest() {
 	err = test.worker.Route("command_2", test.routes["command_2"])
 	s.Require().NoError(err)
 
-	test.handlerConfig = concurrent.NewInternalConfig(config.WorkerType, "test", "test")
+	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
+	test.handlerConfig = config.New(config.WorkerType, testID, "test", 0)
 	inprocUrl := test.handlerConfig.ClientUrl()
 
 	// Setting a logger should fail since we don't have a configuration set
@@ -81,7 +82,7 @@ func (test *TestWorkerSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.CreateInternalConfig(test.handlerConfig.Handler)
+	managerConfig := control.CreateInternalConfig(test.handlerConfig)
 	managerUrl := managerConfig.ClientUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
@@ -112,6 +113,10 @@ func (test *TestWorkerSuite) req(client *zmq.Socket, request message.Request) me
 func (test *TestWorkerSuite) cleanOut() {
 	s := &test.Suite
 
+	if test.externalClient != nil {
+		s.Require().NoError(test.externalClient.Close())
+	}
+
 	err := test.managerClient.Close()
 	s.Require().NoError(err)
 
@@ -119,8 +124,7 @@ func (test *TestWorkerSuite) cleanOut() {
 	time.Sleep(time.Millisecond * 100)
 }
 
-// Test_10_Start starts the sync replier and makes sure that it can not have more than 1 instance.
-func (test *TestWorkerSuite) Test_10_Start() {
+func (test *TestWorkerSuite) Test_10_StartHandlesSubmittedMessages() {
 	s := &test.Suite
 
 	cmd1Id := "test_10_start"
@@ -139,14 +143,6 @@ func (test *TestWorkerSuite) Test_10_Start() {
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
 	s.Require().Equal(base.SocketReady, status)
-
-	req = message.Request{Command: concurrent.InstanceAmount, Parameters: datatype.New()}
-	reply = test.req(test.managerClient, req)
-	s.Require().True(reply.IsOK())
-
-	// By default, the handler creates a socket.
-	// Trying to add a new socket, it will throw an error
-	s.Require().Len(test.worker.InstanceManager.Instances(), 1)
 
 	// Testing the external connection
 	s.Require().Empty(test.cmd1Result)
@@ -167,6 +163,54 @@ func (test *TestWorkerSuite) Test_10_Start() {
 	s.Require().True(reply.IsOK())
 
 	// clean out
+	test.cleanOut()
+}
+
+func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
+	s := &test.Suite
+
+	cmd1Id := "before_close"
+	cmd2Id := "after_restart"
+
+	err := test.worker.Start()
+	s.Require().NoError(err)
+	s.Require().Equal(base.SocketReady, test.worker.Status())
+
+	req := message.Request{
+		Command:    "command_1",
+		Parameters: datatype.New().Set("id", cmd1Id),
+	}
+	err = test.externalClient.Submit(&req)
+	s.Require().NoError(err)
+	time.Sleep(time.Millisecond * 100)
+	s.Require().Equal(cmd1Id, test.cmd1Result)
+
+	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReply := test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+	time.Sleep(time.Millisecond * 150)
+	s.Require().Equal(base.SocketNil, test.worker.Status())
+
+	controlReq = message.Request{Command: control.HandlerStart, Parameters: datatype.New()}
+	controlReply = test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+	status, err := controlReply.ReplyParameters().StringValue("status")
+	s.Require().NoError(err)
+	s.Require().Equal(base.SocketReady, status)
+
+	req = message.Request{
+		Command:    "command_2",
+		Parameters: datatype.New().Set("id", cmd2Id),
+	}
+	err = test.externalClient.Submit(&req)
+	s.Require().NoError(err)
+	time.Sleep(time.Millisecond * 100)
+	s.Require().Equal(cmd2Id, test.cmd2Result)
+
+	controlReq = message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReply = test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+
 	test.cleanOut()
 }
 
