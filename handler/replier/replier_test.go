@@ -1,13 +1,14 @@
 package replier
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/concurrent"
 	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
@@ -21,8 +22,9 @@ import (
 type TestReplierSuite struct {
 	suite.Suite
 	replier        *Replier
-	handlerConfig  *concurrent.Config
-	managingClient *zmq.Socket
+	handlerConfig  *config.Handler
+	managerClient  *zmq.Socket
+	externalClient *client.Socket
 	logger         *log.Logger
 	routes         map[string]base.HandleFunc
 }
@@ -30,7 +32,7 @@ type TestReplierSuite struct {
 func (test *TestReplierSuite) SetupTest() {
 	s := &test.Suite
 
-	logger, err := log.New("replier", true)
+	logger, err := log.New("replier", false)
 	test.Suite.Require().NoError(err, "failed to create logger")
 	test.logger = logger
 
@@ -51,7 +53,8 @@ func (test *TestReplierSuite) SetupTest() {
 	err = test.replier.Route("command_2", test.routes["command_2"])
 	s.Require().NoError(err)
 
-	test.handlerConfig = concurrent.NewInternalConfig(config.ReplierType, "test", "test")
+	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
+	test.handlerConfig = config.New(config.ReplierType, testID, "test", 0)
 
 	// Setting a logger should fail since we don't have a configuration set
 	s.Require().Error(test.replier.SetLogger(test.logger))
@@ -61,22 +64,25 @@ func (test *TestReplierSuite) SetupTest() {
 	test.replier.SetConfig(test.handlerConfig)
 	s.Require().NoError(test.replier.SetLogger(test.logger))
 
-	test.managingClient, err = zmq.NewSocket(zmq.REQ)
+	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.CreateInternalConfig(test.handlerConfig.Handler)
+	managerConfig := control.CreateInternalConfig(test.handlerConfig)
 	managerUrl := managerConfig.ClientUrl()
-	err = test.managingClient.Connect(managerUrl)
+	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
+
+	externalClient, err := client.NewRaw(zmq.ROUTER, test.handlerConfig.ClientUrl())
+	s.Require().NoError(err)
+	test.externalClient = externalClient
 }
 
-func (test *TestReplierSuite) TearDownTest() {
+func (test *TestReplierSuite) newExternalClient() *client.Socket {
 	s := &test.Suite
 
-	err := test.managingClient.Close()
+	externalClient, err := client.NewRaw(zmq.ROUTER, test.handlerConfig.ClientUrl())
 	s.Require().NoError(err)
 
-	// Wait a bit for closing
-	time.Sleep(time.Millisecond * 200)
+	return externalClient
 }
 
 func (test *TestReplierSuite) req(client *zmq.Socket, request message.Request) message.ReplyInterface {
@@ -97,102 +103,144 @@ func (test *TestReplierSuite) req(client *zmq.Socket, request message.Request) m
 	return reply
 }
 
-// Test_10_Start start and make sure it can add more instances (since multi instance is the core of the replier)
-func (test *TestReplierSuite) Test_10_Start() {
+func (test *TestReplierSuite) handlerStatus() string {
 	s := &test.Suite
 
-	err := test.replier.Start()
-	s.Require().NoError(err)
-
-	// Wait a bit for initialization
-	time.Sleep(time.Millisecond * 100)
-
-	// Make sure that everything works
 	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
-	reply := test.req(test.managingClient, req)
+	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, status)
 
-	// By default, the handler creates a socket.
-	// Trying to add a new socket, it will throw an error
-	s.Require().Len(test.replier.InstanceManager.Instances(), 1)
-
-	instanceAmount := test.replier.MaxInstanceAmount()
-
-	// Adding a new instance to make reach the cap
-	for i := 1; i < int(instanceAmount); i++ {
-		req.Command = concurrent.AddInstance
-		reply = test.req(test.managingClient, req)
-		s.Require().True(reply.IsOK())
-	}
-
-	time.Sleep(time.Millisecond * 200)
-
-	// Trying to add more instance must fail
-	req.Command = concurrent.AddInstance
-	reply = test.req(test.managingClient, req)
-	s.Require().False(reply.IsOK())
-
-	// Close the handler
-	req.Command = control.HandlerClose
-	reply = test.req(test.managingClient, req)
-	s.Require().True(reply.IsOK())
+	return status
 }
 
-// Test_11_Request tests that external clients send the message to the instance
-func (test *TestReplierSuite) Test_11_Request() {
+func (test *TestReplierSuite) cleanOut() {
+	s := &test.Suite
+
+	if test.externalClient != nil {
+		s.Require().NoError(test.externalClient.Close())
+	}
+
+	err := test.managerClient.Close()
+	s.Require().NoError(err)
+
+	// Wait a bit for closing
+	time.Sleep(time.Millisecond * 100)
+}
+
+func (test *TestReplierSuite) Test_10_StartHandlesRequests() {
 	s := &test.Suite
 
 	err := test.replier.Start()
 	s.Require().NoError(err)
 
-	// Wait a bit for initialization
-	time.Sleep(time.Millisecond * 100)
+	s.Require().Equal(base.SocketReady, test.replier.Status())
+	s.Require().NotNil(test.replier.Socket())
 
-	// Make sure that everything works
-	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
-	reply := test.req(test.managingClient, req)
+	req := message.Request{Command: "command_1", Parameters: datatype.New()}
+	reply, err := test.externalClient.Request(&req)
+	s.Require().NoError(err)
 	s.Require().True(reply.IsOK())
 
-	status, err := reply.ReplyParameters().StringValue("status")
+	id, err := reply.ReplyParameters().StringValue("id")
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, status)
-
-	// By default, the handler creates a socket.
-	// Trying to add a new socket, it will throw an error
-	s.Require().Len(test.replier.InstanceManager.Instances(), 1)
-
-	maxAmount := test.replier.MaxInstanceAmount()
-	s.Require().NotZero(maxAmount)
-
-	// Adding a new instance to make reach the cap
-	for i := 1; i < 3; i++ {
-		req.Command = concurrent.AddInstance
-		reply = test.req(test.managingClient, req)
-		s.Require().True(reply.IsOK())
-	}
-
-	// Wait until threads are live
-	time.Sleep(time.Millisecond * 100)
-
-	// Let's create a client
-	client, err := zmq.NewSocket(zmq.REQ)
-	s.Require().NoError(err)
-	externalUrl := test.handlerConfig.ClientUrl()
-	err = client.Connect(externalUrl)
-	s.Require().NoError(err)
-
-	req = message.Request{Command: "command_1", Parameters: datatype.New()}
-	reply = test.req(client, req)
-	s.Require().True(reply.IsOK())
+	s.Require().Equal("command_1", id)
 
 	// Close the handler
 	req.Command = control.HandlerClose
-	reply = test.req(test.managingClient, req)
+	reply = test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
+
+	test.cleanOut()
+}
+
+func (test *TestReplierSuite) Test_11_ControlLifecycle() {
+	s := &test.Suite
+
+	err := test.replier.Start()
+	s.Require().NoError(err)
+	s.Require().Equal(base.SocketReady, test.handlerStatus())
+
+	req := message.Request{Command: "command_1", Parameters: datatype.New()}
+	reply, err := test.externalClient.Request(&req)
+	s.Require().NoError(err)
+	s.Require().True(reply.IsOK())
+
+	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReply := test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+	time.Sleep(time.Millisecond * 150) // run loop processes close asynchronously
+
+	test.externalClient.Timeout(time.Second).Attempt(1)
+	reply, err = test.externalClient.Request(&req)
+	s.Require().Error(err)
+	s.Require().Nil(reply)
+	s.Require().Equal(base.SocketNil, test.handlerStatus())
+
+	controlReq = message.Request{Command: control.HandlerStart, Parameters: datatype.New()}
+	controlReply = test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+	status, err := controlReply.ReplyParameters().StringValue("status")
+	s.Require().NoError(err)
+	s.Require().Equal(base.SocketReady, status)
+	s.Require().Equal(base.SocketReady, test.handlerStatus())
+
+	reply, err = test.externalClient.Request(&req)
+	s.Require().NoError(err)
+	s.Require().True(reply.IsOK())
+
+	controlReq = message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReply = test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+
+	test.cleanOut()
+}
+
+func (test *TestReplierSuite) Test_12_HandlesMultipleRouterClients() {
+	s := &test.Suite
+
+	err := test.replier.Start()
+	s.Require().NoError(err)
+
+	secondClient := test.newExternalClient()
+	defer func() { _ = secondClient.Close() }()
+
+	type requestResult struct {
+		command string
+		reply   message.ReplyInterface
+		err     error
+	}
+
+	start := make(chan struct{})
+	results := make(chan requestResult, 2)
+	request := func(externalClient *client.Socket, command string) {
+		<-start
+		req := message.Request{Command: command, Parameters: datatype.New()}
+		reply, err := externalClient.Request(&req)
+		results <- requestResult{command: command, reply: reply, err: err}
+	}
+
+	go request(test.externalClient, "command_1")
+	go request(secondClient, "command_2")
+
+	close(start)
+
+	for i := 0; i < 2; i++ {
+		result := <-results
+		s.Require().NoError(result.err)
+		s.Require().True(result.reply.IsOK())
+		id, err := result.reply.ReplyParameters().StringValue("id")
+		s.Require().NoError(err)
+		s.Require().Equal(result.command, id)
+	}
+
+	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReply := test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+
+	test.cleanOut()
 }
 
 // In order for 'go test' to run this suite, we need to create
