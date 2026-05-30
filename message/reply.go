@@ -8,12 +8,12 @@ import (
 	"github.com/noPerfection/datatype"
 )
 
-// Reply SDS Service returns the reply. Anyone who sends a request to the SDS Service gets this message.
+// Reply is returned by a noPerfection service. Anyone who sends a request to the service gets this message.
 type Reply struct {
-	Uuid       string             `json:"uuid,omitempty"`
-	Trace      []*Stack           `json:"traces,omitempty"`
-	Status     ReplyStatus        `json:"status"`     // message.OK or message.FAIL
-	Message    string             `json:"message"`    // If Status is fail, then the field will contain an error message.
+	Uuid       string            `json:"uuid,omitempty"`
+	Trace      []*Stack          `json:"traces,omitempty"`
+	Status     ReplyStatus       `json:"status"`     // message.OK or message.FAIL
+	Message    string            `json:"message"`    // If Status is fail, then the field will contain an error message.
 	Parameters datatype.KeyValue `json:"parameters"` // If the Status is OK, then the field will contain the parameters.
 	conId      string
 }
