@@ -430,7 +430,11 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 	}
 
 	// client service will add its own stack.
-	req.SyncTrace(reply)
+	traceReq, traceReqOk := req.(message.RequestTraceInterface)
+	traceReply, traceReplyOk := reply.(message.ReplyTraceInterface)
+	if traceReqOk && traceReplyOk {
+		traceReq.SyncTrace(traceReply)
+	}
 
 	return reply, nil
 }

@@ -2,20 +2,9 @@ package message
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/noPerfection/datatype"
 )
-
-// Stack keeps the parameters of the message in the service.
-type Stack struct {
-	RequestTime    uint64 `json:"request_time"`
-	ReplyTime      uint64 `json:"reply_time,omitempty"`
-	Command        string `json:"command"`
-	ServiceUrl     string `json:"service_url"`
-	ServerName     string `json:"server_name"`
-	ServerInstance string `json:"server_instance"`
-}
 
 var _ RequestInterface = (*Request)(nil)
 
@@ -88,40 +77,6 @@ func (request *Request) SetConId(conId string) {
 	request.conId = conId
 }
 
-func (request *Request) Traces() []*Stack {
-	return request.Trace
-}
-
-// IsFirst returns true if the request has no trace,
-//
-// For example, if the proxy inserts it.
-func (request *Request) IsFirst() bool {
-	return len(request.Trace) == 0
-}
-
-// SyncTrace is if the reply has more stacks, the request is updated with it.
-func (request *Request) SyncTrace(reply ReplyInterface) {
-	repTraceLen := len(reply.Traces())
-	reqTraceLen := len(request.Traces())
-
-	if repTraceLen > reqTraceLen {
-		request.Trace = append(request.Trace, reply.Traces()[reqTraceLen:]...)
-	}
-}
-
-func (request *Request) AddRequestStack(serviceUrl string, serverName string, serverInstance string) {
-	stack := &Stack{
-		RequestTime:    uint64(time.Now().UnixMicro()),
-		ReplyTime:      0,
-		Command:        request.Command,
-		ServiceUrl:     serviceUrl,
-		ServerName:     serverName,
-		ServerInstance: serverInstance,
-	}
-
-	request.Trace = append(request.Trace, stack)
-}
-
 // JoinMessages the message
 func (request *Request) String() string {
 	err := ValidCommand(request.Command)
@@ -153,12 +108,6 @@ func (request *Request) ZmqEnvelope() ([]string, error) {
 	}
 
 	return []string{"", str}, nil
-}
-
-// Next creates a new request based on the previous one.
-func (request *Request) Next(command string, parameters datatype.KeyValue) {
-	request.Command = command
-	request.Parameters = parameters
 }
 
 // Fail creates a new Reply as a failure

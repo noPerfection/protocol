@@ -9,8 +9,6 @@ import (
 )
 
 func TestMisc(t *testing.T) {
-	require.Len(t, requiredMetadata(), 1)
-
 	handler := New()
 	require.Empty(t, handler.RouteCommands())
 

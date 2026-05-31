@@ -2,8 +2,6 @@ package message
 
 import (
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/noPerfection/datatype"
 )
@@ -59,24 +57,6 @@ func (reply *Reply) ConId() string {
 
 func (reply *Reply) SetConId(conId string) {
 	reply.conId = conId
-}
-
-func (reply *Reply) Traces() []*Stack {
-	return reply.Trace
-}
-
-// SetStack adds the current service's server into the reply
-func (reply *Reply) SetStack(serviceUrl string, serverName string, serverInstance string) error {
-	for i, stack := range reply.Trace {
-		if strings.Compare(stack.ServiceUrl, serviceUrl) == 0 &&
-			strings.Compare(stack.ServerName, serverName) == 0 &&
-			strings.Compare(stack.ServerInstance, serverInstance) == 0 {
-			reply.Trace[i].ReplyTime = uint64(time.Now().UnixMicro())
-			return nil
-		}
-	}
-
-	return fmt.Errorf("no trace stack for service %s server %s:%s", serviceUrl, serverName, serverInstance)
 }
 
 // IsOK returns the Status of the message.

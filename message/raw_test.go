@@ -105,7 +105,7 @@ func (test *TestRawSuite) Test_11_NewRawReq() {
 	// without a message, the stack is counted as a message
 	rawInterface, err := NewRawReq([]string{"", "", "", test.stacks})
 	s().NoError(err)
-	s().True(rawInterface.IsFirst())
+	s().True(rawInterface.(*RawRequest).IsFirst())
 
 	// if the envelope contains trace delimiter, then stacks must not be empty.
 	stackedReq := append(test.rawReq, "not a json", "")
@@ -238,15 +238,17 @@ func (test *TestRawSuite) Test_16_ReqTraces() {
 	s := test.Require
 
 	// It doesn't have any traces
-	rawReq, err := NewRawReq(test.rawReq)
+	rawInterface, err := NewRawReq(test.rawReq)
 	s().NoError(err)
+	rawReq := rawInterface.(*RawRequest)
 	s().NotNil(rawReq.Traces())
 	s().Empty(rawReq.Traces())
 	s().True(rawReq.IsFirst())
 
 	stackReq := append(test.rawReq, "", test.stacks)
-	rawReq, err = NewRawReq(stackReq)
+	rawInterface, err = NewRawReq(stackReq)
 	s().NoError(err)
+	rawReq = rawInterface.(*RawRequest)
 	s().NotEmpty(rawReq.Traces())
 	s().False(rawReq.IsFirst())
 }
@@ -256,11 +258,13 @@ func (test *TestRawSuite) Test_17_ReqSyncTrace() {
 	s := test.Require
 
 	stackedReply := append(test.rawReply, "", test.stacks)
-	rawReply, err := NewRawRep(stackedReply)
+	rawReplyInterface, err := NewRawRep(stackedReply)
 	s().NoError(err)
+	rawReply := rawReplyInterface.(*RawReply)
 
-	rawReq, err := NewRawReq(test.rawReq)
+	rawReqInterface, err := NewRawReq(test.rawReq)
 	s().NoError(err)
+	rawReq := rawReqInterface.(*RawRequest)
 	s().True(rawReq.IsFirst())
 	s().Len(rawReq.Traces(), 0)
 
@@ -275,8 +279,9 @@ func (test *TestRawSuite) Test_17_ReqSyncTrace() {
 func (test *TestRawSuite) Test_18_AddRequestStack() {
 	s := test.Require
 
-	rawReq, err := NewRawReq(test.rawReq)
+	rawReqInterface, err := NewRawReq(test.rawReq)
 	s().NoError(err)
+	rawReq := rawReqInterface.(*RawRequest)
 	s().True(rawReq.IsFirst())
 	s().Len(rawReq.Traces(), 0)
 
@@ -355,7 +360,7 @@ func (test *TestRawSuite) Test_19_ZmqEnvelope() {
 	s().Len(stackedMessage, 6)
 	stackedReq, err = NewRawReq(stackedMessage)
 	s().NoError(err)
-	s().False(stackedReq.IsFirst())
+	s().False(stackedReq.(*RawRequest).IsFirst())
 	zmqEnvelope, err = stackedReq.ZmqEnvelope()
 	s().NoError(err)
 	s().Len(zmqEnvelope, 6)
@@ -371,7 +376,7 @@ func (test *TestRawSuite) Test_19_ZmqEnvelope() {
 	s().Len(stackedMessage, 5)
 	stackedReq, err = NewRawReq(stackedMessage)
 	s().NoError(err)
-	s().False(stackedReq.IsFirst())
+	s().False(stackedReq.(*RawRequest).IsFirst())
 	zmqEnvelope, err = stackedReq.ZmqEnvelope()
 	s().NoError(err)
 	s().Len(zmqEnvelope, 5)
@@ -425,7 +430,7 @@ func (test *TestRawSuite) Test_21_NextReq() {
 	_, err = NewReq(raw.messages)
 	s().Error(err)
 
-	rawReq.Next(test.cmdName, parameters)
+	raw.Next(test.cmdName, parameters)
 	req, err := NewReq(raw.messages)
 	s().NoError(err)
 	s().Equal(test.cmdName, req.CommandName())

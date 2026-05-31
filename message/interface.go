@@ -9,21 +9,14 @@ type RequestInterface interface {
 	// ConId returns a connection id for each sending session.
 	ConId() string
 	SetConId(string)
-	// IsFirst returns true if the request has no trace request or id,
-	IsFirst() bool
-	SyncTrace(ReplyInterface)
-	AddRequestStack(serviceUrl string, serverName string, serverInstance string)
 	// String implements the Stringer interface from a standard library
 	String() string
 	// ZmqEnvelope converts the message to the zeromq envelope
 	ZmqEnvelope() ([]string, error)
-	// Next creates a new request based on the previous one.
-	Next(command string, parameters datatype.KeyValue)
 	// Fail creates a new Reply as a failure
 	// It accepts the error message that explains the reason of the failure.
 	Fail(message string) ReplyInterface
 	Ok(parameters datatype.KeyValue) ReplyInterface
-	Traces() []*Stack
 	CommandName() string
 	RouteParameters() datatype.KeyValue
 }
@@ -31,8 +24,6 @@ type RequestInterface interface {
 type ReplyInterface interface {
 	ConId() string
 	SetConId(string)
-	// SetStack adds the current service's server into the reply
-	SetStack(serviceUrl string, serverName string, serverInstance string) error
 	// IsOK returns the Status of the message.
 	IsOK() bool
 	// String converts the Reply to the string format. Empty if occurred an error.
@@ -40,7 +31,6 @@ type ReplyInterface interface {
 	String() string
 	// ZmqEnvelope converts the message to the zeromq envelope
 	ZmqEnvelope() ([]string, error)
-	Traces() []*Stack
 	ErrorMessage() string
 	ReplyParameters() datatype.KeyValue
 }
