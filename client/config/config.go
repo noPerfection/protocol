@@ -8,16 +8,14 @@ import (
 
 // A Client parameters to connect to the dep
 type Client struct {
-	ServiceUrl       string `json:"url" yaml:"url"` // Url link of the service
 	message.Endpoint `json:",inline" yaml:",inline"`
 	TargetType       zmq.Type `json:"zmq_type,omitempty" yaml:"zmq_type,omitempty"` // The service's socket type
 	urlFunc          func(*Client) string
 }
 
 // New Client
-func New(serviceUrl string, id string, port uint64, socketType zmq.Type) *Client {
+func New(id string, port uint64, socketType zmq.Type) *Client {
 	return &Client{
-		ServiceUrl: serviceUrl,
 		Endpoint:   message.NewEndpoint(id, port),
 		TargetType: socketType,
 		urlFunc:    nil,
@@ -78,6 +76,5 @@ func IsEqual(first *Client, second *Client) bool {
 
 	return first.Id == second.Id &&
 		first.Port == second.Port &&
-		first.TargetType == second.TargetType &&
-		first.ServiceUrl == second.ServiceUrl
+		first.TargetType == second.TargetType
 }

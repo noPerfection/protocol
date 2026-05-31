@@ -17,11 +17,10 @@ type TestConfigSuite struct {
 // Make sure that Account is set to five
 // before each test
 func (test *TestConfigSuite) SetupTest() {
-	serviceUrl := "github.com/noPerfection/service"
 	id := "sample"
 	port := uint64(0)
 	socketType := zmq.REQ
-	test.client = New(serviceUrl, id, port, socketType)
+	test.client = New(id, port, socketType)
 }
 
 // Test_10_IsTarget checks the target zeromq sockets are supported
@@ -69,21 +68,21 @@ func (test *TestConfigSuite) Test_12_Url() {
 func (test *TestConfigSuite) Test_13_Url_tcp() {
 	require := test.Require
 
-	client := New("github.com/noPerfection/service", "sample", 6000, zmq.REP)
+	client := New("sample", 6000, zmq.REP)
 	require().Equal("tcp://sample:6000", Url(client))
 }
 
 func (test *TestConfigSuite) Test_14_Url_ipc_tmp() {
 	require := test.Require
 
-	client := New("github.com/noPerfection/service", "tmp-test.sock", 0, zmq.REP)
+	client := New("tmp-test.sock", 0, zmq.REP)
 	require().Equal("ipc:///tmp-test.sock", Url(client))
 }
 
 func (test *TestConfigSuite) Test_15_Url_inproc_port_zero() {
 	require := test.Require
 
-	client := New("github.com/noPerfection/service", "my-service", 0, zmq.REP)
+	client := New("my-service", 0, zmq.REP)
 	require().Equal("inproc://my-service", Url(client))
 }
 

@@ -99,11 +99,10 @@ func (test *TestClientSuite) runBackend(funcName string, url string, zmqType zmq
 func (test *TestClientSuite) Test_10_New() {
 	require := test.Require
 
-	serviceUrl := "github.com/noPerfection/service"
 	id := "sample_router"
 	port := uint64(0)
 	socketType := zmq.ROUTER
-	client := config.New(serviceUrl, id, port, socketType)
+	client := config.New(id, port, socketType)
 
 	_, err := New(client)
 	require().Error(err)
