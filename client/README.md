@@ -52,10 +52,10 @@ For intercommunication, noPerfection uses ZeroMQ sockets.
 `client.New` connects to the generated address and selects the socket type from the handler type.
 
 ### Concurrent
-A client is concurrent with its message queue.
-A client is [thread safe](https://en.wikipedia.org/wiki/Thread_safety).
+The client is a [thread safe](https://en.wikipedia.org/wiki/Thread_safety) ZeroMQ wrapper for interacting with noPerfection handlers.
+It is intended for creating a few long-lived clients and sharing them across goroutines over time.
 
-One client can send multiple messages at the same time.
+One client can accept messages from multiple goroutines. The client queues the messages and serializes ZeroMQ socket access internally.
 
 ```go
 // Thread 1

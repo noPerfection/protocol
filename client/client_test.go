@@ -124,7 +124,7 @@ func (test *TestClientSuite) Test_11_Parameters() {
 func (test *TestClientSuite) Test_12_rawSubmit() {
 	require := test.Require
 
-	go test.runBackend("Test_12_rawSubmit", test.socket.url, zmq.ROUTER)
+	go test.runBackend("Test_12_rawSubmit", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
 	req := "hello Test_12_rawSubmit"
@@ -135,7 +135,7 @@ func (test *TestClientSuite) Test_12_rawSubmit() {
 func (test *TestClientSuite) Test_13_RawRequest() {
 	require := test.Require
 
-	go test.runBackend("Test_13_RawRequest", test.socket.url, zmq.ROUTER)
+	go test.runBackend("Test_13_RawRequest", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
 	req := "hello Test_13_RawRequest"
@@ -147,7 +147,7 @@ func (test *TestClientSuite) Test_13_RawRequest() {
 func (test *TestClientSuite) Test_14_RawSubmit() {
 	require := test.Require
 
-	go test.runBackend("Test_14_RawSubmit", test.socket.url, zmq.ROUTER)
+	go test.runBackend("Test_14_RawSubmit", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
 	req := "hello Test_14_RawSubmit"
@@ -158,7 +158,7 @@ func (test *TestClientSuite) Test_14_RawSubmit() {
 func (test *TestClientSuite) Test_15_DealerRawRequest() {
 	require := test.Require
 
-	go test.runBackend("Test_15_DealerRawRequest", test.socket.url, zmq.ROUTER)
+	go test.runBackend("Test_15_DealerRawRequest", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
 	test.socket.Timeout(time.Second).Attempt(minAttempt)
@@ -172,7 +172,7 @@ func (test *TestClientSuite) Test_15_DealerRawRequest() {
 func (test *TestClientSuite) Test_16_DealerRawSubmit() {
 	require := test.Require
 
-	go test.runBackend("Test_16_DealerRawSubmit", test.socket.url, zmq.ROUTER)
+	go test.runBackend("Test_16_DealerRawSubmit", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
 	test.socket.Timeout(time.Second).Attempt(minAttempt)

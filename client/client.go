@@ -33,27 +33,26 @@ type Option struct {
 
 // A Socket is the structure that transmits the data to the handlers.
 type Socket struct {
-	consumerId    uint64 // consume internal id assigned by zeromq
-	poller        *zmq.Poller
+	consumerId    uint64       // consume internal id assigned by zeromq
+	poller        *zmq.Poller  // to receive messages
 	schedulers    *zmq.Reactor // client keeps a zmqSocket for initialing a message transfer, and a queue consumer.
 	zmqSocket     *zmq.Socket
-	url           string
 	timeout       time.Duration
 	attempt       uint8
-	socketType    zmq.Type
-	endpoint message.Endpoint
-	queue    *datatype.Queue
-	sent          uint64
+	endpoint      message.Endpoint
+	handlerType   HandlerType
+	queue         *datatype.Queue
+	sent          uint64         // used for push or pair for for msg counting.
 	messagePacker message.Packer // client translates the message before and after transmitting.
 }
 
-func newSocket(socketType zmq.Type, url string) (*Socket, error) {
+func newSocket(handlerType HandlerType, endpoint message.Endpoint) *Socket {
 	socket := &Socket{
 		zmqSocket:     nil,
 		timeout:       DefaultTimeout,
 		attempt:       DefaultAttempt,
-		socketType:    socketType,
-		url:           url,
+		endpoint:      endpoint,
+		handlerType:   handlerType,
 		queue:         datatype.NewQueue(),
 		schedulers:    zmq.NewReactor(),
 		consumerId:    0,
@@ -73,7 +72,7 @@ func newSocket(socketType zmq.Type, url string) (*Socket, error) {
 		socket.schedulers = nil
 	}()
 
-	return socket, nil
+	return socket
 }
 
 // New creates a client for the given handler endpoint. Client type is determined by the target handler.
@@ -83,20 +82,14 @@ func New(id string, port uint64, handlerTargetType HandlerType) (*Socket, error)
 	}
 
 	endpoint := message.NewEndpoint(id, port)
-	socketType := targetToClient(handlerTargetType)
-	socket, err := newSocket(socketType, endpoint.ClientUrl())
-	if err != nil {
-		return nil, fmt.Errorf("newSocket('%s', '%s'): %w", handlerTargetType, endpoint.ClientUrl(), err)
-	}
-	socket.endpoint = endpoint
-
-	return socket, nil
+	return newSocket(handlerTargetType, endpoint), nil
 }
 
 // Sets the message serializer and deserializer.
 // Use the same as used by the handler.
-func (socket *Socket) SetPacker(packer message.Packer) {
+func (socket *Socket) Packer(packer message.Packer) *Socket {
 	socket.messagePacker = packer
+	return socket
 }
 
 // handleConsume runs in a loop to read the queue.
@@ -134,23 +127,26 @@ func (socket *Socket) handleConsume() error {
 // Attempts to connect to the endpoint.
 // The difference from zmqSocket.reconnect() is that it will not authenticate if security is enabled.
 func (socket *Socket) reconnect() (err error) {
+	socketType := targetToClient(socket.handlerType)
+
 	if socket.zmqSocket != nil {
 		if err := socket.zmqSocket.Close(); err != nil {
 			return fmt.Errorf("failed to close zmqSocket in zmq: %w", err)
 		}
 	}
 
-	socket.zmqSocket, err = zmq.NewSocket(socket.socketType)
+	socket.zmqSocket, err = zmq.NewSocket(socketType)
 	if err != nil {
-		return fmt.Errorf("zmq.NewSocket('%s'): %w", socket.socketType.String(), err)
+		return fmt.Errorf("zmq.NewSocket('%s'): %w", socketType.String(), err)
 	}
 
 	if err := socket.zmqSocket.SetLinger(0); err != nil {
 		return fmt.Errorf("zmqSocket.SetLinger(0): %w", err)
 	}
 
-	if err := socket.zmqSocket.Connect(socket.url); err != nil {
-		return fmt.Errorf("zmqSocket.Connect('%s'): %w", socket.url, err)
+	url := socket.endpoint.ClientUrl()
+	if err := socket.zmqSocket.Connect(url); err != nil {
+		return fmt.Errorf("zmqSocket.Connect('%s'): %w", url, err)
 	}
 
 	socket.poller = zmq.NewPoller()
@@ -322,9 +318,14 @@ func (socket *Socket) rawSubmit(raw string) (bool, error) {
 	socket.pollOut()
 
 	messages := []string{raw}
-	if socket.socketType == zmq.DEALER {
+	socketType, err := socket.zmqSocket.GetType()
+	if err != nil {
+		return false, fmt.Errorf("zmqSocket.GetType: %w", err)
+	}
+
+	if socketType == zmq.DEALER {
 		messages = []string{"", raw}
-	} else if socket.socketType == zmq.PAIR || socket.socketType == zmq.PUSH {
+	} else if socketType == zmq.PAIR || socketType == zmq.PUSH {
 		messages = []string{fmt.Sprintf("%d", socket.sent), "", raw}
 		socket.sent++
 	}
@@ -348,7 +349,8 @@ func (socket *Socket) rawSubmit(raw string) (bool, error) {
 
 // omitReplyIfPresent drops an inbound reply so REQ submit can complete (see RawSubmit doc).
 func (socket *Socket) omitReplyIfPresent() {
-	if socket.socketType != zmq.REQ {
+	socketType, err := socket.zmqSocket.GetType()
+	if err != nil || socketType != zmq.REQ {
 		return
 	}
 
