@@ -158,7 +158,7 @@ func (test *TestPairSuite) receiveRequest() message.RequestInterface {
 	raw, err := test.externalClient.RecvMessage(0)
 	s.Require().NoError(err)
 
-	req, err := message.NewReq(raw)
+	req, err := test.pair.Packer().DeserializeRequest(raw)
 	s.Require().NoError(err)
 
 	return req

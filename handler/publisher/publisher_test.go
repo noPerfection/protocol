@@ -147,7 +147,7 @@ func (test *TestPublisherSuite) receiveNumbers(start uint64, amount uint64) {
 	for number := start; number < start+amount; number++ {
 		select {
 		case raw := <-test.subscribed:
-			req, err := message.NewReq(raw)
+			req, err := test.pub.Packer().DeserializeRequest(raw)
 			s.Require().NoError(err)
 			s.Require().Equal(Broadcast, req.CommandName())
 

@@ -3,6 +3,7 @@ package base
 import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
 
@@ -18,6 +19,9 @@ type Interface interface {
 	Config() *config.Handler
 	// SetConfig adds the parameters of the handler from the Config
 	SetConfig(*config.Handler)
+
+	Packer() message.Packer
+	SetPacker(message.Packer)
 
 	// SetLogger adds an optional logger. Passing nil disables logging.
 	SetLogger(*log.Logger) error

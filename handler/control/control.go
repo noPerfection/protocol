@@ -105,9 +105,9 @@ func (m *Manager) Start() error {
 				break
 			}
 
-			req, err := message.NewReq(raw)
+			req, err := m.Packer().DeserializeRequest(raw)
 			if err != nil {
-				m.LogError("message.NewReq", "messages", raw, "error", err)
+				m.LogError("Packer().DeserializeRequest", "messages", raw, "error", err)
 				continue
 			}
 

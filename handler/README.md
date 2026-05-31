@@ -79,6 +79,10 @@ if err := handler.SetLogger(logger); err != nil {
 
 When no logger is configured, internal log messages are omitted.
 
+### Message Packers
+
+Handlers use a default `message.MessagePacker` to serialize requests and replies. Use `Packer()` to inspect the current packer and `SetPacker(...)` to install a custom implementation; see [github.com/noPerfection/protocol/message](https://github.com/noPerfection/protocol/tree/main/message) for the `message.Packer` interface and examples.
+
 ## Handler Lifecycle
 
 The lifecycle starts with choosing the handler behavior, then preparing it before sockets are bound:

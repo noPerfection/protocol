@@ -11,9 +11,19 @@ import (
 func TestMisc(t *testing.T) {
 	handler := New()
 	require.Empty(t, handler.RouteCommands())
+	require.IsType(t, &message.MessagePacker{}, handler.Packer())
 
 	require.NoError(t, AnyRoute(handler))
 	require.NotEmpty(t, handler.RouteCommands())
+}
+
+func TestPacker(t *testing.T) {
+	handler := New()
+	packer := message.RawMessage()
+
+	handler.SetPacker(packer)
+
+	require.Same(t, packer, handler.Packer())
 }
 
 func TestFindRoute(t *testing.T) {
