@@ -100,7 +100,7 @@ func (test *TestSyncReplierSuite) newExternalClient() (*zmq.Socket, error) {
 func (test *TestSyncReplierSuite) req(client *zmq.Socket, request message.Request) message.ReplyInterface {
 	s := &test.Suite
 
-	reqStr, err := request.ZmqEnvelope()
+	reqStr, err := test.syncReplier.Packer().SerializeRequest(&request)
 	s.Require().NoError(err)
 
 	_, err = client.SendMessage(reqStr)
@@ -116,11 +116,11 @@ func (test *TestSyncReplierSuite) req(client *zmq.Socket, request message.Reques
 }
 
 func (test *TestSyncReplierSuite) externalReq(client *zmq.Socket, request message.Request) (message.ReplyInterface, error) {
-	reqStr, err := request.ZmqEnvelope()
+	reqStr, err := test.syncReplier.Packer().SerializeRequest(&request)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := client.SendMessage(message.MessageFromEnvelope(reqStr)); err != nil {
+	if _, err := client.SendMessage(reqStr); err != nil {
 		return nil, err
 	}
 

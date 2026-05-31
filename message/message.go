@@ -9,18 +9,17 @@ func ValidEnvelope(messages []string) error {
 
 	// With ConID as the first frame according to zmq protocol
 	if messages[0] != "" {
-		if len(messages) < 3 {
-			return fmt.Errorf("envelope with conId is too short")
+		if len(messages) >= 3 {
+			// ConID delimiter is the second frame according to zmq protocol
+			if messages[1] != "" {
+				return fmt.Errorf("conId delimiter is missing")
+			}
 		}
-		// ConID delimiter is the second frame according to zmq protocol
-		if messages[1] != "" {
-			return fmt.Errorf("conId delimiter is missing")
-		}
-
+		// could be just list of messages without conId
 		return nil
 	}
-	// Without ConID, then is it even have a message or only delimiter, or perhaps its empty?
-	if len(messages) == 1 || messages[1] == "" {
+	// first is empty delimeter for zmq.REP? Then it must have non empty message.
+	if len(messages) < 2 || messages[1] == "" {
 		return fmt.Errorf("empty message without conId")
 	}
 
@@ -33,13 +32,27 @@ func EnvelopeToMessage(messages []string) (conId string, message string, tail []
 		return "", "", []string{}
 	}
 
-	// With ConID
+	// Not starts with empty delimiter? Its not coming from zmq.REP
 	if messages[0] != "" {
-		conId = messages[0]
-		message = messages[1]
-		return conId, messages[2], messages[3:]
+		// It has empty delimeter as second parameter?
+		// Its dealer, router
+		if len(messages) >= 3 && messages[1] == "" {
+			conId = messages[0]
+			// sometimes its req to router will put own empty delimiter as third parameter
+			if len(messages) >= 4 && messages[2] == "" {
+				message = messages[3]
+				tail = messages[4:]
+			} else {
+				message = messages[2]
+				tail = messages[3:]
+			}
+			return conId, message, tail
+		}
+		// Its zmq.REQ from zmq.ROUTER or zmq.DEALER
+		return "", messages[0], messages[1:]
 	}
 
+	// Its coming from zmq.REP to zmq.REQ
 	return "", messages[1], messages[2:]
 }
 
@@ -51,5 +64,6 @@ func MessageToEnvelope(conId string, message string, tail ...string) []string {
 	}
 
 	envelope := []string{conId, "", message}
-	return append(envelope, tail...)
+	full := append(envelope, tail...)
+	return full
 }

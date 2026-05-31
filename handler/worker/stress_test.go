@@ -77,9 +77,10 @@ func TestStressTest(t *testing.T) {
 				Command:    "db_request",
 				Parameters: datatype.New().Set("client_id", clientID),
 			}
-			envelope, err := req.ZmqEnvelope()
+			packer := &message.MessagePacker{}
+			envelope, err := packer.SerializeRequest(&req)
 			if err != nil {
-				sendErrors <- fmt.Errorf("%s: req.ZmqEnvelope: %w", clientID, err)
+				sendErrors <- fmt.Errorf("%s: packer.SerializeRequest: %w", clientID, err)
 				return
 			}
 			if _, err := socket.SendMessage(envelope); err != nil {
@@ -108,14 +109,14 @@ func TestStressTest(t *testing.T) {
 	require.Less(t, time.Since(startedAt), 3*time.Second)
 
 	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
-	envelope, err := controlReq.ZmqEnvelope()
+	packger := &message.MessagePacker{}
+	envelope, err := packger.SerializeRequest(&controlReq)
 	require.NoError(t, err)
 	_, err = managerClient.SendMessage(envelope)
 	require.NoError(t, err)
 
 	raw, err := managerClient.RecvMessage(0)
 	require.NoError(t, err)
-	packger := &message.MessagePacker{}
 	reply, err := packger.DeserializeReply(raw)
 	require.NoError(t, err)
 	require.True(t, reply.IsOK())

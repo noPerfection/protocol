@@ -132,12 +132,12 @@ func (m *Manager) Start() error {
 }
 
 func (m *Manager) sendReply(socket *zmq.Socket, req message.RequestInterface, reply message.ReplyInterface) {
-	replyStr, err := reply.ZmqEnvelope()
+	replyStr, err := m.Packer().SerializeReply(reply)
 	if err != nil {
 		fail := req.Fail(fmt.Sprintf("failed to convert reply [%v] to string", reply))
-		replyStr, err = fail.ZmqEnvelope()
+		replyStr, err = m.Packer().SerializeReply(fail)
 		if err != nil {
-			m.LogError("req.Fail.ZmqEnvelope", "request", req, "reply", reply, "error", err)
+			m.LogError("Packer.SerializeReply", "request", req, "reply", reply, "error", err)
 			return
 		}
 	}

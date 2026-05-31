@@ -108,7 +108,7 @@ func (test *TestWorkerSuite) newExternalClient() (*zmq.Socket, error) {
 func (test *TestWorkerSuite) req(client *zmq.Socket, request message.Request) message.ReplyInterface {
 	s := &test.Suite
 
-	reqStr, err := request.ZmqEnvelope()
+	reqStr, err := test.worker.Packer().SerializeRequest(&request)
 	s.Require().NoError(err)
 
 	_, err = client.SendMessage(reqStr)
@@ -124,11 +124,11 @@ func (test *TestWorkerSuite) req(client *zmq.Socket, request message.Request) me
 }
 
 func (test *TestWorkerSuite) submit(client *zmq.Socket, request message.Request) error {
-	reqStr, err := request.ZmqEnvelope()
+	reqStr, err := test.worker.Packer().SerializeRequest(&request)
 	if err != nil {
 		return err
 	}
-	_, err = client.SendMessage("1", "", message.MessageFromEnvelope(reqStr))
+	_, err = client.SendMessage(reqStr)
 	return err
 }
 

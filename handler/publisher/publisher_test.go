@@ -113,7 +113,7 @@ func (test *TestPublisherSuite) restartSubscriber() {
 func (test *TestPublisherSuite) req(request message.Request) message.ReplyInterface {
 	s := &test.Suite
 
-	reqStr, err := request.ZmqEnvelope()
+	reqStr, err := test.pub.Packer().SerializeRequest(&request)
 	s.Require().NoError(err)
 
 	_, err = test.managerClient.SendMessage(reqStr)

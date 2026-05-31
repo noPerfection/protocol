@@ -86,7 +86,7 @@ func (test *TestPairSuite) newExternalClient() *zmq.Socket {
 func (test *TestPairSuite) req(request message.Request) message.ReplyInterface {
 	s := &test.Suite
 
-	reqStr, err := request.ZmqEnvelope()
+	reqStr, err := test.pair.Packer().SerializeRequest(&request)
 	s.Require().NoError(err)
 
 	_, err = test.managerClient.SendMessage(reqStr)
@@ -167,7 +167,7 @@ func (test *TestPairSuite) receiveRequest() message.RequestInterface {
 func (test *TestPairSuite) pairRequest(request message.Request) message.ReplyInterface {
 	s := &test.Suite
 
-	reqStr, err := request.ZmqEnvelope()
+	reqStr, err := test.pair.Packer().SerializeRequest(&request)
 	s.Require().NoError(err)
 
 	_, err = test.externalClient.SendMessage(reqStr)

@@ -398,7 +398,8 @@ func (socket *Socket) Submit(req message.RequestInterface) error {
 		return fmt.Errorf("messageOps.SerializeRequest: %w", err)
 	}
 
-	err = socket.RawSubmit(message.MessageFromEnvelope(reqStr))
+	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
+	err = socket.RawSubmit(reqMsg)
 	if err != nil {
 		return fmt.Errorf("socket.RawSubmit: %w", err)
 	}
@@ -420,7 +421,8 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 		return nil, fmt.Errorf("messageOps.SerializeRequest: %w", err)
 	}
 
-	rawReply, err := socket.RawRequest(message.MessageFromEnvelope(reqStr))
+	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
+	rawReply, err := socket.RawRequest(reqMsg)
 	if err != nil {
 		return nil, fmt.Errorf("socket.RawRequest: %w", err)
 	}

@@ -130,7 +130,7 @@ func (c *Publisher) startBroadcaster() error {
 			}
 
 			req := c.broadcasting.Pop().(message.RequestInterface)
-			reqStr, err := req.ZmqEnvelope()
+			reqStr, err := c.Packer().SerializeRequest(req)
 			if err != nil {
 				c.LogError("publisher.broadcasting.Pop", "type", "message.Request", "error", err)
 				break

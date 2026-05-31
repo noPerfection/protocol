@@ -23,14 +23,18 @@ func TestRawPacker(t *testing.T) {
 	require.Equal(t, "contenttail", reply.String())
 }
 
-func TestRawPackerRejectsInvalidEnvelope(t *testing.T) {
+func TestRawPackerSimpleEnvelope(t *testing.T) {
 	packer := RawMessage()
 
-	_, err := packer.DeserializeRequest([]string{"content"})
-	require.Error(t, err)
+	request, err := packer.DeserializeRequest([]string{"content"})
+	require.NoError(t, err)
+	require.Empty(t, request.ConId())
+	require.Equal(t, "content", request.String())
 
-	_, err = packer.DeserializeReply([]string{"content"})
-	require.Error(t, err)
+	reply, err := packer.DeserializeReply([]string{"content"})
+	require.NoError(t, err)
+	require.Empty(t, reply.ConId())
+	require.Equal(t, "content", reply.String())
 }
 
 func TestRawPackerSerializeRequest(t *testing.T) {

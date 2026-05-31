@@ -311,9 +311,10 @@ func stressClientRequest(socket *zmq.Socket, clientID string) error {
 		Command:    "db_request",
 		Parameters: datatype.New().Set("client_id", clientID),
 	}
-	envelope, err := req.ZmqEnvelope()
+	packger := &message.MessagePacker{}
+	envelope, err := packger.SerializeRequest(&req)
 	if err != nil {
-		return fmt.Errorf("req.ZmqEnvelope: %w", err)
+		return fmt.Errorf("packger.SerializeRequest: %w", err)
 	}
 
 	if _, err := socket.SendMessage(envelope); err != nil {
@@ -325,7 +326,6 @@ func stressClientRequest(socket *zmq.Socket, clientID string) error {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	packger := &message.MessagePacker{}
 	reply, err := packger.DeserializeReply(raw)
 	if err != nil {
 		return fmt.Errorf("packger.DeserializeReply: %w", err)
@@ -355,7 +355,8 @@ func closeReplierStress(managerClient *zmq.Socket) {
 	}
 
 	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
-	envelope, err := controlReq.ZmqEnvelope()
+	packger := &message.MessagePacker{}
+	envelope, err := packger.SerializeRequest(&controlReq)
 	if err == nil {
 		_, _ = managerClient.SendMessage(envelope)
 		_, _ = managerClient.RecvMessage(0)

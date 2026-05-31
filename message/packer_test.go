@@ -1,9 +1,12 @@
 package message
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/noPerfection/datatype"
+	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/require"
 )
 
@@ -154,4 +157,181 @@ func TestMessagePackerEmptyMessages(t *testing.T) {
 
 	require.IsType(t, &Request{}, packer.EmptyRequest())
 	require.IsType(t, &Reply{}, packer.EmptyReply())
+}
+
+func TestMessagePackerWithReqRepSockets(t *testing.T) {
+	packer := &MessagePacker{}
+	endpoint := fmt.Sprintf("inproc://message-packer-req-rep-%d", time.Now().UnixNano())
+
+	handler, err := zmq.NewSocket(zmq.REP)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, handler.Close()) }()
+	require.NoError(t, handler.SetLinger(0))
+	require.NoError(t, handler.SetRcvtimeo(time.Second))
+	require.NoError(t, handler.SetSndtimeo(time.Second))
+	require.NoError(t, handler.Bind(endpoint))
+
+	client, err := zmq.NewSocket(zmq.REQ)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, client.Close()) }()
+	require.NoError(t, client.SetLinger(0))
+	require.NoError(t, client.SetRcvtimeo(time.Second))
+	require.NoError(t, client.SetSndtimeo(time.Second))
+	require.NoError(t, client.Connect(endpoint))
+
+	currentTime := time.Now().UTC().Format(time.RFC3339Nano)
+	request := &Request{
+		Command:    "current_time",
+		Parameters: datatype.New().Set("current_time", currentTime),
+	}
+
+	requestEnvelope, err := packer.SerializeRequest(request)
+	require.NoError(t, err)
+	_, err = client.SendMessage(requestEnvelope)
+	require.NoError(t, err)
+
+	rawRequest, err := handler.RecvMessage(0)
+	require.NoError(t, err)
+	receivedRequest, err := packer.DeserializeRequest(rawRequest)
+	require.NoError(t, err)
+	require.Equal(t, request.CommandName(), receivedRequest.CommandName())
+
+	receivedTime, err := receivedRequest.RouteParameters().StringValue("current_time")
+	require.NoError(t, err)
+	require.Equal(t, currentTime, receivedTime)
+
+	replyEnvelope, err := packer.SerializeReply(receivedRequest.Ok(datatype.New().Set("current_time", receivedTime)))
+	require.NoError(t, err)
+	_, err = handler.SendMessage(replyEnvelope)
+	require.NoError(t, err)
+
+	rawReply, err := client.RecvMessage(0)
+	require.NoError(t, err)
+	receivedReply, err := packer.DeserializeReply(rawReply)
+	require.NoError(t, err)
+	require.True(t, receivedReply.IsOK())
+
+	replyTime, err := receivedReply.ReplyParameters().StringValue("current_time")
+	require.NoError(t, err)
+	require.Equal(t, currentTime, replyTime)
+	t.Logf("req/rep reply: status=%t current_time=%s", receivedReply.IsOK(), replyTime)
+}
+
+func TestMessagePackerWithDealerRouterSockets(t *testing.T) {
+	packer := &MessagePacker{}
+	endpoint := fmt.Sprintf("inproc://message-packer-dealer-router-%d", time.Now().UnixNano())
+
+	router, err := zmq.NewSocket(zmq.ROUTER)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, router.Close()) }()
+	require.NoError(t, router.SetLinger(0))
+	require.NoError(t, router.SetRcvtimeo(time.Second))
+	require.NoError(t, router.SetSndtimeo(time.Second))
+	require.NoError(t, router.Bind(endpoint))
+
+	dealer, err := zmq.NewSocket(zmq.DEALER)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, dealer.Close()) }()
+	require.NoError(t, dealer.SetLinger(0))
+	require.NoError(t, dealer.SetRcvtimeo(time.Second))
+	require.NoError(t, dealer.SetSndtimeo(time.Second))
+	require.NoError(t, dealer.SetIdentity("message-packer-dealer"))
+	require.NoError(t, dealer.Connect(endpoint))
+
+	currentTime := time.Now().UTC().Format(time.RFC3339Nano)
+	request := &Request{
+		Command:    "current_time",
+		Parameters: datatype.New().Set("current_time", currentTime),
+	}
+
+	requestEnvelope, err := packer.SerializeRequest(request)
+	require.NoError(t, err)
+	_, err = dealer.SendMessage(requestEnvelope)
+	require.NoError(t, err)
+
+	rawRequest, err := router.RecvMessage(0)
+	require.NoError(t, err)
+	receivedRequest, err := packer.DeserializeRequest(rawRequest)
+	require.NoError(t, err)
+	require.Equal(t, "message-packer-dealer", receivedRequest.ConId())
+	require.Equal(t, request.CommandName(), receivedRequest.CommandName())
+
+	receivedTime, err := receivedRequest.RouteParameters().StringValue("current_time")
+	require.NoError(t, err)
+	require.Equal(t, currentTime, receivedTime)
+
+	replyEnvelope, err := packer.SerializeReply(receivedRequest.Ok(datatype.New().Set("current_time", receivedTime)))
+	require.NoError(t, err)
+	_, err = router.SendMessage(replyEnvelope)
+	require.NoError(t, err)
+
+	rawReply, err := dealer.RecvMessage(0)
+	require.NoError(t, err)
+	receivedReply, err := packer.DeserializeReply(rawReply)
+	require.NoError(t, err)
+	require.True(t, receivedReply.IsOK())
+
+	replyTime, err := receivedReply.ReplyParameters().StringValue("current_time")
+	require.NoError(t, err)
+	require.Equal(t, currentTime, replyTime)
+	t.Logf("dealer/router reply: status=%t current_time=%s", receivedReply.IsOK(), replyTime)
+}
+
+func TestMessagePackerWithRequestRouterSockets(t *testing.T) {
+	packer := &MessagePacker{}
+	endpoint := fmt.Sprintf("inproc://message-packer-request-router-%d", time.Now().UnixNano())
+
+	router, err := zmq.NewSocket(zmq.ROUTER)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, router.Close()) }()
+	require.NoError(t, router.SetLinger(0))
+	require.NoError(t, router.SetRcvtimeo(time.Second))
+	require.NoError(t, router.SetSndtimeo(time.Second))
+	require.NoError(t, router.Bind(endpoint))
+
+	req, err := zmq.NewSocket(zmq.REQ)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, req.Close()) }()
+	require.NoError(t, req.SetLinger(0))
+	require.NoError(t, req.SetRcvtimeo(time.Second))
+	require.NoError(t, req.SetSndtimeo(time.Second))
+	require.NoError(t, req.Connect(endpoint))
+
+	currentTime := time.Now().UTC().Format(time.RFC3339Nano)
+	request := &Request{
+		Command:    "current_time",
+		Parameters: datatype.New().Set("current_time", currentTime),
+	}
+
+	requestEnvelope, err := packer.SerializeRequest(request)
+	require.NoError(t, err)
+	_, err = req.SendMessage(requestEnvelope)
+	require.NoError(t, err)
+
+	rawRequest, err := router.RecvMessage(0)
+	require.NoError(t, err)
+	receivedRequest, err := packer.DeserializeRequest(rawRequest)
+	require.NoError(t, err)
+	require.NotEmpty(t, receivedRequest.ConId())
+	require.Equal(t, request.CommandName(), receivedRequest.CommandName())
+
+	receivedTime, err := receivedRequest.RouteParameters().StringValue("current_time")
+	require.NoError(t, err)
+	require.Equal(t, currentTime, receivedTime)
+
+	replyEnvelope, err := packer.SerializeReply(receivedRequest.Ok(datatype.New().Set("current_time", receivedTime)))
+	require.NoError(t, err)
+	_, err = router.SendMessage(replyEnvelope)
+	require.NoError(t, err)
+
+	rawReply, err := req.RecvMessage(0)
+	require.NoError(t, err)
+	receivedReply, err := packer.DeserializeReply(rawReply)
+	require.NoError(t, err)
+	require.True(t, receivedReply.IsOK())
+
+	replyTime, err := receivedReply.ReplyParameters().StringValue("current_time")
+	require.NoError(t, err)
+	require.Equal(t, currentTime, replyTime)
+	t.Logf("req/router reply: status=%t current_time=%s", receivedReply.IsOK(), replyTime)
 }
