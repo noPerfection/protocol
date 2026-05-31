@@ -13,10 +13,6 @@ type RequestInterface interface {
 	IsFirst() bool
 	SyncTrace(ReplyInterface)
 	AddRequestStack(serviceUrl string, serverName string, serverInstance string)
-	// PublicKey For security; Work in Progress.
-	PublicKey() string
-	// SetPublicKey For security; Work in Progress.
-	SetPublicKey(publicKey string)
 	// String implements the Stringer interface from a standard library
 	String() string
 	// ZmqEnvelope converts the message to the zeromq envelope
@@ -28,7 +24,6 @@ type RequestInterface interface {
 	Fail(message string) ReplyInterface
 	Ok(parameters datatype.KeyValue) ReplyInterface
 	Traces() []*Stack
-	SetMeta(map[string]string)
 	CommandName() string
 	RouteParameters() datatype.KeyValue
 }

@@ -29,12 +29,6 @@ func (suite *TestRequestSuite) SetupTest() {
 	suite.ok = request
 }
 
-// All methods that begin with "Test" are run as tests within a
-// suite.
-func (suite *TestRequestSuite) TestIsOk() {
-	suite.Empty(suite.ok.PublicKey())
-}
-
 func (suite *TestRequestSuite) TestToString() {
 	trace := fmt.Sprintf(`[{"command":"some_command","request_time":%d,"server_instance":"instance_1","server_name":"name_1","service_url":"service_1"},{"command":"some_command","request_time":%d,"server_instance":"instance_2","server_name":"name_2","service_url":"service_2"}]`,
 		suite.ok.Trace[0].RequestTime, suite.ok.Trace[1].RequestTime)

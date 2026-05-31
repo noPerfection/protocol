@@ -234,7 +234,3 @@ func AnyRoute(handler *Handler) error {
 	}
 	return nil
 }
-
-func requiredMetadata() []string {
-	return []string{"Identity", "pub_key"}
-}

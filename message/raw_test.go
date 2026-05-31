@@ -411,34 +411,8 @@ func (test *TestRawSuite) Test_20_ReqString() {
 	s().Equal(JoinMessages(raw.messages), rawReq.String())
 }
 
-// Test_21_ReqPublicKey tests setting and retrieving the public key.
-// Tests SetPublicKey, PublicKey and SetMeta
-func (test *TestRawSuite) Test_21_ReqPublicKey() {
-	s := test.Require
-
-	publicKey := "public_key"
-	meta := map[string]string{}
-	meta["pub_key"] = publicKey
-
-	rawReq, err := NewRawReq(test.rawReq)
-	s().NoError(err)
-
-	raw := rawReq.(*RawRequest)
-	s().Empty(raw.publicKey)
-
-	rawReq.SetPublicKey(publicKey)
-	s().Equal(publicKey, rawReq.PublicKey())
-
-	// testing setup with the SetMeta
-	rawReq, err = NewRawReq(test.rawReq)
-	s().NoError(err)
-	s().Empty(rawReq.PublicKey())
-	rawReq.SetMeta(meta)
-	s().Equal(publicKey, rawReq.PublicKey())
-}
-
-// Test_22_NextReq tests creating of the next Request to send.
-func (test *TestRawSuite) Test_22_NextReq() {
+// Test_21_NextReq tests creating of the next Request to send.
+func (test *TestRawSuite) Test_21_NextReq() {
 	s := test.Require
 
 	parameters := datatype.New()
@@ -457,8 +431,8 @@ func (test *TestRawSuite) Test_22_NextReq() {
 	s().Equal(test.cmdName, req.CommandName())
 }
 
-// Test_23_ReqToReply tests creation of the successful and failed reply
-func (test *TestRawSuite) Test_23_ReqToReply() {
+// Test_22_ReqToReply tests creation of the successful and failed reply
+func (test *TestRawSuite) Test_22_ReqToReply() {
 	s := test.Require
 
 	failMessage := "error"

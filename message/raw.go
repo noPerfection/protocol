@@ -15,10 +15,9 @@ import (
 
 // RawRequest is the wrapper around zeromq message envelope.
 type RawRequest struct {
-	conId     string
-	messages  []string
-	trace     []*Stack
-	publicKey string
+	conId    string
+	messages []string
+	trace    []*Stack
 }
 
 type RawReply struct {
@@ -288,16 +287,6 @@ func (request *RawRequest) String() string {
 	return JoinMessages(messages[contentOffset:contentEnd])
 }
 
-// SetPublicKey For security; Work in Progress.
-func (request *RawRequest) SetPublicKey(publicKey string) {
-	request.publicKey = publicKey
-}
-
-// PublicKey For security; Work in Progress.
-func (request *RawRequest) PublicKey() string {
-	return request.publicKey
-}
-
 // Next creates a new request based on the previous one. It uses the Request.
 func (request *RawRequest) Next(command string, parameters datatype.KeyValue) {
 	nextReq := (&Request{Command: command, Parameters: parameters}).String()
@@ -331,13 +320,6 @@ func (request *RawRequest) Ok(parameters datatype.KeyValue) ReplyInterface {
 	}
 
 	return reply
-}
-
-func (request *RawRequest) SetMeta(meta map[string]string) {
-	pubKey, ok := meta["pub_key"]
-	if ok {
-		request.SetPublicKey(pubKey)
-	}
 }
 
 //
