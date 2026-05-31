@@ -23,7 +23,6 @@ func (suite *TestRequestSuite) SetupTest() {
 		Command:    "some_command",
 		Parameters: datatype.New(),
 	}
-	request.SetUuid()
 	request.AddRequestStack("service_1", "name_1", "instance_1")
 	request.AddRequestStack("service_2", "name_2", "instance_2")
 
@@ -37,8 +36,8 @@ func (suite *TestRequestSuite) TestIsOk() {
 }
 
 func (suite *TestRequestSuite) TestToBytes() {
-	trace := fmt.Sprintf(`[{"command":"some_command","request_time":%d,"server_instance":"instance_1","server_name":"name_1","service_url":"service_1"},{"command":"some_command","request_time":%d,"server_instance":"instance_2","server_name":"name_2","service_url":"service_2"}],"uuid":"%s"`,
-		suite.ok.Trace[0].RequestTime, suite.ok.Trace[1].RequestTime, suite.ok.Uuid)
+	trace := fmt.Sprintf(`[{"command":"some_command","request_time":%d,"server_instance":"instance_1","server_name":"name_1","service_url":"service_1"},{"command":"some_command","request_time":%d,"server_instance":"instance_2","server_name":"name_2","service_url":"service_2"}]`,
+		suite.ok.Trace[0].RequestTime, suite.ok.Trace[1].RequestTime)
 	okString := fmt.Sprintf(`{"command":"some_command","parameters":{},"traces":%s}`, trace)
 
 	okBytes, err := suite.ok.Bytes()

@@ -466,22 +466,8 @@ func (test *TestRawSuite) Test_22_ReqPublicKey() {
 	s().Equal(publicKey, rawReq.PublicKey())
 }
 
-// Test_23_ReqUuid tests the setting of the request
-func (test *TestRawSuite) Test_23_ReqUuid() {
-	s := test.Require
-
-	rawReq, err := NewRawReq(test.rawReq)
-	s().NoError(err)
-
-	raw := rawReq.(*RawRequest)
-	s().Empty(raw.Uuid)
-
-	rawReq.SetUuid()
-	s().NotEmpty(raw.Uuid)
-}
-
-// Test_24_NextReq tests creating of the next Request to send.
-func (test *TestRawSuite) Test_24_NextReq() {
+// Test_23_NextReq tests creating of the next Request to send.
+func (test *TestRawSuite) Test_23_NextReq() {
 	s := test.Require
 
 	parameters := datatype.New()
@@ -500,8 +486,8 @@ func (test *TestRawSuite) Test_24_NextReq() {
 	s().Equal(test.cmdName, req.CommandName())
 }
 
-// Test_25_ReqToReply tests creation of the successful and failed reply
-func (test *TestRawSuite) Test_25_ReqToReply() {
+// Test_24_ReqToReply tests creation of the successful and failed reply
+func (test *TestRawSuite) Test_24_ReqToReply() {
 	s := test.Require
 
 	failMessage := "error"

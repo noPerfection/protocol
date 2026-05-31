@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/noPerfection/datatype"
 )
 
@@ -16,7 +15,6 @@ import (
 
 // RawRequest is the wrapper around zeromq message envelope.
 type RawRequest struct {
-	Uuid      string
 	conId     string
 	messages  []string
 	trace     []*Stack
@@ -24,7 +22,6 @@ type RawRequest struct {
 }
 
 type RawReply struct {
-	Uuid     string
 	conId    string
 	messages []string
 	trace    []*Stack
@@ -308,11 +305,6 @@ func (request *RawRequest) PublicKey() string {
 	return request.publicKey
 }
 
-func (request *RawRequest) SetUuid() {
-	id := uuid.New()
-	request.Uuid = id.String()
-}
-
 // Next creates a new request based on the previous one. It uses the Request.
 func (request *RawRequest) Next(command string, parameters datatype.KeyValue) {
 	nextReq := (&Request{Command: command, Parameters: parameters}).String()
@@ -328,7 +320,6 @@ func (request *RawRequest) Fail(message string) ReplyInterface {
 	defaultReply, _ := (&Reply{Status: FAIL, Message: message, Parameters: datatype.New()}).ZmqEnvelope()
 
 	reply := &RawReply{
-		Uuid:     request.Uuid,
 		conId:    request.conId,
 		messages: defaultReply,
 		trace:    request.trace,
@@ -341,7 +332,6 @@ func (request *RawRequest) Ok(parameters datatype.KeyValue) ReplyInterface {
 	defaultReply, _ := (&Reply{Status: OK, Message: "", Parameters: parameters}).ZmqEnvelope()
 
 	reply := &RawReply{
-		Uuid:     request.Uuid,
 		conId:    request.conId,
 		messages: defaultReply,
 		trace:    request.trace,

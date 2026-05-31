@@ -23,7 +23,6 @@ type RequestInterface interface {
 	String() string
 	// ZmqEnvelope converts the message to the zeromq envelope
 	ZmqEnvelope() ([]string, error)
-	SetUuid()
 	// Next creates a new request based on the previous one.
 	Next(command string, parameters datatype.KeyValue)
 	// Fail creates a new Reply as a failure
