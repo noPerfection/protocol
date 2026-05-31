@@ -21,6 +21,35 @@ Client doesn't wait for a reply.
 
 ## Implementation
 
+### Clients
+Handler-specific client packages expose only the message operations that make sense for the target handler.
+
+| Package | Target handler | Client socket | Supported messages |
+|---------|----------------|---------------|--------------------|
+| `client/sync_replier` | `SyncReplier` | `REQ` | `Request` |
+| `client/replier` | `Replier` | `DEALER` | `Send`, channel-based `Receive` |
+| `client/worker` | `Worker` | `PUSH` | `Send` |
+| `client/publisher` | `Publisher` | `SUB` | channel-based `Receive` |
+| `client/pair` | `Pair` | `PAIR` | `Send`, channel-based `Receive` |
+
+The generic `client.New(id, port, handlerType)` constructor is the shared base used by those packages.
+Prefer handler-specific packages in application code:
+
+```go
+import "github.com/noPerfection/protocol/client/replier"
+
+c, err := replier.NewClient("my_handler", 0)
+if err != nil { /* ... */ }
+defer c.Close()
+
+err = c.Send(request)
+for reply := range c.Receive() {
+    _ = reply
+}
+```
+
+The base `client` package also defines `SendInterface`, `RequestInterface`, and `ReceiveInterface` for the supported operations.
+
 ### Options
 The default *timeout* is **10 Seconds**.
 The default *attempt* is **5**.

@@ -3,11 +3,9 @@ package client
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
-	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/protocol/message"
 
 	zmq "github.com/pebbe/zmq4"
@@ -21,32 +19,21 @@ const (
 	DefaultAttempt = uint8(5)
 )
 
-type Transmit struct {
-	replyMsg   chan []string
-	delayedErr chan error
-	reqMsg     string
-}
-
-type Option struct {
-	timeout time.Duration
-	attempt uint8
-}
-
 // A Socket is the structure that transmits the data to the handlers.
 type Socket struct {
 	mu            sync.Mutex
-	consumerId    uint64       // consume internal id assigned by zeromq
-	poller        *zmq.Poller  // to receive messages
-	schedulers    *zmq.Reactor // client keeps a zmqSocket for initialing a message transfer, and a queue consumer.
+	zmqMu         sync.Mutex // serializes all zmq socket and poller access
+	poller        *zmq.Poller
 	zmqSocket     *zmq.Socket
 	closed        bool
 	timeout       time.Duration
 	attempt       uint8
 	endpoint      message.Endpoint
 	handlerType   HandlerType
-	queue         *datatype.Queue
-	sent          uint64         // used for push or pair for for msg counting.
-	messagePacker message.Packer // client translates the message before and after transmitting.
+	sent          uint64
+	messagePacker message.Packer
+	dispatcher    *dispatcher
+	receiver      *receiver
 }
 
 func newSocket(handlerType HandlerType, endpoint message.Endpoint) *Socket {
@@ -56,25 +43,14 @@ func newSocket(handlerType HandlerType, endpoint message.Endpoint) *Socket {
 		attempt:       DefaultAttempt,
 		endpoint:      endpoint,
 		handlerType:   handlerType,
-		queue:         datatype.NewQueue(),
-		schedulers:    zmq.NewReactor(),
-		consumerId:    0,
 		sent:          1,
 		messagePacker: &message.MessagePacker{},
 	}
 
-	// we can remove the following lines
-	socket.consumerId = socket.schedulers.AddChannelTime(time.Tick(time.Microsecond), 0,
-		func(_ interface{}) error { return socket.handleConsume() })
-
-	go func() {
-		err := socket.schedulers.Run(time.Microsecond * 2)
-		if err != nil &&
-			err.Error() != "No sockets to poll, no channels to read" &&
-			err.Error() != "client socket closed" {
-			_, _ = fmt.Fprintf(os.Stderr, "reactor exited with an error: %v\n", err)
-		}
-	}()
+	if supportsReceive(handlerType) {
+		socket.receiver = newReceiver(socket)
+	}
+	socket.dispatcher = newDispatcher(socket)
 
 	return socket
 }
@@ -97,41 +73,6 @@ func (socket *Socket) Packer(packer message.Packer) *Socket {
 
 	socket.messagePacker = packer
 	return socket
-}
-
-// handleConsume runs in a loop to read the queue.
-// For the given queue, it will send the message to the handler.
-func (socket *Socket) handleConsume() error {
-	if socket.isClosed() {
-		return fmt.Errorf("client socket closed")
-	}
-
-	msg := socket.popTransmit()
-	if msg == nil {
-		return nil
-	}
-
-	// Send, not a reply message.
-	if msg.replyMsg == nil {
-		err := socket.rawSendByTimeout(msg.reqMsg)
-		if err != nil {
-			msg.delayedErr <- fmt.Errorf("socket.rawSendByTimeout: %w", err)
-		} else {
-			msg.delayedErr <- nil
-		}
-		return nil
-	}
-
-	reply, err := socket.rawRequestByTimeout(msg.reqMsg)
-	if err != nil {
-		msg.delayedErr <- err
-		return nil
-	}
-
-	msg.delayedErr <- nil
-	msg.replyMsg <- reply
-
-	return nil
 }
 
 // Attempts to connect to the endpoint.
@@ -159,6 +100,8 @@ func (socket *Socket) reconnect() (err error) {
 		return fmt.Errorf("zmqSocket.Connect('%s'): %w", url, err)
 	}
 
+	socket.afterReconnect(socketType)
+
 	socket.poller = zmq.NewPoller()
 
 	return nil
@@ -180,9 +123,22 @@ func (socket *Socket) Close() error {
 		return nil
 	}
 	socket.closed = true
+	recv := socket.receiver
+	dispatcher := socket.dispatcher
+	socket.mu.Unlock()
+
+	if dispatcher != nil {
+		dispatcher.stop()
+	}
+
+	if recv != nil {
+		recv.close()
+	}
+
+	socket.zmqMu.Lock()
 	zmqSocket := socket.zmqSocket
 	socket.zmqSocket = nil
-	socket.mu.Unlock()
+	socket.zmqMu.Unlock()
 
 	if zmqSocket == nil {
 		return nil
@@ -235,59 +191,12 @@ func (socket *Socket) isClosed() bool {
 	return socket.closed
 }
 
-func (socket *Socket) enqueueTransmit(msg *Transmit) error {
-	socket.mu.Lock()
-	defer socket.mu.Unlock()
-
-	if socket.closed {
-		return fmt.Errorf("client socket closed")
-	}
-	if socket.queue.IsFull() {
-		return fmt.Errorf("queue is full, try again later")
-	}
-
-	socket.queue.Push(msg)
-	return nil
-}
-
-func (socket *Socket) popTransmit() *Transmit {
-	socket.mu.Lock()
-	defer socket.mu.Unlock()
-
-	if socket.queue.IsEmpty() {
-		return nil
-	}
-
-	return socket.queue.Pop().(*Transmit)
-}
-
-func (socket *Socket) request(raw string) ([]string, error) {
-	// todo, a message channel must return the error as well
-	// todo, rename Transmit.reply a type to Reply.
-	msg := &Transmit{
-		replyMsg:   make(chan []string),
-		delayedErr: make(chan error),
-		reqMsg:     raw,
-	}
-	if err := socket.enqueueTransmit(msg); err != nil {
-		return nil, err
-	}
-
-	err := <-msg.delayedErr
-
-	if err != nil {
-		return nil, err
-	}
-
-	reply := <-msg.replyMsg
-	return reply, nil
-}
-
 func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
+	socket.zmqMu.Lock()
+	defer socket.zmqMu.Unlock()
+
 	timeoutDuration, attempt := socket.options()
 
-	// Since we decrement before an attempt, it will be 0
-	// If we had 1 attempt.
 	attempt++
 
 	for {
@@ -307,14 +216,12 @@ func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
 
 		socket.updateToPollIn()
 
-		// Poll zmqSocket for a reply, with timeout
 		sockets, err := socket.poller.Poll(timeoutDuration)
 		if err != nil {
 			return nil, fmt.Errorf("poll error: %w", err)
 		}
 
 		if len(sockets) > 0 {
-			// Wait for a reply.
 			r, err := socket.zmqSocket.RecvMessage(0)
 			if err != nil {
 				return nil, fmt.Errorf("zmqSocket.RecvMessage: %w", err)
@@ -325,22 +232,10 @@ func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
 	}
 }
 
-func (socket *Socket) send(raw string) error {
-	msg := &Transmit{
-		replyMsg:   nil,
-		delayedErr: make(chan error),
-		reqMsg:     raw,
-	}
-	if err := socket.enqueueTransmit(msg); err != nil {
-		return err
-	}
-
-	err := <-msg.delayedErr
-
-	return err
-}
-
 func (socket *Socket) rawSendByTimeout(raw string) error {
+	socket.zmqMu.Lock()
+	defer socket.zmqMu.Unlock()
+
 	_, attempt := socket.options()
 
 	for {
@@ -368,7 +263,6 @@ func (socket *Socket) rawSendByTimeout(raw string) error {
 func (socket *Socket) rawSend(raw string) (bool, error) {
 	timeoutDuration, _ := socket.options()
 
-	// no need to reconnect every time.
 	err := socket.reconnect()
 	if err != nil {
 		return false, fmt.Errorf("initial  socket.reconnect: %w", err)
@@ -389,7 +283,6 @@ func (socket *Socket) rawSend(raw string) (bool, error) {
 		socket.sent++
 	}
 
-	// Poll zmqSocket for a reply, with timeout
 	sockets, err := socket.poller.Poll(timeoutDuration)
 	if err != nil {
 		return false, fmt.Errorf("poll error: %w", err)
@@ -430,18 +323,15 @@ func (socket *Socket) omitReplyIfPresent() {
 	_, _ = socket.zmqSocket.RecvMessage(0)
 }
 
-//
-// The client that works with the message.RequestInterface and message.ReplyInterface
-//
-
 func (socket *Socket) Send(req message.RequestInterface) error {
-	reqStr, err := socket.messagePacker.SerializeRequest(req)
+	packer := socket.packer()
+	reqStr, err := packer.SerializeRequest(req)
 	if err != nil {
 		return fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
 
 	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
-	err = socket.send(reqMsg)
+	err = socket.dispatcher.send(reqMsg)
 	if err != nil {
 		return fmt.Errorf("socket.send: %w", err)
 	}
@@ -451,25 +341,20 @@ func (socket *Socket) Send(req message.RequestInterface) error {
 
 // Request sends the request message to the zmqSocket.
 // Returns the message.Reply.Parameters in case of success.
-//
-// Error is returned in other cases.
-//
-// If the client service returned a failure message, it's converted into an error.
-//
-// The zmqSocket type should be REQ or PUSH.
 func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterface, error) {
-	reqStr, err := socket.messagePacker.SerializeRequest(req)
+	packer := socket.packer()
+	reqStr, err := packer.SerializeRequest(req)
 	if err != nil {
 		return nil, fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
 
 	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
-	rawReply, err := socket.request(reqMsg)
+	rawReply, err := socket.dispatcher.request(reqMsg)
 	if err != nil {
 		return nil, fmt.Errorf("socket.request: %w", err)
 	}
 
-	reply, err := socket.messagePacker.DeserializeReply(rawReply)
+	reply, err := packer.DeserializeReply(rawReply)
 	if err != nil {
 		return nil, fmt.Errorf("packer.DeserializeReply('%v'): %w", rawReply, err)
 	}

@@ -41,7 +41,7 @@ func (test *TestClientSuite) TearDownTest() {
 		require().NoError(test.backend.Close())
 	}
 
-	if test.socket.zmqSocket != nil {
+	if test.socket != nil {
 		require().NoError(test.socket.Close())
 	}
 
@@ -322,7 +322,7 @@ func (test *TestClientSuite) Test_18_ThreadSafety() {
 	requestAsync := func(socket *Socket, raw string) <-chan rawReplyResult {
 		result := make(chan rawReplyResult, 1)
 		go func() {
-			reply, err := socket.request(raw)
+			reply, err := socket.dispatcher.request(raw)
 			result <- rawReplyResult{raw: reply, err: err}
 		}()
 		return result
@@ -333,7 +333,7 @@ func (test *TestClientSuite) Test_18_ThreadSafety() {
 			delayedErr: make(chan error),
 			reqMsg:     raw,
 		}
-		if err := test.socket.enqueueTransmit(transmit); err != nil {
+		if err := test.socket.dispatcher.enqueueTransmit(transmit); err != nil {
 			return nil, err
 		}
 		return transmit, nil
