@@ -35,40 +35,37 @@ func (suite *TestRequestSuite) TestIsOk() {
 	suite.Empty(suite.ok.PublicKey())
 }
 
-func (suite *TestRequestSuite) TestToBytes() {
+func (suite *TestRequestSuite) TestToString() {
 	trace := fmt.Sprintf(`[{"command":"some_command","request_time":%d,"server_instance":"instance_1","server_name":"name_1","service_url":"service_1"},{"command":"some_command","request_time":%d,"server_instance":"instance_2","server_name":"name_2","service_url":"service_2"}]`,
 		suite.ok.Trace[0].RequestTime, suite.ok.Trace[1].RequestTime)
 	okString := fmt.Sprintf(`{"command":"some_command","parameters":{},"traces":%s}`, trace)
 
-	okBytes, err := suite.ok.Bytes()
-	suite.NoError(err)
-
-	suite.EqualValues(okString, string(okBytes))
+	suite.EqualValues(okString, suite.ok.String())
 
 	// The Parameters as a nil should fail
 	request := Request{}
-	_, err = request.Bytes()
+	_, err := request.ZmqEnvelope()
 	suite.Error(err)
 
 	// The Failure request can not have an empty message
 	request = Request{
 		Command: "command",
 	}
-	_, err = request.Bytes()
+	_, err = request.ZmqEnvelope()
 	suite.Error(err)
 
 	// The Failure request can not have an empty message
 	request = Request{
 		Parameters: datatype.New(),
 	}
-	_, err = request.Bytes()
+	_, err = request.ZmqEnvelope()
 	suite.Error(err)
 }
 
 func (suite *TestRequestSuite) TestParsing() {
-	okString, _ := suite.ok.Bytes()
+	okString := suite.ok.String()
 
-	ok, err := NewReq([]string{string(okString)})
+	ok, err := NewReq([]string{okString})
 	suite.Require().NoError(err)
 
 	suite.EqualValues(suite.ok, ok)

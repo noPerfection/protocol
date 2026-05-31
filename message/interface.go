@@ -13,8 +13,6 @@ type RequestInterface interface {
 	IsFirst() bool
 	SyncTrace(ReplyInterface)
 	AddRequestStack(serviceUrl string, serverName string, serverInstance string)
-	// Bytes convert the message to the sequence of bytes
-	Bytes() ([]byte, error)
 	// PublicKey For security; Work in Progress.
 	PublicKey() string
 	// SetPublicKey For security; Work in Progress.
@@ -47,8 +45,6 @@ type ReplyInterface interface {
 	String() string
 	// ZmqEnvelope converts the message to the zeromq envelope
 	ZmqEnvelope() ([]string, error)
-	// Bytes converts Reply to the sequence of bytes
-	Bytes() ([]byte, error)
 	Traces() []*Stack
 	ErrorMessage() string
 	ReplyParameters() datatype.KeyValue

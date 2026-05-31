@@ -40,24 +40,19 @@ func (suite *TestReplySuite) TestIsOk() {
 	suite.False(suite.fail.IsOK())
 }
 
-func (suite *TestReplySuite) TestToBytes() {
+func (suite *TestReplySuite) TestToString() {
 	okString := `{"message":"","parameters":{},"status":"OK"}`
 	failString := `{"message":"failed for testing purpose","parameters":{},"status":"fail"}`
 
-	failBytes, err := suite.fail.Bytes()
-	suite.NoError(err)
-	okBytes, err := suite.ok.Bytes()
-	suite.NoError(err)
-
-	suite.EqualValues(okString, string(okBytes))
-	suite.EqualValues(failString, string(failBytes))
+	suite.EqualValues(okString, suite.ok.String())
+	suite.EqualValues(failString, suite.fail.String())
 
 	// The Parameters as a nil should fail
 	reply := Reply{
 		Status:  FAIL,
 		Message: "failed for testing purpose",
 	}
-	_, err = reply.Bytes()
+	_, err := reply.ZmqEnvelope()
 	suite.Error(err)
 
 	// The Failure reply can not have an empty message
@@ -65,7 +60,7 @@ func (suite *TestReplySuite) TestToBytes() {
 		Status:     FAIL,
 		Parameters: datatype.New(),
 	}
-	_, err = reply.Bytes()
+	_, err = reply.ZmqEnvelope()
 	suite.Error(err)
 
 	// The Failure reply can not have an empty message
@@ -73,17 +68,17 @@ func (suite *TestReplySuite) TestToBytes() {
 		Message:    "",
 		Parameters: datatype.New(),
 	}
-	_, err = reply.Bytes()
+	_, err = reply.ZmqEnvelope()
 	suite.Error(err)
 }
 
 func (suite *TestReplySuite) TestParsing() {
-	failString, _ := suite.fail.Bytes()
-	okString, _ := suite.ok.Bytes()
+	failString := suite.fail.String()
+	okString := suite.ok.String()
 
-	ok, err := NewRep([]string{string(okString)})
+	ok, err := NewRep([]string{okString})
 	suite.Require().NoError(err)
-	fail, err := NewRep([]string{string(failString)})
+	fail, err := NewRep([]string{failString})
 	suite.Require().NoError(err)
 
 	suite.EqualValues(suite.ok, ok)

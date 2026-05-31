@@ -38,9 +38,8 @@ func NewRep(messages []string) (ReplyInterface, error) {
 	}
 
 	// It will call valid_fail(), valid_status()
-	_, err = reply.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("validation: %w", err)
+	if reply.String() == "" {
+		return nil, fmt.Errorf("validation failed")
 	}
 
 	return &reply, nil
@@ -87,7 +86,21 @@ func (reply *Reply) IsOK() bool {
 
 // String converts the Reply to the string format
 func (reply *Reply) String() string {
-	bytes, err := reply.Bytes()
+	err := ValidFail(reply.Status, reply.Message)
+	if err != nil {
+		return ""
+	}
+	err = ValidStatus(reply.Status)
+	if err != nil {
+		return ""
+	}
+
+	kv, err := datatype.NewFromInterface(reply)
+	if err != nil {
+		return ""
+	}
+
+	bytes, err := kv.Bytes()
 	if err != nil {
 		return ""
 	}
@@ -96,40 +109,14 @@ func (reply *Reply) String() string {
 }
 
 func (reply *Reply) ZmqEnvelope() ([]string, error) {
-	bytes, err := reply.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("request.ZmqEnvelope: %w", err)
+	str := reply.String()
+	if len(str) == 0 {
+		return nil, fmt.Errorf("reply.String returned an empty string")
 	}
-
-	str := string(bytes)
 
 	if len(reply.conId) > 0 {
 		return []string{reply.conId, "", str}, nil
 	}
 
 	return []string{"", str}, nil
-}
-
-// Bytes converts Reply to the sequence of bytes
-func (reply *Reply) Bytes() ([]byte, error) {
-	err := ValidFail(reply.Status, reply.Message)
-	if err != nil {
-		return nil, fmt.Errorf("failure validation: %w", err)
-	}
-	err = ValidStatus(reply.Status)
-	if err != nil {
-		return nil, fmt.Errorf("status validation: %w", err)
-	}
-
-	kv, err := datatype.NewFromInterface(reply)
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize Reply to key-value: %v", err)
-	}
-
-	bytes, err := kv.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("serialized key-value.Bytes: %w", err)
-	}
-
-	return bytes, nil
 }

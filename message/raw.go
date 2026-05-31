@@ -288,16 +288,6 @@ func (request *RawRequest) String() string {
 	return JoinMessages(messages[contentOffset:contentEnd])
 }
 
-// Bytes convert the message to the sequence of bytes
-func (request *RawRequest) Bytes() ([]byte, error) {
-	str := request.String()
-	if len(str) == 0 {
-		return nil, fmt.Errorf("request.String returned an empty string. Try to test it with ZmqEnvelope")
-	}
-
-	return []byte(str), nil
-}
-
 // SetPublicKey For security; Work in Progress.
 func (request *RawRequest) SetPublicKey(publicKey string) {
 	request.publicKey = publicKey
@@ -483,14 +473,4 @@ func (reply *RawReply) ZmqEnvelope() ([]string, error) {
 	}
 
 	return messages, nil
-}
-
-// Bytes convert the message to the sequence of bytes
-func (reply *RawReply) Bytes() ([]byte, error) {
-	str := reply.String()
-	if len(str) == 0 {
-		return nil, fmt.Errorf("request.String returned an empty string try to test it with calling ZmqEnvelope")
-	}
-
-	return []byte(str), nil
 }

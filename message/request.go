@@ -50,9 +50,8 @@ func NewReq(messages []string) (RequestInterface, error) {
 	}
 
 	// verify that data is not nil
-	_, err = request.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate: %w", err)
+	if request.String() == "" {
+		return nil, fmt.Errorf("failed to validate")
 	}
 
 	if MultiPart(messages) {
@@ -124,24 +123,37 @@ func (request *Request) AddRequestStack(serviceUrl string, serverName string, se
 	request.Trace = append(request.Trace, stack)
 }
 
-// Bytes convert the message to the sequence of bytes
-func (request *Request) Bytes() ([]byte, error) {
+// JoinMessages the message
+func (request *Request) String() string {
 	err := ValidCommand(request.Command)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate command: %w", err)
+		return ""
 	}
 
 	kv, err := datatype.NewFromInterface(request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize Request to key-value: %v", err)
+		return ""
 	}
 
 	bytes, err := kv.Bytes()
 	if err != nil {
-		return nil, fmt.Errorf("kv.Bytes: %w", err)
+		return ""
 	}
 
-	return bytes, nil
+	return string(bytes)
+}
+
+func (request *Request) ZmqEnvelope() ([]string, error) {
+	str := request.String()
+	if str == "" {
+		return nil, fmt.Errorf("request.String returned an empty string")
+	}
+
+	if len(request.conId) > 0 {
+		return []string{request.conId, "", str}, nil
+	}
+
+	return []string{"", str}, nil
 }
 
 // SetPublicKey For security; Work in Progress.
@@ -152,30 +164,6 @@ func (request *Request) SetPublicKey(publicKey string) {
 // PublicKey For security; Work in Progress.
 func (request *Request) PublicKey() string {
 	return request.publicKey
-}
-
-// JoinMessages the message
-func (request *Request) String() string {
-	bytes, err := request.Bytes()
-	if err != nil {
-		return ""
-	}
-
-	return string(bytes)
-}
-
-func (request *Request) ZmqEnvelope() ([]string, error) {
-	bytes, err := request.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("request.ZmqEnvelope: %w", err)
-	}
-	str := string(bytes)
-
-	if len(request.conId) > 0 {
-		return []string{request.conId, "", str}, nil
-	}
-
-	return []string{"", str}, nil
 }
 
 // Next creates a new request based on the previous one.

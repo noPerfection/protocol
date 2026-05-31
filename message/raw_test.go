@@ -411,38 +411,9 @@ func (test *TestRawSuite) Test_20_ReqString() {
 	s().Equal(JoinMessages(raw.messages), rawReq.String())
 }
 
-// Test_21_ReqBytes tests the string is valid bytes
-func (test *TestRawSuite) Test_21_ReqBytes() {
-	s := test.Require
-
-	rawReq, err := NewRawReq(test.rawReq)
-	s().NoError(err)
-	bytes, err := rawReq.Bytes()
-	s().NoError(err)
-	s().NotEmpty(bytes)
-
-	// trying to get the empty message
-	emptyMessage := []string{"req_id", "", ""}
-	rawReq, err = NewRawReq(emptyMessage)
-	s().NoError(err)
-	s().True(rawReq.IsFirst())
-	s().Empty(rawReq.String())
-	_, err = rawReq.Bytes()
-	s().Error(err)
-
-	// empty message must work even with the stack
-	emptyMessage = append(emptyMessage, "", test.stacks)
-	rawReq, err = NewRawReq(emptyMessage)
-	s().NoError(err)
-	s().False(rawReq.IsFirst())
-	s().Empty(rawReq.String())
-	_, err = rawReq.Bytes()
-	s().Error(err)
-}
-
-// Test_22_ReqPublicKey tests setting and retrieving the public key.
+// Test_21_ReqPublicKey tests setting and retrieving the public key.
 // Tests SetPublicKey, PublicKey and SetMeta
-func (test *TestRawSuite) Test_22_ReqPublicKey() {
+func (test *TestRawSuite) Test_21_ReqPublicKey() {
 	s := test.Require
 
 	publicKey := "public_key"
@@ -466,8 +437,8 @@ func (test *TestRawSuite) Test_22_ReqPublicKey() {
 	s().Equal(publicKey, rawReq.PublicKey())
 }
 
-// Test_23_NextReq tests creating of the next Request to send.
-func (test *TestRawSuite) Test_23_NextReq() {
+// Test_22_NextReq tests creating of the next Request to send.
+func (test *TestRawSuite) Test_22_NextReq() {
 	s := test.Require
 
 	parameters := datatype.New()
@@ -486,8 +457,8 @@ func (test *TestRawSuite) Test_23_NextReq() {
 	s().Equal(test.cmdName, req.CommandName())
 }
 
-// Test_24_ReqToReply tests creation of the successful and failed reply
-func (test *TestRawSuite) Test_24_ReqToReply() {
+// Test_23_ReqToReply tests creation of the successful and failed reply
+func (test *TestRawSuite) Test_23_ReqToReply() {
 	s := test.Require
 
 	failMessage := "error"
