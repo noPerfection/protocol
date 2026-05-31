@@ -52,7 +52,7 @@ Otherwise if you don't want to handle with it simply use the `message.go` packag
 Most users do not need to dig into the zmq protocl. Use the helper API in `message.go` when working with envelopes:
 
 - `ValidateEnvelope([]string) error` detects envelopes is following zmq protocol or not.
-- `MessageFromEnvelope(conId string, message string, tail ...string) ([]string, error)` returns zmq envelope.
+- `MessageToEnvelope(conId string, message string, tail ...string) []string` returns zmq envelope.
 - `EnvelopeToMessage([]string) (conId string, message string, tail []string)` returns `conId`, the first message body frame, and tail frames.
 
 ## Packer API

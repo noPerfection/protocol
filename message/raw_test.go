@@ -33,19 +33,19 @@ func TestRawPackerRejectsInvalidEnvelope(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRawZmqEnvelope(t *testing.T) {
+func TestRawPackerSerializeRequest(t *testing.T) {
 	packer := RawMessage()
 	envelope := []string{"con-id", "", "content", "tail"}
 
 	request, err := packer.DeserializeRequest(envelope)
 	require.NoError(t, err)
 
-	actual, err := request.ZmqEnvelope()
+	actual, err := packer.SerializeRequest(request)
 	require.NoError(t, err)
 	require.Equal(t, envelope, actual)
 
 	request.SetConId("")
-	actual, err = request.ZmqEnvelope()
+	actual, err = packer.SerializeRequest(request)
 	require.NoError(t, err)
 	require.Equal(t, []string{"", "content", "tail"}, actual)
 }

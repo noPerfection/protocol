@@ -28,7 +28,7 @@ func TestMessagePackerDeserializeRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = packer.DeserializeRequest(MessageToEnvelope("", `{"parameters":{}}`))
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	_, err = packer.DeserializeRequest(MessageToEnvelope("", `{"command":"command"}`))
 	require.Error(t, err)
@@ -100,6 +100,20 @@ func TestMessagePackerSerializeRequest(t *testing.T) {
 	require.Equal(t, MessageToEnvelope("", request.String()), envelope)
 }
 
+func TestMessagePackerSerializeRequestValidation(t *testing.T) {
+	packer := &MessagePacker{}
+
+	_, err := packer.SerializeRequest(&Request{})
+	require.Error(t, err)
+
+	_, err = packer.SerializeRequest(&Request{Command: "command"})
+	require.Error(t, err)
+
+	envelope, err := packer.SerializeRequest(&Request{Parameters: datatype.New()})
+	require.NoError(t, err)
+	require.Equal(t, MessageToEnvelope("", `{"command":"","parameters":{}}`), envelope)
+}
+
 func TestMessagePackerSerializeReply(t *testing.T) {
 	packer := &MessagePacker{}
 	reply := &Reply{
@@ -111,6 +125,28 @@ func TestMessagePackerSerializeReply(t *testing.T) {
 	envelope, err := packer.SerializeReply(reply)
 	require.NoError(t, err)
 	require.Equal(t, MessageToEnvelope("", reply.String()), envelope)
+}
+
+func TestMessagePackerSerializeReplyRejectsInvalidReply(t *testing.T) {
+	packer := &MessagePacker{}
+
+	_, err := packer.SerializeReply(&Reply{
+		Status:  FAIL,
+		Message: "failed for testing purpose",
+	})
+	require.Error(t, err)
+
+	_, err = packer.SerializeReply(&Reply{
+		Status:     FAIL,
+		Parameters: datatype.New(),
+	})
+	require.Error(t, err)
+
+	_, err = packer.SerializeReply(&Reply{
+		Message:    "",
+		Parameters: datatype.New(),
+	})
+	require.Error(t, err)
 }
 
 func TestMessagePackerEmptyMessages(t *testing.T) {

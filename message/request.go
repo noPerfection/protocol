@@ -1,10 +1,6 @@
 package message
 
-import (
-	"fmt"
-
-	"github.com/noPerfection/datatype"
-)
+import "github.com/noPerfection/datatype"
 
 // RequestInterface generic requests
 type RequestInterface interface {
@@ -13,8 +9,6 @@ type RequestInterface interface {
 	SetConId(string)
 	// String implements the Stringer interface from a standard library
 	String() string
-	// ZmqEnvelope converts the message to the zeromq envelope
-	ZmqEnvelope() ([]string, error)
 	// Fail creates a new Reply as a failure
 	// It accepts the error message that explains the reason of the failure.
 	Fail(message string) ReplyInterface
@@ -24,8 +18,6 @@ type RequestInterface interface {
 }
 
 var _ RequestInterface = (*Request)(nil)
-
-}
 
 // Request message sent by Client socket and accepted by ControllerCategory socket.
 type Request struct {
@@ -66,19 +58,6 @@ func (request *Request) String() string {
 	}
 
 	return string(bytes)
-}
-
-func (request *Request) ZmqEnvelope() ([]string, error) {
-	str := request.String()
-	if str == "" {
-		return nil, fmt.Errorf("request.String returned an empty string")
-	}
-
-	if len(request.conId) > 0 {
-		return []string{request.conId, "", str}, nil
-	}
-
-	return []string{"", str}, nil
 }
 
 // Fail creates a new Reply as a failure

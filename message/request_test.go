@@ -33,22 +33,19 @@ func (suite *TestRequestSuite) TestToString() {
 
 	// The Parameters as a nil should fail
 	request := Request{}
-	_, err := request.ZmqEnvelope()
-	suite.Error(err)
+	suite.Empty(request.String())
 
-	// The Failure request can not have an empty message
+	// Requests without parameters can not be serialized.
 	request = Request{
 		Command: "command",
 	}
-	_, err = request.ZmqEnvelope()
-	suite.Error(err)
+	suite.Empty(request.String())
 
-	// The Failure request can not have an empty message
+	// Empty commands are allowed; routing validation happens outside the message type.
 	request = Request{
 		Parameters: datatype.New(),
 	}
-	_, err = request.ZmqEnvelope()
-	suite.Error(err)
+	suite.EqualValues(`{"command":"","parameters":{}}`, request.String())
 }
 
 // In order for 'go test' to run this suite, we need to create

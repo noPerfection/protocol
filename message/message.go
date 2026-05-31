@@ -4,14 +4,24 @@ import "fmt"
 
 func ValidEnvelope(messages []string) error {
 	if len(messages) == 0 {
-		return fmt.Errorf("envelope is empty")
+		return fmt.Errorf("empty envelope, msg len is 0")
 	}
 
-	if (len(messages) >= 2) && messages[0] == "" {
-		return fmt.Errorf("first delimiter is missing")
+	// With ConID as the first frame according to zmq protocol
+	if messages[0] != "" {
+		if len(messages) < 3 {
+			return fmt.Errorf("envelope with conId is too short")
+		}
+		// ConID delimiter is the second frame according to zmq protocol
+		if messages[1] != "" {
+			return fmt.Errorf("conId delimiter is missing")
+		}
+
+		return nil
 	}
-	if (len(messages) >= 3) && messages[1] == "" {
-		return fmt.Errorf("conid delimiter is missing")
+	// Without ConID, then is it even have a message or only delimiter, or perhaps its empty?
+	if len(messages) == 1 || messages[1] == "" {
+		return fmt.Errorf("empty message without conId")
 	}
 
 	return nil
@@ -23,25 +33,14 @@ func EnvelopeToMessage(messages []string) (conId string, message string, tail []
 		return "", "", []string{}
 	}
 
-	if len(messages) >= 3 {
+	// With ConID
+	if messages[0] != "" {
 		conId = messages[0]
 		message = messages[1]
-		if len(messages) > 3 {
-			tail = messages[3:]
-		} else {
-			tail = []string{}
-		}
-	} else if len(messages) >= 2 {
-		conId = ""
-		message = messages[1]
-		if len(messages) > 2 {
-			tail = messages[2:]
-		} else {
-			tail = []string{}
-		}
+		return conId, messages[2], messages[3:]
 	}
 
-	return conId, message, tail
+	return "", messages[1], messages[2:]
 }
 
 // MessageToEnvelope builds an envelope from connection id, first message body, and tail frames.

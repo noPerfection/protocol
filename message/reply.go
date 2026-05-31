@@ -14,8 +14,6 @@ type ReplyInterface interface {
 	// String converts the Reply to the string format. Empty if occurred an error.
 	// It implements Stringer interface from a standard library
 	String() string
-	// ZmqEnvelope converts the message to the zeromq envelope
-	ZmqEnvelope() ([]string, error)
 	ErrorMessage() string
 	ReplyParameters() datatype.KeyValue
 }
@@ -82,19 +80,6 @@ func (reply *Reply) String() string {
 	}
 
 	return string(bytes)
-}
-
-func (reply *Reply) ZmqEnvelope() ([]string, error) {
-	str := reply.String()
-	if len(str) == 0 {
-		return nil, fmt.Errorf("reply.String returned an empty string")
-	}
-
-	if len(reply.conId) > 0 {
-		return []string{reply.conId, "", str}, nil
-	}
-
-	return []string{"", str}, nil
 }
 
 // ValidStatus validates the status of the reply.

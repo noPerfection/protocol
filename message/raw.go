@@ -30,6 +30,7 @@ func (packer *RawPacker) DeserializeRequest(envelope []string) (RequestInterface
 	}
 
 	conId, message, tail := EnvelopeToMessage(envelope)
+	fmt.Println("DeserializeRequest conId: ", conId, "message: ", message, "tail: ", tail)
 
 	request := &Raw{
 		conId:    conId,
@@ -37,6 +38,8 @@ func (packer *RawPacker) DeserializeRequest(envelope []string) (RequestInterface
 	}
 
 	request.messages = append(request.messages, tail...)
+
+	fmt.Println("DeserializeRequest request: ", request.messages)
 
 	return request, nil
 }
@@ -105,14 +108,6 @@ func (request *Raw) ConId() string {
 
 func (request *Raw) SetConId(conId string) {
 	request.conId = conId
-}
-
-// ZmqEnvelope the message
-func (request *Raw) ZmqEnvelope() ([]string, error) {
-	if len(request.messages) > 1 {
-		return MessageToEnvelope(request.conId, request.messages[0], request.messages[1:]...), nil
-	}
-	return MessageToEnvelope(request.conId, request.messages[0]), nil
 }
 
 // String the message

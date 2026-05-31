@@ -52,24 +52,21 @@ func (suite *TestReplySuite) TestToString() {
 		Status:  FAIL,
 		Message: "failed for testing purpose",
 	}
-	_, err := reply.ZmqEnvelope()
-	suite.Error(err)
+	suite.Empty(reply.String())
 
 	// The Failure reply can not have an empty message
 	reply = Reply{
 		Status:     FAIL,
 		Parameters: datatype.New(),
 	}
-	_, err = reply.ZmqEnvelope()
-	suite.Error(err)
+	suite.Empty(reply.String())
 
 	// The Failure reply can not have an empty message
 	reply = Reply{
 		Message:    "",
 		Parameters: datatype.New(),
 	}
-	_, err = reply.ZmqEnvelope()
-	suite.Error(err)
+	suite.Empty(reply.String())
 }
 
 // In order for 'go test' to run this suite, we need to create
