@@ -39,37 +39,6 @@ type Reply struct {
 
 var _ ReplyInterface = (*Reply)(nil)
 
-func NewEmptyReply() ReplyInterface {
-	return &Reply{}
-}
-
-// NewRep decodes Zeromq messages into Reply.
-func NewRep(messages []string) (ReplyInterface, error) {
-	if err := ValidEnvelope(messages); err != nil {
-		return nil, err
-	}
-
-	conId, msg, _ := EnvelopeToMessage(messages)
-	data, err := datatype.NewFromString(msg)
-	if err != nil {
-		return nil, fmt.Errorf("datatype.NewFromString: %w", err)
-	}
-
-	var reply Reply
-	err = data.Interface(&reply)
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize key-value to msg.Reply: %v", err)
-	}
-	reply.conId = conId
-
-	// It will call valid_fail(), valid_status()
-	if reply.String() == "" {
-		return nil, fmt.Errorf("validation failed")
-	}
-
-	return &reply, nil
-}
-
 func (reply *Reply) ErrorMessage() string {
 	return reply.Message
 }

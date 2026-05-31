@@ -117,7 +117,7 @@ func (test *TestWorkerSuite) req(client *zmq.Socket, request message.Request) me
 	raw, err := client.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := message.NewRep(raw)
+	reply, err := test.worker.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply

@@ -62,7 +62,7 @@ A packer implements:
 ```go
 type Packer interface {
 	DeserializeRequest(zmqEnvelope []string) (RequestInterface, error)
-	DeseralizeReply(zmqEnvelope []string) (ReplyInterface, error)
+	DeserializeReply(zmqEnvelope []string) (ReplyInterface, error)
 	SerializeRequest(request RequestInterface) ([]string, error)
 	SerializeReply(reply ReplyInterface) ([]string, error)
 	EmptyRequest() RequestInterface

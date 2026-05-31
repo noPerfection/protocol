@@ -41,7 +41,7 @@ func (packer *RawPacker) DeserializeRequest(envelope []string) (RequestInterface
 	return request, nil
 }
 
-func (packer *RawPacker) DeseralizeReply(envelope []string) (ReplyInterface, error) {
+func (packer *RawPacker) DeserializeReply(envelope []string) (ReplyInterface, error) {
 	if err := ValidEnvelope(envelope); err != nil {
 		return nil, err
 	}

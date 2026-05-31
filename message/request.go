@@ -25,47 +25,6 @@ type RequestInterface interface {
 
 var _ RequestInterface = (*Request)(nil)
 
-func NewEmptyReq() RequestInterface {
-	return &Request{}
-}
-
-// ValidCommand checks if the reply type is failure, then
-// THe message should be given too
-func ValidCommand(cmd string) error {
-	if len(cmd) == 0 {
-		return fmt.Errorf("command is missing")
-	}
-
-	return nil
-}
-
-// NewReq from the zeromq messages
-func NewReq(messages []string) (RequestInterface, error) {
-	if err := ValidEnvelope(messages); err != nil {
-		return nil, err
-	}
-
-	conId, msg, _ := EnvelopeToMessage(messages)
-
-	data, err := datatype.NewFromString(msg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert message string %s to key-value: %v", msg, err)
-	}
-
-	var request Request
-	err = data.Interface(&request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert key-value %v to intermediate interface: %v", data, err)
-	}
-
-	// verify that data is not nil
-	if request.String() == "" {
-		return nil, fmt.Errorf("failed to validate")
-	}
-
-	request.conId = conId
-
-	return &request, nil
 }
 
 // Request message sent by Client socket and accepted by ControllerCategory socket.
@@ -96,11 +55,6 @@ func (request *Request) SetConId(conId string) {
 
 // String returns the message body.
 func (request *Request) String() string {
-	err := ValidCommand(request.Command)
-	if err != nil {
-		return ""
-	}
-
 	kv, err := datatype.NewFromInterface(request)
 	if err != nil {
 		return ""

@@ -16,7 +16,7 @@ func TestRawPacker(t *testing.T) {
 	require.Equal(t, "con-id", request.ConId())
 	require.Equal(t, "contenttail", request.String())
 
-	reply, err := packer.DeseralizeReply(envelope)
+	reply, err := packer.DeserializeReply(envelope)
 	require.NoError(t, err)
 	require.IsType(t, &Raw{}, reply)
 	require.Equal(t, "con-id", reply.ConId())
@@ -29,7 +29,7 @@ func TestRawPackerRejectsInvalidEnvelope(t *testing.T) {
 	_, err := packer.DeserializeRequest([]string{"content"})
 	require.Error(t, err)
 
-	_, err = packer.DeseralizeReply([]string{"content"})
+	_, err = packer.DeserializeReply([]string{"content"})
 	require.Error(t, err)
 }
 
