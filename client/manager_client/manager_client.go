@@ -10,7 +10,6 @@ import (
 	handlerConfig "github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
-	zmq "github.com/pebbe/zmq4"
 )
 
 type Client struct {
@@ -37,7 +36,7 @@ type Interface interface {
 // New returns a client connected to the handler's control manager.
 func New(configHandler *handlerConfig.Handler) (Interface, error) {
 	managerConfig := control.CreateInternalConfig(configHandler)
-	socket, err := client.NewRaw(zmq.REQ, managerConfig.ClientUrl())
+	socket, err := client.New(managerConfig.Id, managerConfig.Port, client.SyncReplierType)
 	if err != nil {
 		return nil, fmt.Errorf("client.New: %w", err)
 	}

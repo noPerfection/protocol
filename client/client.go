@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/noPerfection/datatype"
-	"github.com/noPerfection/protocol/client/config"
 	"github.com/noPerfection/protocol/message"
 
 	zmq "github.com/pebbe/zmq4"
@@ -34,48 +33,28 @@ type Option struct {
 
 // A Socket is the structure that transmits the data to the handlers.
 type Socket struct {
-	consumerId uint64 // consume internal id assigned by zeromq
-	poller     *zmq.Poller
-	schedulers *zmq.Reactor // client keeps a zmqSocket for initialing a message transfer, and a queue consumer.
-	zmqSocket  *zmq.Socket
-	url        string
-	timeout    time.Duration
-	attempt    uint8
-	socketType zmq.Type
-	target     zmq.Type
-	config     *config.Client
-	queue      *datatype.Queue
-	sent       uint64
-	messageOps message.Packer // client translates the message before and after transmitting using message operations.
+	consumerId  uint64 // consume internal id assigned by zeromq
+	poller      *zmq.Poller
+	schedulers  *zmq.Reactor // client keeps a zmqSocket for initialing a message transfer, and a queue consumer.
+	zmqSocket   *zmq.Socket
+	url         string
+	timeout     time.Duration
+	attempt     uint8
+	socketType  zmq.Type
+	endpoint    message.Endpoint
+	handlerType HandlerType
+	queue       *datatype.Queue
+	sent        uint64
+	messageOps  message.Packer // client translates the message before and after transmitting using message operations.
 }
 
-// NewRaw returns a new client that's connected to the given url.
-// For it to work, the url must be provided with the protocol that is supported by zeromq.
-// Example of valid urls:
-//
-//   - tcp://localhost:6000
-//
-//   - inproc://internal_thread
-//
-// Invalid url:
-//
-//   - http://example.com/ 	-- HTTP protocol is not supported
-//
-//   - ./socket.pid 			-- File descriptors are not supported
-func NewRaw(target zmq.Type, url string) (*Socket, error) {
-	if !config.IsTarget(target) {
-		return nil, fmt.Errorf("target is not supported")
-	}
-
-	socketType := config.TargetToClient(target)
+func newSocket(socketType zmq.Type, url string) (*Socket, error) {
 	socket := &Socket{
 		zmqSocket:  nil,
 		timeout:    DefaultTimeout,
 		attempt:    DefaultAttempt,
-		target:     target,
 		socketType: socketType,
 		url:        url,
-		config:     nil,
 		queue:      datatype.NewQueue(),
 		schedulers: zmq.NewReactor(),
 		consumerId: 0,
@@ -98,14 +77,20 @@ func NewRaw(target zmq.Type, url string) (*Socket, error) {
 	return socket, nil
 }
 
-// New client based on the configuration
-func New(client *config.Client) (*Socket, error) {
-	url := client.ClientUrl()
-	socket, err := NewRaw(client.TargetType, url)
-	if err != nil {
-		return nil, fmt.Errorf("newRaw('%s', '%s'): %w", client.TargetType.String(), url, err)
+// New creates a client for the given handler endpoint. Client type is determined by the target handler.
+func New(id string, port uint64, handlerTargetType HandlerType) (*Socket, error) {
+	if !isTarget(handlerTargetType) {
+		return nil, fmt.Errorf("target is not supported")
 	}
-	socket.config = client
+
+	endpoint := message.NewEndpoint(id, port)
+	socketType := targetToClient(handlerTargetType)
+	socket, err := newSocket(socketType, endpoint.ClientUrl())
+	if err != nil {
+		return nil, fmt.Errorf("newSocket('%s', '%s'): %w", handlerTargetType, endpoint.ClientUrl(), err)
+	}
+	socket.endpoint = endpoint
+	socket.handlerType = handlerTargetType
 
 	return socket, nil
 }
@@ -342,8 +327,6 @@ func (socket *Socket) rawSubmit(raw string) (bool, error) {
 	} else if socket.socketType == zmq.PAIR || socket.socketType == zmq.PUSH {
 		messages = []string{fmt.Sprintf("%d", socket.sent), "", raw}
 		socket.sent++
-	} else if socket.socketType == zmq.REQ && socket.target == zmq.ROUTER {
-		messages = []string{"", raw}
 	}
 
 	// Poll zmqSocket for a reply, with timeout

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/noPerfection/datatype"
-	"github.com/noPerfection/protocol/client/config"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -23,7 +22,7 @@ type TestClientSuite struct {
 func (test *TestClientSuite) SetupTest() {
 	require := test.Require
 
-	socket, err := NewRaw(zmq.ROUTER, "inproc://sample_router")
+	socket, err := New("sample_router", 0, ReplierType)
 	require().NoError(err)
 
 	test.socket = socket
@@ -101,10 +100,9 @@ func (test *TestClientSuite) Test_10_New() {
 
 	id := "sample_router"
 	port := uint64(0)
-	socketType := zmq.ROUTER
-	client := config.New(id, port, socketType)
+	targetType := ReplierType
 
-	_, err := New(client)
+	_, err := New(id, port, targetType)
 	require().NoError(err)
 }
 
@@ -126,7 +124,7 @@ func (test *TestClientSuite) Test_11_Parameters() {
 func (test *TestClientSuite) Test_12_rawSubmit() {
 	require := test.Require
 
-	go test.runBackend("Test_12_rawSubmit", test.socket.url, test.socket.target)
+	go test.runBackend("Test_12_rawSubmit", test.socket.url, zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
 	req := "hello Test_12_rawSubmit"
@@ -137,7 +135,7 @@ func (test *TestClientSuite) Test_12_rawSubmit() {
 func (test *TestClientSuite) Test_13_RawRequest() {
 	require := test.Require
 
-	go test.runBackend("Test_13_RawRequest", test.socket.url, test.socket.target)
+	go test.runBackend("Test_13_RawRequest", test.socket.url, zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
 	req := "hello Test_13_RawRequest"
@@ -149,7 +147,7 @@ func (test *TestClientSuite) Test_13_RawRequest() {
 func (test *TestClientSuite) Test_14_RawSubmit() {
 	require := test.Require
 
-	go test.runBackend("Test_14_RawSubmit", test.socket.url, test.socket.target)
+	go test.runBackend("Test_14_RawSubmit", test.socket.url, zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
 	req := "hello Test_14_RawSubmit"
@@ -160,13 +158,8 @@ func (test *TestClientSuite) Test_14_RawSubmit() {
 func (test *TestClientSuite) Test_15_DealerRawRequest() {
 	require := test.Require
 
-	go test.runBackend("Test_15_DealerRawRequest", test.socket.url, test.socket.target)
+	go test.runBackend("Test_15_DealerRawRequest", test.socket.url, zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
-
-	socket, err := NewRaw(zmq.ROUTER, "inproc://sample_router")
-	require().NoError(err)
-	test.socket = socket
-	test.socket.socketType = zmq.DEALER
 
 	test.socket.Timeout(time.Second).Attempt(minAttempt)
 
@@ -179,17 +172,13 @@ func (test *TestClientSuite) Test_15_DealerRawRequest() {
 func (test *TestClientSuite) Test_16_DealerRawSubmit() {
 	require := test.Require
 
-	go test.runBackend("Test_16_DealerRawSubmit", test.socket.url, test.socket.target)
+	go test.runBackend("Test_16_DealerRawSubmit", test.socket.url, zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
-	socket, err := NewRaw(zmq.ROUTER, "inproc://sample_router")
-	require().NoError(err)
-	test.socket = socket
-	test.socket.socketType = zmq.DEALER
 	test.socket.Timeout(time.Second).Attempt(minAttempt)
 
 	req := "hello Test_16_DealerRawSubmit"
-	err = test.socket.RawSubmit(req)
+	err := test.socket.RawSubmit(req)
 	require().NoError(err)
 }
 
@@ -200,7 +189,7 @@ func (test *TestClientSuite) Test_17_RequestToRep() {
 	go test.runBackend("Test_17_RequestToRep", url, zmq.REP)
 	time.Sleep(time.Millisecond * 100)
 
-	socket, err := NewRaw(zmq.REP, url)
+	socket, err := New("sample_router", 0, SyncReplierType)
 	require().NoError(err)
 	test.socket = socket
 
