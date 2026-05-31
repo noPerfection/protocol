@@ -17,6 +17,8 @@ type Stack struct {
 	ServerInstance string `json:"server_instance"`
 }
 
+var _ RequestInterface = (*Request)(nil)
+
 // DefaultMessage returns a message for parsing request and parsing reply.
 func DefaultMessage() *Operations {
 	return &Operations{

@@ -17,6 +17,8 @@ type Reply struct {
 	conId      string
 }
 
+var _ ReplyInterface = (*Reply)(nil)
+
 func NewEmptyReply() ReplyInterface {
 	return &Reply{}
 }

@@ -27,6 +27,9 @@ type RawReply struct {
 	trace    []*Stack
 }
 
+var _ RequestInterface = (*RawRequest)(nil)
+var _ ReplyInterface = (*RawReply)(nil)
+
 // RawMessage returns a message for parsing request and parsing reply.
 func RawMessage() *Operations {
 	return &Operations{
