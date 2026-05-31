@@ -185,7 +185,7 @@ func (socket *Socket) isClosed() bool {
 	return socket.closed
 }
 
-func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
+func (socket *Socket) attemptRequesting(envelope []string) ([]string, error) {
 	socket.zmqMu.Lock()
 	defer socket.zmqMu.Unlock()
 
@@ -196,10 +196,10 @@ func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
 	for {
 		attempt--
 		if attempt == 0 {
-			return nil, fmt.Errorf("request_timeout: reqMsg='%s'", raw)
+			return nil, fmt.Errorf("request_timeout: envelope=%v", envelope)
 		}
 
-		timeout, err := socket.rawSend(raw)
+		timeout, err := socket.send(envelope)
 		if err != nil {
 			return nil, fmt.Errorf("socket.rawSend: %w", err)
 		}
@@ -226,14 +226,14 @@ func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
 	}
 }
 
-func (socket *Socket) rawSendByTimeout(raw string) error {
+func (socket *Socket) attemptSending(envelope []string) error {
 	socket.zmqMu.Lock()
 	defer socket.zmqMu.Unlock()
 
 	_, attempt := socket.options()
 
 	for {
-		timeout, err := socket.rawSend(raw)
+		timeout, err := socket.send(envelope)
 		if err != nil {
 			return fmt.Errorf("socket.rawSend: %w", err)
 		}
@@ -245,16 +245,16 @@ func (socket *Socket) rawSendByTimeout(raw string) error {
 
 		attempt--
 		if attempt == 0 {
-			return fmt.Errorf("send_timeout: reqMsg='%s'", raw)
+			return fmt.Errorf("send_timeout: envelope=%v", envelope)
 		}
 	}
 	return nil
 }
 
-// rawSend sends the message; it doesn't wait for a reply to see was it successfully sent.
+// send sends the message; it doesn't wait for a reply to see was it successfully sent.
 //
 // returns boolean for timeout.
-func (socket *Socket) rawSend(raw string) (bool, error) {
+func (socket *Socket) send(envelope []string) (bool, error) {
 	timeoutDuration, _ := socket.options()
 
 	err := socket.reconnect()
@@ -264,23 +264,13 @@ func (socket *Socket) rawSend(raw string) (bool, error) {
 
 	socket.pollOut()
 
-	messages := []string{raw}
-	socketType, err := socket.zmqSocket.GetType()
-	if err != nil {
-		return false, fmt.Errorf("zmqSocket.GetType: %w", err)
-	}
-
-	if socketType == zmq.DEALER {
-		messages = []string{"", raw}
-	}
-
 	sockets, err := socket.poller.Poll(timeoutDuration)
 	if err != nil {
 		return false, fmt.Errorf("poll error: %w", err)
 	}
 
 	if len(sockets) > 0 {
-		if _, err := socket.zmqSocket.SendMessage(messages); err != nil {
+		if _, err := socket.zmqSocket.SendMessage(envelope); err != nil {
 			return false, fmt.Errorf("zmqSocket.SendMessage: %w", err)
 		}
 
@@ -321,8 +311,7 @@ func (socket *Socket) Send(req message.RequestInterface) error {
 		return fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
 
-	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
-	err = socket.dispatcher.send(reqMsg)
+	err = socket.dispatcher.send(reqStr)
 	if err != nil {
 		return fmt.Errorf("socket.send: %w", err)
 	}
@@ -339,8 +328,7 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 		return nil, fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
 
-	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
-	rawReply, err := socket.dispatcher.request(reqMsg)
+	rawReply, err := socket.dispatcher.request(reqStr)
 	if err != nil {
 		return nil, fmt.Errorf("socket.request: %w", err)
 	}

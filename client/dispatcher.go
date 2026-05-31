@@ -14,7 +14,7 @@ import (
 type Transmit struct {
 	replyMsg   chan []string
 	delayedErr chan error
-	reqMsg     string
+	envelope   []string
 }
 
 type dispatcher struct {
@@ -22,7 +22,7 @@ type dispatcher struct {
 	queue      *datatype.Queue
 	schedulers *zmq.Reactor
 	consumerId uint64
-	wg sync.WaitGroup
+	wg         sync.WaitGroup
 }
 
 func newDispatcher(socket *Socket) *dispatcher {
@@ -69,7 +69,7 @@ func (d *dispatcher) handleConsume() error {
 	}
 
 	if msg.replyMsg == nil {
-		err := d.socket.rawSendByTimeout(msg.reqMsg)
+		err := d.socket.attemptSending(msg.envelope)
 		if err != nil {
 			msg.delayedErr <- fmt.Errorf("socket.rawSendByTimeout: %w", err)
 		} else {
@@ -78,7 +78,7 @@ func (d *dispatcher) handleConsume() error {
 		return nil
 	}
 
-	reply, err := d.socket.rawRequestByTimeout(msg.reqMsg)
+	reply, err := d.socket.attemptRequesting(msg.envelope)
 	if err != nil {
 		msg.delayedErr <- err
 		return nil
@@ -116,11 +116,11 @@ func (d *dispatcher) popTransmit() *Transmit {
 	return d.queue.Pop().(*Transmit)
 }
 
-func (d *dispatcher) request(raw string) ([]string, error) {
+func (d *dispatcher) request(envelope []string) ([]string, error) {
 	msg := &Transmit{
 		replyMsg:   make(chan []string),
 		delayedErr: make(chan error),
-		reqMsg:     raw,
+		envelope:   envelope,
 	}
 	if err := d.enqueueTransmit(msg); err != nil {
 		return nil, err
@@ -135,11 +135,11 @@ func (d *dispatcher) request(raw string) ([]string, error) {
 	return reply, nil
 }
 
-func (d *dispatcher) send(raw string) error {
+func (d *dispatcher) send(envelope []string) error {
 	msg := &Transmit{
 		replyMsg:   nil,
 		delayedErr: make(chan error),
-		reqMsg:     raw,
+		envelope:   envelope,
 	}
 	if err := d.enqueueTransmit(msg); err != nil {
 		return err

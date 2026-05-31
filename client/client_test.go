@@ -184,7 +184,7 @@ func (test *TestClientSuite) Test_12_SendByTimeout() {
 		Command:    "hello",
 		Parameters: datatype.New().Set("unit", "Test_12_SendByTimeout"),
 	}).String()
-	err := test.socket.rawSendByTimeout(req)
+	err := test.socket.attemptSending(message.MessageToEnvelope("", req))
 	require().NoError(err)
 	<-done
 }
@@ -322,7 +322,7 @@ func (test *TestClientSuite) Test_18_ThreadSafety() {
 	requestAsync := func(socket *Socket, raw string) <-chan rawReplyResult {
 		result := make(chan rawReplyResult, 1)
 		go func() {
-			reply, err := socket.dispatcher.request(raw)
+			reply, err := socket.dispatcher.request(message.MessageToEnvelope("", raw))
 			result <- rawReplyResult{raw: reply, err: err}
 		}()
 		return result
@@ -331,7 +331,7 @@ func (test *TestClientSuite) Test_18_ThreadSafety() {
 		transmit := &Transmit{
 			replyMsg:   make(chan []string),
 			delayedErr: make(chan error),
-			reqMsg:     raw,
+			envelope:   message.MessageToEnvelope("", raw),
 		}
 		if err := test.socket.dispatcher.enqueueTransmit(transmit); err != nil {
 			return nil, err
