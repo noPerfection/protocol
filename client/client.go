@@ -3,11 +3,12 @@ package client
 
 import (
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/protocol/client/config"
 	"github.com/noPerfection/protocol/message"
-	"os"
-	"time"
 
 	zmq "github.com/pebbe/zmq4"
 )
@@ -79,7 +80,7 @@ func NewRaw(target zmq.Type, url string) (*Socket, error) {
 		schedulers: zmq.NewReactor(),
 		consumerId: 0,
 		sent:       1,
-		messageOps: message.DefaultMessage(),
+		messageOps: &message.MessagePacker{},
 	}
 
 	// we can remove the following lines

@@ -18,8 +18,7 @@ import (
 // Replier is the socket wrapper for the service.
 type Replier struct {
 	*base.Handler
-	Control    base.Interface
-	messageOps message.Packer
+	Control base.Interface
 }
 
 type pendingReply struct {
@@ -31,9 +30,8 @@ var _ base.Interface = (*Replier)(nil)
 // New asynchronous replying handler.
 func New() *Replier {
 	return &Replier{
-		Handler:    base.New(),
-		Control:    control.New(),
-		messageOps: message.DefaultMessage(),
+		Handler: base.New(),
+		Control: control.New(),
 	}
 }
 
@@ -165,9 +163,9 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.messageOps.DeserializeRequest(raw)
+	req, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
-		reply := c.messageOps.EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
+		reply := c.Packer().EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
 		replies <- pendingReply{reply: reply}
 		return nil
 	}
@@ -187,7 +185,7 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 }
 
 func (c *Replier) sendReply(socket *zmq.Socket, reply message.ReplyInterface) error {
-	envelope, err := c.messageOps.SerializeReply(reply)
+	envelope, err := c.Packer().SerializeReply(reply)
 	if err != nil {
 		return fmt.Errorf("messageOps.SerializeReply: %w", err)
 	}

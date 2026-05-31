@@ -15,8 +15,7 @@ import (
 
 type SyncReplier struct {
 	*base.Handler
-	Control    base.Interface
-	messageOps message.Packer
+	Control base.Interface
 }
 
 var _ base.Interface = (*SyncReplier)(nil)
@@ -25,9 +24,8 @@ var _ base.Interface = (*SyncReplier)(nil)
 func New() *SyncReplier {
 	handler := base.New()
 	return &SyncReplier{
-		Handler:    handler,
-		messageOps: message.DefaultMessage(),
-		Control:    control.New(),
+		Handler: handler,
+		Control: control.New(),
 	}
 }
 
@@ -142,9 +140,9 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.messageOps.DeserializeRequest(raw)
+	req, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
-		reply := c.messageOps.EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
+		reply := c.Packer().EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
 		return c.sendReply(socket, reply)
 	}
 
@@ -158,7 +156,7 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 }
 
 func (c *SyncReplier) sendReply(socket *zmq.Socket, reply message.ReplyInterface) error {
-	envelope, err := c.messageOps.SerializeReply(reply)
+	envelope, err := c.Packer().SerializeReply(reply)
 	if err != nil {
 		return fmt.Errorf("messageOps.SerializeReply: %w", err)
 	}

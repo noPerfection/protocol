@@ -18,8 +18,7 @@ import (
 // Worker is the socket wrapper for the service.
 type Worker struct {
 	*base.Handler
-	Control    base.Interface
-	messageOps message.Packer
+	Control base.Interface
 }
 
 var _ base.Interface = (*Worker)(nil)
@@ -27,9 +26,8 @@ var _ base.Interface = (*Worker)(nil)
 // New asynchronous replying handler.
 func New() *Worker {
 	return &Worker{
-		Handler:    base.New(),
-		Control:    control.New(),
-		messageOps: message.DefaultMessage(),
+		Handler: base.New(),
+		Control: control.New(),
 	}
 }
 
@@ -145,7 +143,7 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.messageOps.DeserializeRequest(raw)
+	req, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
 		return fmt.Errorf("messageOps.DeserializeRequest: %w", err)
 	}
