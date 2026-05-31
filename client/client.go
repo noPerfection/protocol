@@ -4,6 +4,7 @@ package client
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/noPerfection/datatype"
@@ -33,10 +34,12 @@ type Option struct {
 
 // A Socket is the structure that transmits the data to the handlers.
 type Socket struct {
+	mu            sync.Mutex
 	consumerId    uint64       // consume internal id assigned by zeromq
 	poller        *zmq.Poller  // to receive messages
 	schedulers    *zmq.Reactor // client keeps a zmqSocket for initialing a message transfer, and a queue consumer.
 	zmqSocket     *zmq.Socket
+	closed        bool
 	timeout       time.Duration
 	attempt       uint8
 	endpoint      message.Endpoint
@@ -66,10 +69,11 @@ func newSocket(handlerType HandlerType, endpoint message.Endpoint) *Socket {
 
 	go func() {
 		err := socket.schedulers.Run(time.Microsecond * 2)
-		if err != nil && err.Error() != "No sockets to poll, no channels to read" {
+		if err != nil &&
+			err.Error() != "No sockets to poll, no channels to read" &&
+			err.Error() != "client socket closed" {
 			_, _ = fmt.Fprintf(os.Stderr, "reactor exited with an error: %v\n", err)
 		}
-		socket.schedulers = nil
 	}()
 
 	return socket
@@ -88,6 +92,9 @@ func New(id string, port uint64, handlerTargetType HandlerType) (*Socket, error)
 // Sets the message serializer and deserializer.
 // Use the same as used by the handler.
 func (socket *Socket) Packer(packer message.Packer) *Socket {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
 	socket.messagePacker = packer
 	return socket
 }
@@ -95,11 +102,14 @@ func (socket *Socket) Packer(packer message.Packer) *Socket {
 // handleConsume runs in a loop to read the queue.
 // For the given queue, it will send the message to the handler.
 func (socket *Socket) handleConsume() error {
-	if socket.queue.IsEmpty() {
-		return nil
+	if socket.isClosed() {
+		return fmt.Errorf("client socket closed")
 	}
 
-	msg := socket.queue.Pop().(*Transmit)
+	msg := socket.popTransmit()
+	if msg == nil {
+		return nil
+	}
 
 	// Send, not a reply message.
 	if msg.replyMsg == nil {
@@ -164,16 +174,22 @@ func (socket *Socket) pollOut() {
 
 // Close the zmqSocket free the port and resources.
 func (socket *Socket) Close() error {
-	if socket.zmqSocket == nil {
+	socket.mu.Lock()
+	if socket.closed {
+		socket.mu.Unlock()
 		return nil
 	}
-	err := socket.zmqSocket.Close()
+	socket.closed = true
+	zmqSocket := socket.zmqSocket
+	socket.zmqSocket = nil
+	socket.mu.Unlock()
+
+	if zmqSocket == nil {
+		return nil
+	}
+	err := zmqSocket.Close()
 	if err != nil {
 		return fmt.Errorf("error closing zmqSocket: %w", err)
-	}
-
-	if socket.schedulers != nil {
-		socket.schedulers.RemoveChannel(socket.consumerId)
 	}
 
 	return nil
@@ -185,6 +201,9 @@ func (socket *Socket) Timeout(timeout time.Duration) *Socket {
 		timeout = minTimeout
 	}
 
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
 	socket.timeout = timeout
 	return socket
 }
@@ -195,15 +214,54 @@ func (socket *Socket) Attempt(attempt uint8) *Socket {
 		attempt = minAttempt
 	}
 
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
 	socket.attempt = attempt
 	return socket
 }
 
-func (socket *Socket) request(raw string) ([]string, error) {
+func (socket *Socket) options() (time.Duration, uint8) {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
+	return socket.timeout, socket.attempt
+}
+
+func (socket *Socket) isClosed() bool {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
+	return socket.closed
+}
+
+func (socket *Socket) enqueueTransmit(msg *Transmit) error {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
+	if socket.closed {
+		return fmt.Errorf("client socket closed")
+	}
 	if socket.queue.IsFull() {
-		return nil, fmt.Errorf("queue is full, try again later")
+		return fmt.Errorf("queue is full, try again later")
 	}
 
+	socket.queue.Push(msg)
+	return nil
+}
+
+func (socket *Socket) popTransmit() *Transmit {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
+	if socket.queue.IsEmpty() {
+		return nil
+	}
+
+	return socket.queue.Pop().(*Transmit)
+}
+
+func (socket *Socket) request(raw string) ([]string, error) {
 	// todo, a message channel must return the error as well
 	// todo, rename Transmit.reply a type to Reply.
 	msg := &Transmit{
@@ -211,7 +269,9 @@ func (socket *Socket) request(raw string) ([]string, error) {
 		delayedErr: make(chan error),
 		reqMsg:     raw,
 	}
-	socket.queue.Push(msg)
+	if err := socket.enqueueTransmit(msg); err != nil {
+		return nil, err
+	}
 
 	err := <-msg.delayedErr
 
@@ -224,9 +284,11 @@ func (socket *Socket) request(raw string) ([]string, error) {
 }
 
 func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
+	timeoutDuration, attempt := socket.options()
+
 	// Since we decrement before an attempt, it will be 0
 	// If we had 1 attempt.
-	attempt := socket.attempt + 1
+	attempt++
 
 	for {
 		attempt--
@@ -246,7 +308,7 @@ func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
 		socket.updateToPollIn()
 
 		// Poll zmqSocket for a reply, with timeout
-		sockets, err := socket.poller.Poll(socket.timeout)
+		sockets, err := socket.poller.Poll(timeoutDuration)
 		if err != nil {
 			return nil, fmt.Errorf("poll error: %w", err)
 		}
@@ -264,16 +326,14 @@ func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
 }
 
 func (socket *Socket) send(raw string) error {
-	if socket.queue.IsFull() {
-		return fmt.Errorf("queue is full, try again later")
-	}
-
 	msg := &Transmit{
 		replyMsg:   nil,
 		delayedErr: make(chan error),
 		reqMsg:     raw,
 	}
-	socket.queue.Push(msg)
+	if err := socket.enqueueTransmit(msg); err != nil {
+		return err
+	}
 
 	err := <-msg.delayedErr
 
@@ -281,7 +341,7 @@ func (socket *Socket) send(raw string) error {
 }
 
 func (socket *Socket) rawSendByTimeout(raw string) error {
-	attempt := socket.attempt
+	_, attempt := socket.options()
 
 	for {
 		timeout, err := socket.rawSend(raw)
@@ -306,6 +366,8 @@ func (socket *Socket) rawSendByTimeout(raw string) error {
 //
 // returns boolean for timeout.
 func (socket *Socket) rawSend(raw string) (bool, error) {
+	timeoutDuration, _ := socket.options()
+
 	// no need to reconnect every time.
 	err := socket.reconnect()
 	if err != nil {
@@ -328,7 +390,7 @@ func (socket *Socket) rawSend(raw string) (bool, error) {
 	}
 
 	// Poll zmqSocket for a reply, with timeout
-	sockets, err := socket.poller.Poll(socket.timeout)
+	sockets, err := socket.poller.Poll(timeoutDuration)
 	if err != nil {
 		return false, fmt.Errorf("poll error: %w", err)
 	}
@@ -346,6 +408,8 @@ func (socket *Socket) rawSend(raw string) (bool, error) {
 
 // omitReplyIfPresent drops an inbound reply so REQ submit can complete.
 func (socket *Socket) omitReplyIfPresent() {
+	timeoutDuration, _ := socket.options()
+
 	socketType, err := socket.zmqSocket.GetType()
 	if err != nil || socketType != zmq.REQ {
 		return
@@ -353,7 +417,7 @@ func (socket *Socket) omitReplyIfPresent() {
 
 	socket.updateToPollIn()
 
-	drain := socket.timeout
+	drain := timeoutDuration
 	if drain > time.Second {
 		drain = time.Second
 	}
