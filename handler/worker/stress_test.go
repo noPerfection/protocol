@@ -115,7 +115,8 @@ func TestStressTest(t *testing.T) {
 
 	raw, err := managerClient.RecvMessage(0)
 	require.NoError(t, err)
-	reply, err := message.NewRep(raw)
+	packger := &message.MessagePacker{}
+	reply, err := packger.DeserializeReply(raw)
 	require.NoError(t, err)
 	require.True(t, reply.IsOK())
 }

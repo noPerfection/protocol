@@ -109,7 +109,7 @@ func (test *TestSyncReplierSuite) req(client *zmq.Socket, request message.Reques
 	raw, err := client.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := message.NewRep(raw)
+	reply, err := test.syncReplier.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply
@@ -129,7 +129,7 @@ func (test *TestSyncReplierSuite) externalReq(client *zmq.Socket, request messag
 		return nil, err
 	}
 
-	return message.NewRep(raw)
+	return test.syncReplier.Packer().DeserializeReply(raw)
 }
 
 func (test *TestSyncReplierSuite) handlerStatus() string {

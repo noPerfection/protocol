@@ -325,9 +325,10 @@ func stressClientRequest(socket *zmq.Socket, clientID string) error {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	reply, err := message.NewRep(raw)
+	packger := &message.MessagePacker{}
+	reply, err := packger.DeserializeReply(raw)
 	if err != nil {
-		return fmt.Errorf("message.NewRep: %w", err)
+		return fmt.Errorf("packger.DeserializeReply: %w", err)
 	}
 	if !reply.IsOK() {
 		return fmt.Errorf("reply failed: %s", reply.ErrorMessage())

@@ -95,7 +95,7 @@ func (test *TestPairSuite) req(request message.Request) message.ReplyInterface {
 	raw, err := test.managerClient.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := message.NewRep(raw)
+	reply, err := test.pair.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply
@@ -183,7 +183,7 @@ func (test *TestPairSuite) pairRequest(request message.Request) message.ReplyInt
 	raw, err := test.externalClient.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := message.NewRep(raw)
+	reply, err := test.pair.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply

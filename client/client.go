@@ -425,16 +425,9 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 		return nil, fmt.Errorf("socket.RawRequest: %w", err)
 	}
 
-	reply, err := socket.messageOps.DeseralizeReply(rawReply)
+	reply, err := socket.messageOps.DeserializeReply(rawReply)
 	if err != nil {
-		return nil, fmt.Errorf("messageOps.DeseralizeReply('%v'): %w", rawReply, err)
-	}
-
-	// client service will add its own stack.
-	traceReq, traceReqOk := req.(message.RequestTraceInterface)
-	traceReply, traceReplyOk := reply.(message.ReplyTraceInterface)
-	if traceReqOk && traceReplyOk {
-		traceReq.SyncTrace(traceReply)
+		return nil, fmt.Errorf("messageOps.DeserializeReply('%v'): %w", rawReply, err)
 	}
 
 	return reply, nil

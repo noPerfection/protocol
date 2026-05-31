@@ -103,7 +103,7 @@ func (test *TestReplierSuite) req(client *zmq.Socket, request message.Request) m
 	raw, err := client.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := message.NewRep(raw)
+	reply, err := test.replier.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply
@@ -114,7 +114,7 @@ func (test *TestReplierSuite) externalReq(client *zmq.Socket, request message.Re
 	if err != nil {
 		return nil, err
 	}
-	if _, err := client.SendMessage("", message.MessageFromEnvelope(reqStr)); err != nil {
+	if _, err := client.SendMessage("", test.replier.Packer().SerializeRequest(request)); err != nil {
 		return nil, err
 	}
 
@@ -123,7 +123,7 @@ func (test *TestReplierSuite) externalReq(client *zmq.Socket, request message.Re
 		return nil, err
 	}
 
-	return message.NewRep(raw)
+	return test.replier.Packer().DeserializeReply(raw)
 }
 
 func (test *TestReplierSuite) handlerStatus() string {
