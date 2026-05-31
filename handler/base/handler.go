@@ -29,23 +29,23 @@ type HandleFunc = func(message.RequestInterface) message.ReplyInterface
 
 // The Handler is the socket wrapper for the zeromq socket.
 type Handler struct {
-	config          *config.Handler
-	socket          *zmq.Socket
-	logger          *log.Logger
-	messagePackager message.Packer
-	routes          datatype.KeyValue
-	status          string
-	close           bool
+	config        *config.Handler
+	socket        *zmq.Socket
+	logger        *log.Logger
+	messagePacker message.Packer
+	routes        datatype.KeyValue
+	status        string
+	close         bool
 }
 
 // New creates a handler.
 // Optionally you can set the logger.
 func New(logger ...*log.Logger) *Handler {
 	h := &Handler{
-		messagePackager: &message.MessagePacker{},
-		routes:          datatype.New(),
-		status:          SocketNil,
-		close:           false,
+		messagePacker: &message.MessagePacker{},
+		routes:        datatype.New(),
+		status:        SocketNil,
+		close:         false,
 	}
 
 	if len(logger) > 0 && logger[0] != nil {
@@ -78,7 +78,7 @@ func (c *Handler) Config() *config.Handler {
 }
 
 func (c *Handler) Packer() message.Packer {
-	return c.messagePackager
+	return c.messagePacker
 }
 
 // Logger returns the handler logger.
@@ -92,7 +92,7 @@ func (c *Handler) SetConfig(handler *config.Handler) {
 }
 
 func (c *Handler) SetPacker(packer message.Packer) {
-	c.messagePackager = packer
+	c.messagePacker = packer
 }
 
 // SetLogger sets the logger. Passing nil disables logging.
