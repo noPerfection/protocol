@@ -10,7 +10,6 @@ import (
 type Client struct {
 	message.Endpoint `json:",inline" yaml:",inline"`
 	TargetType       zmq.Type `json:"zmq_type,omitempty" yaml:"zmq_type,omitempty"` // The service's socket type
-	urlFunc          func(*Client) string
 }
 
 // New Client
@@ -18,32 +17,7 @@ func New(id string, port uint64, socketType zmq.Type) *Client {
 	return &Client{
 		Endpoint:   message.NewEndpoint(id, port),
 		TargetType: socketType,
-		urlFunc:    nil,
 	}
-}
-
-// UrlFunc sets the context to generate the url
-func (client *Client) UrlFunc(urlFunc func(*Client) string) *Client {
-	client.urlFunc = urlFunc
-	return client
-}
-
-// Url of the client
-func (client *Client) Url() string {
-	if client.urlFunc == nil {
-		return ""
-	}
-
-	return client.urlFunc(client)
-}
-
-// Url creates the ZeroMQ endpoint for the client to connect to.
-//
-// When Port is non-zero, returns the endpoint's TCP client URL.
-// When Port is 0 and Id has the prefix "tmp", returns ipc:///{Id} for a filesystem IPC socket.
-// When Port is 0 otherwise, returns inproc://{Id} for in-process communication.
-func Url(client *Client) string {
-	return client.ClientUrl()
 }
 
 // IsTarget checks that given zeromq socket type is the handler type

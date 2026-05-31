@@ -105,10 +105,6 @@ func (test *TestClientSuite) Test_10_New() {
 	client := config.New(id, port, socketType)
 
 	_, err := New(client)
-	require().Error(err)
-
-	client.UrlFunc(config.Url)
-	_, err = New(client)
 	require().NoError(err)
 }
 

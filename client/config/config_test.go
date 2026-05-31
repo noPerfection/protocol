@@ -55,35 +55,32 @@ func (test *TestConfigSuite) Test_11_TargetToClient() {
 	require().Equal(zmq.REQ, TargetToClient(zmq.DEALER))
 }
 
-// Test_12_Url tests the url generation
-func (test *TestConfigSuite) Test_12_Url() {
+// Test_12_ClientUrl tests the client url generation.
+func (test *TestConfigSuite) Test_12_ClientUrl() {
 	require := test.Require
 
-	require().Empty(test.client.Url())
-
-	test.client.UrlFunc(Url)
-	require().Equal("inproc://sample", test.client.Url())
+	require().Equal("inproc://sample", test.client.ClientUrl())
 }
 
 func (test *TestConfigSuite) Test_13_Url_tcp() {
 	require := test.Require
 
 	client := New("sample", 6000, zmq.REP)
-	require().Equal("tcp://sample:6000", Url(client))
+	require().Equal("tcp://sample:6000", client.ClientUrl())
 }
 
 func (test *TestConfigSuite) Test_14_Url_ipc_tmp() {
 	require := test.Require
 
 	client := New("tmp-test.sock", 0, zmq.REP)
-	require().Equal("ipc:///tmp-test.sock", Url(client))
+	require().Equal("ipc:///tmp-test.sock", client.ClientUrl())
 }
 
 func (test *TestConfigSuite) Test_15_Url_inproc_port_zero() {
 	require := test.Require
 
 	client := New("my-service", 0, zmq.REP)
-	require().Equal("inproc://my-service", Url(client))
+	require().Equal("inproc://my-service", client.ClientUrl())
 }
 
 // In order for 'go test' to run this suite, we need to create

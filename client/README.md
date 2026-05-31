@@ -41,7 +41,7 @@ To avoid import cycling the clients are using the target's internal socket type.
 For intercommunication, noPerfection uses ZeroMQ sockets.
 
 ### URL
-`config.Url` builds the ZeroMQ endpoint from `config.Client`:
+`message.Endpoint.ClientUrl()` builds the ZeroMQ endpoint from `config.Client`:
 
 | Condition | Endpoint |
 |-----------|----------|
@@ -49,7 +49,7 @@ For intercommunication, noPerfection uses ZeroMQ sockets.
 | `Port` == 0 and `Id` starts with `tmp` | `ipc:///{Id}` (filesystem IPC socket) |
 | `Port` == 0 otherwise | `inproc://{Id}` (in-process) |
 
-Set `client.UrlFunc(config.Url)` before `client.New(client)` so the socket connects to the generated address.
+`client.New(client)` connects to the generated address from the embedded endpoint.
 
 ### Concurrent
 A client is concurrent with its message queue.
