@@ -30,29 +30,9 @@ type Socket struct {
 	attempt       uint8
 	endpoint      message.Endpoint
 	handlerType   HandlerType
-	sent          uint64
 	messagePacker message.Packer
 	dispatcher    *dispatcher
 	receiver      *receiver
-}
-
-func newSocket(handlerType HandlerType, endpoint message.Endpoint) *Socket {
-	socket := &Socket{
-		zmqSocket:     nil,
-		timeout:       DefaultTimeout,
-		attempt:       DefaultAttempt,
-		endpoint:      endpoint,
-		handlerType:   handlerType,
-		sent:          1,
-		messagePacker: &message.MessagePacker{},
-	}
-
-	if supportsReceive(handlerType) {
-		socket.receiver = newReceiver(socket)
-	}
-	socket.dispatcher = newDispatcher(socket)
-
-	return socket
 }
 
 // New creates a client for the given handler endpoint. Client type is determined by the target handler.
@@ -62,7 +42,21 @@ func New(id string, port uint64, handlerTargetType HandlerType) (*Socket, error)
 	}
 
 	endpoint := message.NewEndpoint(id, port)
-	return newSocket(handlerTargetType, endpoint), nil
+
+	socket := &Socket{
+		zmqSocket:     nil,
+		timeout:       DefaultTimeout,
+		attempt:       DefaultAttempt,
+		endpoint:      endpoint,
+		handlerType:   handlerTargetType,
+		messagePacker: &message.MessagePacker{},
+	}
+
+	if supportsReceive(handlerTargetType) {
+		socket.receiver = newReceiver(socket)
+	}
+	socket.dispatcher = newDispatcher(socket)
+	return socket, nil
 }
 
 // Sets the message serializer and deserializer.
@@ -278,9 +272,6 @@ func (socket *Socket) rawSend(raw string) (bool, error) {
 
 	if socketType == zmq.DEALER {
 		messages = []string{"", raw}
-	} else if socketType == zmq.PAIR || socketType == zmq.PUSH {
-		messages = []string{fmt.Sprintf("%d", socket.sent), "", raw}
-		socket.sent++
 	}
 
 	sockets, err := socket.poller.Poll(timeoutDuration)

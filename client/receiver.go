@@ -12,6 +12,7 @@ const defaultReceiveBuffer = 64
 type receiver struct {
 	socket    *Socket
 	replies   chan message.ReplyInterface
+	active    bool
 	closeOnce sync.Once
 }
 
@@ -32,7 +33,7 @@ func (r *receiver) pollOnce() {
 	r.socket.zmqMu.Lock()
 	defer r.socket.zmqMu.Unlock()
 
-	if r.socket.isClosed() {
+	if r.socket.isClosed() || !r.isActive() {
 		return
 	}
 
@@ -70,6 +71,20 @@ func (r *receiver) pollOnce() {
 	}
 }
 
+func (r *receiver) activate() {
+	r.socket.mu.Lock()
+	defer r.socket.mu.Unlock()
+
+	r.active = true
+}
+
+func (r *receiver) isActive() bool {
+	r.socket.mu.Lock()
+	defer r.socket.mu.Unlock()
+
+	return r.active
+}
+
 func (r *receiver) close() {
 	r.closeOnce.Do(func() {
 		close(r.replies)
@@ -84,6 +99,7 @@ func (socket *Socket) Receive() <-chan message.ReplyInterface {
 		close(ch)
 		return ch
 	}
+	socket.receiver.activate()
 	return socket.receiver.replies
 }
 
