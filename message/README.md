@@ -4,7 +4,7 @@
 
 It has two built-in message families:
 
-- `Message` &ndash; the default messages noPerfection uses in production. `protocol/client` and `protocol/handler` work with these through `DefaultMessage()` / `MessagePacker`. A request carries a command and parameters; a reply carries status, message, and parameters.
+- `Message` &ndash; the default messages noPerfection uses in production. `protocol/client` and `protocol/handler` work with these through `MessagePacker`. A request carries a command and parameters; a reply carries status, message, and parameters.
 - `Raw`: an example of a custom message. It's just a thin wrapper over the transport zeromq, but handles the message id used by asynchronous requests. So if you want to manage message ids, without handling string manipulations, use this.
 
 There are two message types: requests and replies. Requests used by clients, and replies used by handlers.
@@ -19,7 +19,31 @@ The module has three layers:
 
 . Its defined by the protocol and noPerfection follows it. The utility functions that  passed to and from sockets. A packer deserializes those envelope parts into a `RequestInterface` or `ReplyInterface`, and serializes message interfaces back into envelope parts.
 
-noPerfection wires in `DefaultMessage()` (`MessagePacker` + `Request` / `Reply`). `RawMessage()` (`RawPacker` + `RawRequest` / `RawReply`) is the reference extension: same `Packer` interface, different message types and envelope rules.
+noPerfection wires in `MessagePacker` with `Request` / `Reply`. `RawPacker` with `RawRequest` / `RawReply` is the reference extension: same `Packer` interface, different message types and envelope rules.
+
+## Endpoints
+
+`Endpoint` describes where a ZeroMQ socket should bind or connect. It has two fields:
+
+```go
+type Endpoint struct {
+	Id   string
+	Port uint64
+}
+```
+
+Endpoints are used in two ways:
+
+- As a handler endpoint with `HandlerUrl()`. This is the URL a handler binds.
+- As a client endpoint with `ClientUrl()`. This is the URL a client connects to.
+
+The endpoint chooses the ZeroMQ transport from `Id` and `Port`:
+
+- `Port == 0` and `Id` starts with `tmp/`: use Unix IPC with `ipc:///<id>`. This is for processes communicating through a filesystem IPC path.
+- `Port == 0` and any other `Id`: use in-process transport with `inproc://<id>`. This is for internal goroutines or threads.
+- `Port != 0`: use TCP. In this case `Id` is the domain or IP address and `Port` is the TCP port.
+
+For TCP endpoints, local handlers and clients use different URLs. If `Id` is empty, `localhost`, or starts with `127.0.0.`, `HandlerUrl()` binds to `tcp://*:<port>`, while `ClientUrl()` connects to `tcp://localhost:<port>`. For any other `Id`, both handler and client URLs use `tcp://<id>:<port>`.
 
 ## ZeroMQ Envelopes
 ZeroMQ envelopes are defined by the zeromq library as a series of strings: `[]string`. Message module is based on it. To interact with them, you may need to check its official protocol specification.
