@@ -101,11 +101,11 @@ func (socket *Socket) handleConsume() error {
 
 	msg := socket.queue.Pop().(*Transmit)
 
-	// Submit, not a Reply message
+	// Send, not a reply message.
 	if msg.replyMsg == nil {
-		err := socket.rawSubmitByTimeout(msg.reqMsg)
+		err := socket.rawSendByTimeout(msg.reqMsg)
 		if err != nil {
-			msg.delayedErr <- fmt.Errorf("socket.rawSubmitByTimeout: %w", err)
+			msg.delayedErr <- fmt.Errorf("socket.rawSendByTimeout: %w", err)
 		} else {
 			msg.delayedErr <- nil
 		}
@@ -199,13 +199,13 @@ func (socket *Socket) Attempt(attempt uint8) *Socket {
 	return socket
 }
 
-func (socket *Socket) RawRequest(raw string) ([]string, error) {
+func (socket *Socket) request(raw string) ([]string, error) {
 	if socket.queue.IsFull() {
 		return nil, fmt.Errorf("queue is full, try again later")
 	}
 
 	// todo, a message channel must return the error as well
-	// todo, rename Transmit to Send and Transmit.reply a type to Reply.
+	// todo, rename Transmit.reply a type to Reply.
 	msg := &Transmit{
 		replyMsg:   make(chan []string),
 		delayedErr: make(chan error),
@@ -234,9 +234,9 @@ func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
 			return nil, fmt.Errorf("request_timeout: reqMsg='%s'", raw)
 		}
 
-		timeout, err := socket.rawSubmit(raw)
+		timeout, err := socket.rawSend(raw)
 		if err != nil {
-			return nil, fmt.Errorf("socket.rawSubmit: %w", err)
+			return nil, fmt.Errorf("socket.rawSend: %w", err)
 		}
 
 		if timeout {
@@ -263,10 +263,7 @@ func (socket *Socket) rawRequestByTimeout(raw string) ([]string, error) {
 	}
 }
 
-// RawSubmit sends the message to the destination, without waiting for the reply.
-// If the socket has to wait for a reply, otherwise its blocking,
-// then the RawSubmit will receive the message, but omit it.
-func (socket *Socket) RawSubmit(raw string) error {
+func (socket *Socket) send(raw string) error {
 	if socket.queue.IsFull() {
 		return fmt.Errorf("queue is full, try again later")
 	}
@@ -283,13 +280,13 @@ func (socket *Socket) RawSubmit(raw string) error {
 	return err
 }
 
-func (socket *Socket) rawSubmitByTimeout(raw string) error {
+func (socket *Socket) rawSendByTimeout(raw string) error {
 	attempt := socket.attempt
 
 	for {
-		timeout, err := socket.rawSubmit(raw)
+		timeout, err := socket.rawSend(raw)
 		if err != nil {
-			return fmt.Errorf("socket.rawSubmit: %w", err)
+			return fmt.Errorf("socket.rawSend: %w", err)
 		}
 
 		if !timeout {
@@ -299,16 +296,16 @@ func (socket *Socket) rawSubmitByTimeout(raw string) error {
 
 		attempt--
 		if attempt == 0 {
-			return fmt.Errorf("submit_timeout: reqMsg='%s'", raw)
+			return fmt.Errorf("send_timeout: reqMsg='%s'", raw)
 		}
 	}
 	return nil
 }
 
-// rawSubmit sends the message; it doesn't wait for a reply to see was it successfully sent.
+// rawSend sends the message; it doesn't wait for a reply to see was it successfully sent.
 //
 // returns boolean for timeout.
-func (socket *Socket) rawSubmit(raw string) (bool, error) {
+func (socket *Socket) rawSend(raw string) (bool, error) {
 	// no need to reconnect every time.
 	err := socket.reconnect()
 	if err != nil {
@@ -347,7 +344,7 @@ func (socket *Socket) rawSubmit(raw string) (bool, error) {
 	return true, nil
 }
 
-// omitReplyIfPresent drops an inbound reply so REQ submit can complete (see RawSubmit doc).
+// omitReplyIfPresent drops an inbound reply so REQ submit can complete.
 func (socket *Socket) omitReplyIfPresent() {
 	socketType, err := socket.zmqSocket.GetType()
 	if err != nil || socketType != zmq.REQ {
@@ -373,16 +370,16 @@ func (socket *Socket) omitReplyIfPresent() {
 // The client that works with the message.RequestInterface and message.ReplyInterface
 //
 
-func (socket *Socket) Submit(req message.RequestInterface) error {
+func (socket *Socket) Send(req message.RequestInterface) error {
 	reqStr, err := socket.messagePacker.SerializeRequest(req)
 	if err != nil {
 		return fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
 
 	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
-	err = socket.RawSubmit(reqMsg)
+	err = socket.send(reqMsg)
 	if err != nil {
-		return fmt.Errorf("socket.RawSubmit: %w", err)
+		return fmt.Errorf("socket.send: %w", err)
 	}
 
 	return nil
@@ -403,9 +400,9 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 	}
 
 	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
-	rawReply, err := socket.RawRequest(reqMsg)
+	rawReply, err := socket.request(reqMsg)
 	if err != nil {
-		return nil, fmt.Errorf("socket.RawRequest: %w", err)
+		return nil, fmt.Errorf("socket.request: %w", err)
 	}
 
 	reply, err := socket.messagePacker.DeserializeReply(rawReply)

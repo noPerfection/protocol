@@ -121,65 +121,95 @@ func (test *TestClientSuite) Test_11_Parameters() {
 	require().EqualValues(minAttempt, test.socket.attempt)
 }
 
-func (test *TestClientSuite) Test_12_rawSubmit() {
+func (test *TestClientSuite) Test_12_SendByTimeout() {
 	require := test.Require
 
-	go test.runBackend("Test_12_rawSubmit", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		test.runBackend("Test_12_SendByTimeout", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
+	}()
 	time.Sleep(time.Millisecond * 100)
 
-	req := "hello Test_12_rawSubmit"
-	err := test.socket.rawSubmitByTimeout(req)
+	req := (&message.Request{
+		Command:    "hello",
+		Parameters: datatype.New().Set("unit", "Test_12_SendByTimeout"),
+	}).String()
+	err := test.socket.rawSendByTimeout(req)
 	require().NoError(err)
+	<-done
 }
 
-func (test *TestClientSuite) Test_13_RawRequest() {
+func (test *TestClientSuite) Test_13_Request() {
 	require := test.Require
 
-	go test.runBackend("Test_13_RawRequest", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
+	go test.runBackend("Test_13_Request", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
-	req := "hello Test_13_RawRequest"
-	reply, err := test.socket.RawRequest(req)
+	req := &message.Request{
+		Command:    "hello",
+		Parameters: datatype.New().Set("unit", "Test_13_Request"),
+	}
+	reply, err := test.socket.Request(req)
 	require().NoError(err)
 	fmt.Printf("client recevied: %s\n", reply)
 }
 
-func (test *TestClientSuite) Test_14_RawSubmit() {
+func (test *TestClientSuite) Test_14_Send() {
 	require := test.Require
 
-	go test.runBackend("Test_14_RawSubmit", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		test.runBackend("Test_14_Send", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
+	}()
 	time.Sleep(time.Millisecond * 100)
 
-	req := "hello Test_14_RawSubmit"
-	err := test.socket.RawSubmit(req)
+	req := &message.Request{
+		Command:    "hello",
+		Parameters: datatype.New().Set("unit", "Test_14_Send"),
+	}
+	err := test.socket.Send(req)
 	require().NoError(err)
+	<-done
 }
 
-func (test *TestClientSuite) Test_15_DealerRawRequest() {
+func (test *TestClientSuite) Test_15_DealerRequest() {
 	require := test.Require
 
-	go test.runBackend("Test_15_DealerRawRequest", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
+	go test.runBackend("Test_15_DealerRequest", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
 	time.Sleep(time.Millisecond * 100)
 
 	test.socket.Timeout(time.Second).Attempt(minAttempt)
 
-	req := "hello Test_15_DealerRawRequest"
-	reply, err := test.socket.RawRequest(req)
+	req := &message.Request{
+		Command:    "hello",
+		Parameters: datatype.New().Set("unit", "Test_15_DealerRequest"),
+	}
+	reply, err := test.socket.Request(req)
 	require().NoError(err)
 	fmt.Printf("client recevied: %s\n", reply)
 }
 
-func (test *TestClientSuite) Test_16_DealerRawSubmit() {
+func (test *TestClientSuite) Test_16_DealerSend() {
 	require := test.Require
 
-	go test.runBackend("Test_16_DealerRawSubmit", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		test.runBackend("Test_16_DealerSend", test.socket.endpoint.ClientUrl(), zmq.ROUTER)
+	}()
 	time.Sleep(time.Millisecond * 100)
 
 	test.socket.Timeout(time.Second).Attempt(minAttempt)
 
-	req := "hello Test_16_DealerRawSubmit"
-	err := test.socket.RawSubmit(req)
+	req := &message.Request{
+		Command:    "hello",
+		Parameters: datatype.New().Set("unit", "Test_16_DealerSend"),
+	}
+	err := test.socket.Send(req)
 	require().NoError(err)
+	<-done
 }
 
 func (test *TestClientSuite) Test_17_RequestToRep() {

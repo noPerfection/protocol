@@ -7,7 +7,7 @@ The `client` module exchanges messages with [protocol/handler](https://github.co
 
 *Request* &ndash; is the two **transmits** with the handler. Sending and receiving. It guarantees a delivery.
 
-*Submit* &ndash; a one **transmit** with the handler.
+*Send* &ndash; a one-way **transmit** with the handler.
 The client sends the message.
 Client doesn't wait for a reply. 
 
