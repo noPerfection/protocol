@@ -6,6 +6,29 @@ import (
 	"github.com/noPerfection/datatype"
 )
 
+type ReplyInterface interface {
+	ConId() string
+	SetConId(string)
+	// IsOK returns the Status of the message.
+	IsOK() bool
+	// String converts the Reply to the string format. Empty if occurred an error.
+	// It implements Stringer interface from a standard library
+	String() string
+	// ZmqEnvelope converts the message to the zeromq envelope
+	ZmqEnvelope() ([]string, error)
+	ErrorMessage() string
+	ReplyParameters() datatype.KeyValue
+}
+
+// ReplyStatus can be only as "OK" or "fail"
+// It indicates whether the reply message is correct or not.
+type ReplyStatus string
+
+const (
+	OK   ReplyStatus = "OK"
+	FAIL ReplyStatus = "fail"
+)
+
 // Reply is returned by a noPerfection service. Anyone who sends a request to the service gets this message.
 type Reply struct {
 	Status     ReplyStatus       `json:"status"`     // message.OK or message.FAIL

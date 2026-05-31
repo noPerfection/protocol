@@ -2,53 +2,6 @@ package message
 
 import "fmt"
 
-// ReplyStatus can be only as "OK" or "fail"
-// It indicates whether the reply message is correct or not.
-type ReplyStatus string
-
-type MessagePacker struct{}
-
-var _ Packer = (*MessagePacker)(nil)
-
-func (packer *MessagePacker) DeserializeRequest(zmqEnvelope []string) (RequestInterface, error) {
-	return NewReq(zmqEnvelope)
-}
-
-func (packer *MessagePacker) DeseralizeReply(zmqEnvelope []string) (ReplyInterface, error) {
-	return NewRep(zmqEnvelope)
-}
-
-func (packer *MessagePacker) SerializeRequest(request RequestInterface) ([]string, error) {
-	str := request.String()
-	if str == "" {
-		return nil, fmt.Errorf("request.String returned an empty string")
-	}
-
-	return MessageToEnvelope(request.ConId(), str), nil
-}
-
-func (packer *MessagePacker) SerializeReply(reply ReplyInterface) ([]string, error) {
-	str := reply.String()
-	if str == "" {
-		return nil, fmt.Errorf("request.String returned an empty string")
-	}
-
-	return MessageToEnvelope(reply.ConId(), str), nil
-}
-
-func (packer *MessagePacker) EmptyRequest() RequestInterface {
-	return NewEmptyReq()
-}
-
-func (packer *MessagePacker) EmptyReply() ReplyInterface {
-	return NewEmptyReply()
-}
-
-const (
-	OK   ReplyStatus = "OK"
-	FAIL ReplyStatus = "fail"
-)
-
 func ValidEnvelope(messages []string) error {
 	if len(messages) == 0 {
 		return fmt.Errorf("envelope is empty")

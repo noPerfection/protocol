@@ -6,12 +6,24 @@ import (
 	"github.com/noPerfection/datatype"
 )
 
-var _ RequestInterface = (*Request)(nil)
-
-// DefaultMessage returns a message for parsing request and parsing reply.
-func DefaultMessage() Packer {
-	return &MessagePacker{}
+// RequestInterface generic requests
+type RequestInterface interface {
+	// ConId returns a connection id for each sending session.
+	ConId() string
+	SetConId(string)
+	// String implements the Stringer interface from a standard library
+	String() string
+	// ZmqEnvelope converts the message to the zeromq envelope
+	ZmqEnvelope() ([]string, error)
+	// Fail creates a new Reply as a failure
+	// It accepts the error message that explains the reason of the failure.
+	Fail(message string) ReplyInterface
+	Ok(parameters datatype.KeyValue) ReplyInterface
+	CommandName() string
+	RouteParameters() datatype.KeyValue
 }
+
+var _ RequestInterface = (*Request)(nil)
 
 func NewEmptyReq() RequestInterface {
 	return &Request{}
