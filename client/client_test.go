@@ -20,6 +20,8 @@ type TestClientSuite struct {
 	funcName string
 }
 
+const minAttempt = uint8(1)
+
 type rawReplyResult struct {
 	raw []string
 	err error
@@ -162,12 +164,11 @@ func (test *TestClientSuite) Test_11_Parameters() {
 	attempt := uint8(0)
 
 	require().Less(timeout, minTimeout, "set less than minTimeout")
-	require().Less(attempt, minAttempt, "set less than minAttempt")
 
 	test.socket.Timeout(timeout).Attempt(attempt)
 
 	require().EqualValues(minTimeout, test.socket.timeout)
-	require().EqualValues(minAttempt, test.socket.attempt)
+	require().EqualValues(attempt, test.socket.attempt)
 }
 
 func (test *TestClientSuite) Test_12_SendByTimeout() {

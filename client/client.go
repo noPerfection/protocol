@@ -15,9 +15,13 @@ const (
 	minTimeout     = time.Millisecond * 2
 	DefaultTimeout = time.Second * 100
 
-	minAttempt     = uint8(1)
 	DefaultAttempt = uint8(5)
 )
+
+// infiniteAttempts reports whether send/request/receive retries are unbounded.
+func infiniteAttempts(attempt uint8) bool {
+	return attempt == 0
+}
 
 // A Socket is the structure that transmits the data to the handlers.
 type Socket struct {
@@ -102,7 +106,9 @@ func (socket *Socket) reconnect() (err error) {
 }
 
 func (socket *Socket) updateToPollIn() {
-	_, _ = socket.poller.UpdateBySocket(socket.zmqSocket, zmq.POLLIN)
+	if _, err := socket.poller.UpdateBySocket(socket.zmqSocket, zmq.POLLIN); err != nil {
+		_ = socket.poller.Add(socket.zmqSocket, zmq.POLLIN)
+	}
 }
 
 func (socket *Socket) pollOut() {
@@ -158,12 +164,9 @@ func (socket *Socket) Timeout(timeout time.Duration) *Socket {
 	return socket
 }
 
-// Attempt update. If the attempt is less than minAttempt, then minAttempt is set
+// Attempt sets how many timeout windows are tried before giving up.
+// Zero means retry indefinitely.
 func (socket *Socket) Attempt(attempt uint8) *Socket {
-	if attempt < minAttempt {
-		attempt = minAttempt
-	}
-
 	socket.mu.Lock()
 	defer socket.mu.Unlock()
 
@@ -189,14 +192,19 @@ func (socket *Socket) attemptRequesting(envelope []string) ([]string, error) {
 	socket.zmqMu.Lock()
 	defer socket.zmqMu.Unlock()
 
-	timeoutDuration, attempt := socket.options()
+	timeoutDuration, maxAttempt := socket.options()
 
-	attempt++
+	triesLeft := uint8(0)
+	if !infiniteAttempts(maxAttempt) {
+		triesLeft = maxAttempt + 1
+	}
 
 	for {
-		attempt--
-		if attempt == 0 {
-			return nil, fmt.Errorf("request_timeout: envelope=%v", envelope)
+		if !infiniteAttempts(maxAttempt) {
+			triesLeft--
+			if triesLeft == 0 {
+				return nil, fmt.Errorf("request_timeout: envelope=%v", envelope)
+			}
 		}
 
 		timeout, err := socket.send(envelope)
@@ -230,8 +238,9 @@ func (socket *Socket) attemptSending(envelope []string) error {
 	socket.zmqMu.Lock()
 	defer socket.zmqMu.Unlock()
 
-	_, attempt := socket.options()
+	_, maxAttempt := socket.options()
 
+	triesLeft := maxAttempt
 	for {
 		timeout, err := socket.send(envelope)
 		if err != nil {
@@ -243,8 +252,12 @@ func (socket *Socket) attemptSending(envelope []string) error {
 			break
 		}
 
-		attempt--
-		if attempt == 0 {
+		if infiniteAttempts(maxAttempt) {
+			continue
+		}
+
+		triesLeft--
+		if triesLeft == 0 {
 			return fmt.Errorf("send_timeout: envelope=%v", envelope)
 		}
 	}

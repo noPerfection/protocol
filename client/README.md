@@ -16,7 +16,7 @@ Client doesn't wait for a reply.
 ## Rules
 * Client has options
 * - *timeout* &ndash; option that halts sending after this period of time. Minimum value is 2 milliseconds.
-* - *attempt* &ndash; option that repeats the message **transmitting** after *timeout*. Minimum one attempt.
+* - *attempt* &ndash; option that repeats the message **transmitting** after *timeout*. Zero means retry indefinitely.
 * Client must set correct message parts for asynchronous handlers for internal zeromq socket.
 
 ## Implementation
@@ -58,7 +58,7 @@ The `Client.Timeout(time.Duration)` method over-writes the timeout.
 The `minimumTimeout` is **2 milliseconds**. 
 
 The `Client.Attempt(uint8)` method sets the attempt. 
-The minimum attempt is *1*. 
+Zero means retry indefinitely. 
 
 ### Type
 The type of the client is the opposite of the target type.
