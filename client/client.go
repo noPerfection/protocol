@@ -33,33 +33,32 @@ type Option struct {
 
 // A Socket is the structure that transmits the data to the handlers.
 type Socket struct {
-	consumerId  uint64 // consume internal id assigned by zeromq
-	poller      *zmq.Poller
-	schedulers  *zmq.Reactor // client keeps a zmqSocket for initialing a message transfer, and a queue consumer.
-	zmqSocket   *zmq.Socket
-	url         string
-	timeout     time.Duration
-	attempt     uint8
-	socketType  zmq.Type
-	endpoint    message.Endpoint
-	handlerType HandlerType
-	queue       *datatype.Queue
-	sent        uint64
-	messageOps  message.Packer // client translates the message before and after transmitting using message operations.
+	consumerId    uint64 // consume internal id assigned by zeromq
+	poller        *zmq.Poller
+	schedulers    *zmq.Reactor // client keeps a zmqSocket for initialing a message transfer, and a queue consumer.
+	zmqSocket     *zmq.Socket
+	url           string
+	timeout       time.Duration
+	attempt       uint8
+	socketType    zmq.Type
+	endpoint message.Endpoint
+	queue    *datatype.Queue
+	sent          uint64
+	messagePacker message.Packer // client translates the message before and after transmitting.
 }
 
 func newSocket(socketType zmq.Type, url string) (*Socket, error) {
 	socket := &Socket{
-		zmqSocket:  nil,
-		timeout:    DefaultTimeout,
-		attempt:    DefaultAttempt,
-		socketType: socketType,
-		url:        url,
-		queue:      datatype.NewQueue(),
-		schedulers: zmq.NewReactor(),
-		consumerId: 0,
-		sent:       1,
-		messageOps: &message.MessagePacker{},
+		zmqSocket:     nil,
+		timeout:       DefaultTimeout,
+		attempt:       DefaultAttempt,
+		socketType:    socketType,
+		url:           url,
+		queue:         datatype.NewQueue(),
+		schedulers:    zmq.NewReactor(),
+		consumerId:    0,
+		sent:          1,
+		messagePacker: &message.MessagePacker{},
 	}
 
 	// we can remove the following lines
@@ -90,13 +89,14 @@ func New(id string, port uint64, handlerTargetType HandlerType) (*Socket, error)
 		return nil, fmt.Errorf("newSocket('%s', '%s'): %w", handlerTargetType, endpoint.ClientUrl(), err)
 	}
 	socket.endpoint = endpoint
-	socket.handlerType = handlerTargetType
 
 	return socket, nil
 }
 
-func (socket *Socket) SetMessageOperations(messageOps message.Packer) {
-	socket.messageOps = messageOps
+// Sets the message serializer and deserializer.
+// Use the same as used by the handler.
+func (socket *Socket) SetPacker(packer message.Packer) {
+	socket.messagePacker = packer
 }
 
 // handleConsume runs in a loop to read the queue.
@@ -372,9 +372,9 @@ func (socket *Socket) omitReplyIfPresent() {
 //
 
 func (socket *Socket) Submit(req message.RequestInterface) error {
-	reqStr, err := socket.messageOps.SerializeRequest(req)
+	reqStr, err := socket.messagePacker.SerializeRequest(req)
 	if err != nil {
-		return fmt.Errorf("messageOps.SerializeRequest: %w", err)
+		return fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
 
 	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
@@ -395,9 +395,9 @@ func (socket *Socket) Submit(req message.RequestInterface) error {
 //
 // The zmqSocket type should be REQ or PUSH.
 func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterface, error) {
-	reqStr, err := socket.messageOps.SerializeRequest(req)
+	reqStr, err := socket.messagePacker.SerializeRequest(req)
 	if err != nil {
-		return nil, fmt.Errorf("messageOps.SerializeRequest: %w", err)
+		return nil, fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
 
 	_, reqMsg, _ := message.EnvelopeToMessage(reqStr)
@@ -406,9 +406,9 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 		return nil, fmt.Errorf("socket.RawRequest: %w", err)
 	}
 
-	reply, err := socket.messageOps.DeserializeReply(rawReply)
+	reply, err := socket.messagePacker.DeserializeReply(rawReply)
 	if err != nil {
-		return nil, fmt.Errorf("messageOps.DeserializeReply('%v'): %w", rawReply, err)
+		return nil, fmt.Errorf("packer.DeserializeReply('%v'): %w", rawReply, err)
 	}
 
 	return reply, nil
