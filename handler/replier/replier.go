@@ -19,7 +19,7 @@ import (
 type Replier struct {
 	*base.Handler
 	Control    base.Interface
-	messageOps *message.Operations
+	messageOps message.Packer
 }
 
 type pendingReply struct {
@@ -165,9 +165,9 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.messageOps.NewReq(raw)
+	req, err := c.messageOps.DeserializeRequest(raw)
 	if err != nil {
-		reply := c.messageOps.EmptyReq().Fail(fmt.Sprintf("messageOps.NewReq: %v", err))
+		reply := c.messageOps.EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
 		replies <- pendingReply{reply: reply}
 		return nil
 	}
@@ -187,9 +187,9 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 }
 
 func (c *Replier) sendReply(socket *zmq.Socket, reply message.ReplyInterface) error {
-	envelope, err := reply.ZmqEnvelope()
+	envelope, err := c.messageOps.SerializeReply(reply)
 	if err != nil {
-		return fmt.Errorf("reply.ZmqEnvelope: %w", err)
+		return fmt.Errorf("messageOps.SerializeReply: %w", err)
 	}
 	if _, err := socket.SendMessage(envelope); err != nil {
 		return fmt.Errorf("socket.SendMessage: %w", err)

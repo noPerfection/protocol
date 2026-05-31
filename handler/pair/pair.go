@@ -23,7 +23,7 @@ type Pair struct {
 	pairW        sync.WaitGroup
 	broadcasting *datatype.Queue
 	Control      base.Interface
-	messageOps   *message.Operations
+	messageOps   message.Packer
 }
 
 var _ base.Interface = (*Pair)(nil)
@@ -163,9 +163,9 @@ func (c *Pair) startPair() error {
 func (c *Pair) flushBroadcast(socket *zmq.Socket) {
 	for !c.broadcasting.IsEmpty() {
 		req := c.broadcasting.Pop().(message.RequestInterface)
-		envelope, err := req.ZmqEnvelope()
+		envelope, err := c.messageOps.SerializeRequest(req)
 		if err != nil {
-			c.LogError("request.ZmqEnvelope", "error", err)
+			c.LogError("messageOps.SerializeRequest", "error", err)
 			continue
 		}
 		if _, err := socket.SendMessageDontwait(envelope); err != nil {
@@ -181,9 +181,9 @@ func (c *Pair) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.messageOps.NewReq(raw)
+	req, err := c.messageOps.DeserializeRequest(raw)
 	if err != nil {
-		reply := c.messageOps.EmptyReq().Fail(fmt.Sprintf("messageOps.NewReq: %v", err))
+		reply := c.messageOps.EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
 		return c.sendReply(socket, reply)
 	}
 
@@ -197,9 +197,9 @@ func (c *Pair) handleRequest(socket *zmq.Socket) error {
 }
 
 func (c *Pair) sendReply(socket *zmq.Socket, reply message.ReplyInterface) error {
-	envelope, err := reply.ZmqEnvelope()
+	envelope, err := c.messageOps.SerializeReply(reply)
 	if err != nil {
-		return fmt.Errorf("reply.ZmqEnvelope: %w", err)
+		return fmt.Errorf("messageOps.SerializeReply: %w", err)
 	}
 	if _, err := socket.SendMessage(envelope); err != nil {
 		return fmt.Errorf("socket.SendMessage: %w", err)

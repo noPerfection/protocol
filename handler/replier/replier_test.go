@@ -114,7 +114,7 @@ func (test *TestReplierSuite) externalReq(client *zmq.Socket, request message.Re
 	if err != nil {
 		return nil, err
 	}
-	if _, err := client.SendMessage("", message.JoinMessages(reqStr)); err != nil {
+	if _, err := client.SendMessage("", message.MessageFromEnvelope(reqStr)); err != nil {
 		return nil, err
 	}
 

@@ -76,9 +76,9 @@ func (suite *TestReplySuite) TestParsing() {
 	failString := suite.fail.String()
 	okString := suite.ok.String()
 
-	ok, err := NewRep([]string{okString})
+	ok, err := NewRep(MessageToEnvelope("", okString))
 	suite.Require().NoError(err)
-	fail, err := NewRep([]string{failString})
+	fail, err := NewRep(MessageToEnvelope("", failString))
 	suite.Require().NoError(err)
 
 	suite.EqualValues(suite.ok, ok)
@@ -86,45 +86,45 @@ func (suite *TestReplySuite) TestParsing() {
 
 	// Parsing a reply with the nil values should fail
 	invalidReply := `{"message":"","parameters":null,"status":"OK"}`
-	_, err = NewRep([]string{invalidReply})
+	_, err = NewRep(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Parsing a reply with an invalid error should fail
 	invalidReply = `{"message":"","parameters":{},"status":""}`
-	_, err = NewRep([]string{invalidReply})
+	_, err = NewRep(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Parsing should fail for missing keys
 	invalidReply = `{}`
-	_, err = NewRep([]string{invalidReply})
+	_, err = NewRep(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Parsing the json with additional field should be
 	// successful, but skip the other parameters
 	invalidReply = `{"message":"","parameters":{},"status":"OK", "sig": ""}`
-	_, err = NewRep([]string{invalidReply})
+	_, err = NewRep(MessageToEnvelope("", invalidReply))
 	suite.NoError(err)
 
 	// Parsing the failure with an empty message should fail
 	invalidReply = `{"message":"","parameters":{},"status":"fail", "sig": ""}`
-	_, err = NewRep([]string{invalidReply})
+	_, err = NewRep(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Parsing the reply with the missing field should fail
 	invalidReply = `{"message":"","parameters":{}}`
-	_, err = NewRep([]string{invalidReply})
+	_, err = NewRep(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Parsing the reply with the missing field should fail
 	invalidReply = `{"message":"","status":"OK"}`
-	_, err = NewRep([]string{invalidReply})
+	_, err = NewRep(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Parsing the reply with the missing scalar type
 	// should be successful, since we will set the default
 	// values
 	invalidReply = `{"parameters":{}, "status":"OK"}`
-	_, err = NewRep([]string{invalidReply})
+	_, err = NewRep(MessageToEnvelope("", invalidReply))
 	suite.NoError(err)
 }
 

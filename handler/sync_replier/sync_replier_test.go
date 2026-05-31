@@ -120,7 +120,7 @@ func (test *TestSyncReplierSuite) externalReq(client *zmq.Socket, request messag
 	if err != nil {
 		return nil, err
 	}
-	if _, err := client.SendMessage(message.JoinMessages(reqStr)); err != nil {
+	if _, err := client.SendMessage(message.MessageFromEnvelope(reqStr)); err != nil {
 		return nil, err
 	}
 

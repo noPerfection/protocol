@@ -45,7 +45,7 @@ type Socket struct {
 	config     *config.Client
 	queue      *datatype.Queue
 	sent       uint64
-	messageOps *message.Operations // client translates the message before and after transmitting using message operations.
+	messageOps message.Packer // client translates the message before and after transmitting using message operations.
 }
 
 // NewRaw returns a new client that's connected to the given url.
@@ -113,7 +113,7 @@ func New(client *config.Client) (*Socket, error) {
 	return socket, nil
 }
 
-func (socket *Socket) SetMessageOperations(messageOps *message.Operations) {
+func (socket *Socket) SetMessageOperations(messageOps message.Packer) {
 	socket.messageOps = messageOps
 }
 
@@ -392,12 +392,12 @@ func (socket *Socket) omitReplyIfPresent() {
 //
 
 func (socket *Socket) Submit(req message.RequestInterface) error {
-	reqStr, err := req.ZmqEnvelope()
+	reqStr, err := socket.messageOps.SerializeRequest(req)
 	if err != nil {
-		return fmt.Errorf("request.String: %w", err)
+		return fmt.Errorf("messageOps.SerializeRequest: %w", err)
 	}
 
-	err = socket.RawSubmit(message.JoinMessages(reqStr))
+	err = socket.RawSubmit(message.MessageFromEnvelope(reqStr))
 	if err != nil {
 		return fmt.Errorf("socket.RawSubmit: %w", err)
 	}
@@ -414,19 +414,19 @@ func (socket *Socket) Submit(req message.RequestInterface) error {
 //
 // The zmqSocket type should be REQ or PUSH.
 func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterface, error) {
-	reqStr, err := req.ZmqEnvelope()
+	reqStr, err := socket.messageOps.SerializeRequest(req)
 	if err != nil {
-		return nil, fmt.Errorf("request.String: %w", err)
+		return nil, fmt.Errorf("messageOps.SerializeRequest: %w", err)
 	}
 
-	rawReply, err := socket.RawRequest(message.JoinMessages(reqStr))
+	rawReply, err := socket.RawRequest(message.MessageFromEnvelope(reqStr))
 	if err != nil {
 		return nil, fmt.Errorf("socket.RawRequest: %w", err)
 	}
 
-	reply, err := socket.messageOps.NewReply(rawReply)
+	reply, err := socket.messageOps.DeseralizeReply(rawReply)
 	if err != nil {
-		return nil, fmt.Errorf("messageOps.NewReply('%v'): %w", rawReply, err)
+		return nil, fmt.Errorf("messageOps.DeseralizeReply('%v'): %w", rawReply, err)
 	}
 
 	// client service will add its own stack.

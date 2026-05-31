@@ -128,7 +128,7 @@ func (test *TestWorkerSuite) submit(client *zmq.Socket, request message.Request)
 	if err != nil {
 		return err
 	}
-	_, err = client.SendMessage("1", "", message.JoinMessages(reqStr))
+	_, err = client.SendMessage("1", "", message.MessageFromEnvelope(reqStr))
 	return err
 }
 

@@ -4,6 +4,15 @@ import (
 	"github.com/noPerfection/datatype"
 )
 
+type Packer interface {
+	DeserializeRequest(zmqEnvelope []string) (RequestInterface, error)
+	DeseralizeReply(zmqEnvelope []string) (ReplyInterface, error)
+	SerializeRequest(request RequestInterface) ([]string, error)
+	SerializeReply(reply ReplyInterface) ([]string, error)
+	EmptyRequest() RequestInterface
+	EmptyReply() ReplyInterface
+}
+
 // RequestInterface generic requests
 type RequestInterface interface {
 	// ConId returns a connection id for each sending session.

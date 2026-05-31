@@ -19,7 +19,7 @@ import (
 type Worker struct {
 	*base.Handler
 	Control    base.Interface
-	messageOps *message.Operations
+	messageOps message.Packer
 }
 
 var _ base.Interface = (*Worker)(nil)
@@ -145,9 +145,9 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.messageOps.NewReq(raw)
+	req, err := c.messageOps.DeserializeRequest(raw)
 	if err != nil {
-		return fmt.Errorf("messageOps.NewReq: %w", err)
+		return fmt.Errorf("messageOps.DeserializeRequest: %w", err)
 	}
 
 	handleFunc, err := c.FindRoute(req.CommandName())

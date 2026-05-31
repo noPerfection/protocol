@@ -1,7 +1,6 @@
 package message
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/noPerfection/datatype"
@@ -23,16 +22,12 @@ func (suite *TestRequestSuite) SetupTest() {
 		Command:    "some_command",
 		Parameters: datatype.New(),
 	}
-	request.AddRequestStack("service_1", "name_1", "instance_1")
-	request.AddRequestStack("service_2", "name_2", "instance_2")
 
 	suite.ok = request
 }
 
 func (suite *TestRequestSuite) TestToString() {
-	trace := fmt.Sprintf(`[{"command":"some_command","request_time":%d,"server_instance":"instance_1","server_name":"name_1","service_url":"service_1"},{"command":"some_command","request_time":%d,"server_instance":"instance_2","server_name":"name_2","service_url":"service_2"}]`,
-		suite.ok.Trace[0].RequestTime, suite.ok.Trace[1].RequestTime)
-	okString := fmt.Sprintf(`{"command":"some_command","parameters":{},"traces":%s}`, trace)
+	okString := `{"command":"some_command","parameters":{}}`
 
 	suite.EqualValues(okString, suite.ok.String())
 
@@ -59,47 +54,47 @@ func (suite *TestRequestSuite) TestToString() {
 func (suite *TestRequestSuite) TestParsing() {
 	okString := suite.ok.String()
 
-	ok, err := NewReq([]string{okString})
+	ok, err := NewReq(MessageToEnvelope("", okString))
 	suite.Require().NoError(err)
 
 	suite.EqualValues(suite.ok, ok)
 
 	// Parsing a request with the nil values should fail
 	invalidReply := `{"command":"","parameters":null}`
-	_, err = NewReq([]string{invalidReply})
+	_, err = NewReq(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Parsing should fail for missing keys
 	invalidReply = `{}`
-	_, err = NewReq([]string{invalidReply})
+	_, err = NewReq(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Parsing the json with additional field should be
 	// successful, but skip the other parameters
 	invalidReply = `{"command":"is here","parameters":{},"status":"OK", "sig": ""}`
-	_, err = NewReq([]string{invalidReply})
+	_, err = NewReq(MessageToEnvelope("", invalidReply))
 	suite.NoError(err)
 
 	// Parsing the request with the missing field should fail
 	invalidReply = `{"parameters":{}}`
-	_, err = NewReq([]string{invalidReply})
+	_, err = NewReq(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Parsing the request with the missing field should fail
 	invalidReply = `{"command":"command"}`
-	_, err = NewReq([]string{invalidReply})
+	_, err = NewReq(MessageToEnvelope("", invalidReply))
 	suite.Error(err)
 
 	// Request parameters are case-insensitive
 	// Not way to turn off
 	// https://golang.org/pkg/encoding/json/#Unmarshal
 	invalidReply = `{"Command":"command","parameters":{}}`
-	_, err = NewReq([]string{invalidReply})
+	_, err = NewReq(MessageToEnvelope("", invalidReply))
 	suite.NoError(err)
 
 	// Request parsing with the right parameters should succeed
 	invalidReply = `{"command":"command","parameters":{}}`
-	_, err = NewReq([]string{invalidReply})
+	_, err = NewReq(MessageToEnvelope("", invalidReply))
 	suite.NoError(err)
 }
 

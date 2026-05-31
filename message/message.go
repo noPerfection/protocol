@@ -1,25 +1,47 @@
 package message
 
-import (
-	"fmt"
-	"strings"
-)
-
-type ReqFunc = func(zmqEnvelope []string) (RequestInterface, error)
-type ReplyFunc = func(zmqEnvelope []string) (ReplyInterface, error)
-type NewGenericReq = func() RequestInterface
-type NewGenericReply = func() ReplyInterface
+import "fmt"
 
 // ReplyStatus can be only as "OK" or "fail"
 // It indicates whether the reply message is correct or not.
 type ReplyStatus string
 
-type Operations struct {
-	Name       string
-	NewReq     ReqFunc
-	NewReply   ReplyFunc
-	EmptyReq   NewGenericReq
-	EmptyReply NewGenericReply
+type MessagePacker struct{}
+
+var _ Packer = (*MessagePacker)(nil)
+
+func (packer *MessagePacker) DeserializeRequest(zmqEnvelope []string) (RequestInterface, error) {
+	return NewReq(zmqEnvelope)
+}
+
+func (packer *MessagePacker) DeseralizeReply(zmqEnvelope []string) (ReplyInterface, error) {
+	return NewRep(zmqEnvelope)
+}
+
+func (packer *MessagePacker) SerializeRequest(request RequestInterface) ([]string, error) {
+	str := request.String()
+	if str == "" {
+		return nil, fmt.Errorf("request.String returned an empty string")
+	}
+
+	return MessageToEnvelope(request.ConId(), str), nil
+}
+
+func (packer *MessagePacker) SerializeReply(reply ReplyInterface) ([]string, error) {
+	str := reply.String()
+	if str == "" {
+		return nil, fmt.Errorf("request.String returned an empty string")
+	}
+
+	return MessageToEnvelope(reply.ConId(), str), nil
+}
+
+func (packer *MessagePacker) EmptyRequest() RequestInterface {
+	return NewEmptyReq()
+}
+
+func (packer *MessagePacker) EmptyReply() ReplyInterface {
+	return NewEmptyReply()
 }
 
 const (
@@ -27,52 +49,55 @@ const (
 	FAIL ReplyStatus = "fail"
 )
 
-// ValidCommand checks if the reply type is failure, then
-// THe message should be given too
-func ValidCommand(cmd string) error {
-	if len(cmd) == 0 {
-		return fmt.Errorf("command is missing")
+func ValidEnvelope(messages []string) error {
+	if len(messages) == 0 {
+		return fmt.Errorf("envelope is empty")
+	}
+
+	if (len(messages) >= 2) && messages[0] == "" {
+		return fmt.Errorf("first delimiter is missing")
+	}
+	if (len(messages) >= 3) && messages[1] == "" {
+		return fmt.Errorf("conid delimiter is missing")
 	}
 
 	return nil
 }
 
-// MultiPart returns true if the message has id, delimiter, and content
-func MultiPart(messages []string) bool {
-	return len(messages) >= 3 && messages[1] == ""
-}
-
-func SyncReplierEnvelope(messages []string) bool {
-	return len(messages) >= 2 && messages[0] == ""
-}
-
-// JoinMessages into the single string the array of zeromq rawReq
-func JoinMessages(messages []string) string {
-	body := messages[:]
-	if MultiPart(messages) {
-		body = messages[2:]
-	} else if SyncReplierEnvelope(messages) {
-		body = messages[1:]
-	}
-	return strings.Join(body, "")
-}
-
-// ValidStatus validates the status of the reply.
-// It should be either OK or fail.
-func ValidStatus(status ReplyStatus) error {
-	if status != FAIL && status != OK {
-		return fmt.Errorf("status is either '%s' or '%s', but given: '%s'", OK, FAIL, status)
+// EnvelopeToMessage splits an envelope into connection id, first message body, and tail frames.
+func EnvelopeToMessage(messages []string) (conId string, message string, tail []string) {
+	if err := ValidEnvelope(messages); err != nil {
+		return "", "", []string{}
 	}
 
-	return nil
-}
-
-// ValidFail checks if the reply type is failure, then
-// THe message should be given too
-func ValidFail(status ReplyStatus, msg string) error {
-	if status == FAIL && len(msg) == 0 {
-		return fmt.Errorf("failure should not have an empty message")
+	if len(messages) >= 3 {
+		conId = messages[0]
+		message = messages[1]
+		if len(messages) > 3 {
+			tail = messages[3:]
+		} else {
+			tail = []string{}
+		}
+	} else if len(messages) >= 2 {
+		conId = ""
+		message = messages[1]
+		if len(messages) > 2 {
+			tail = messages[2:]
+		} else {
+			tail = []string{}
+		}
 	}
 
-	return nil
+	return conId, message, tail
+}
+
+// MessageToEnvelope builds an envelope from connection id, first message body, and tail frames.
+func MessageToEnvelope(conId string, message string, tail ...string) []string {
+	if len(conId) == 0 {
+		envelope := []string{"", message}
+		return append(envelope, tail...)
+	}
+
+	envelope := []string{conId, "", message}
+	return append(envelope, tail...)
 }

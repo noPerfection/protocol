@@ -16,7 +16,7 @@ import (
 type SyncReplier struct {
 	*base.Handler
 	Control    base.Interface
-	messageOps *message.Operations
+	messageOps message.Packer
 }
 
 var _ base.Interface = (*SyncReplier)(nil)
@@ -142,9 +142,9 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.messageOps.NewReq(raw)
+	req, err := c.messageOps.DeserializeRequest(raw)
 	if err != nil {
-		reply := c.messageOps.EmptyReq().Fail(fmt.Sprintf("messageOps.NewReq: %v", err))
+		reply := c.messageOps.EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
 		return c.sendReply(socket, reply)
 	}
 
@@ -158,9 +158,9 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 }
 
 func (c *SyncReplier) sendReply(socket *zmq.Socket, reply message.ReplyInterface) error {
-	envelope, err := reply.ZmqEnvelope()
+	envelope, err := c.messageOps.SerializeReply(reply)
 	if err != nil {
-		return fmt.Errorf("reply.ZmqEnvelope: %w", err)
+		return fmt.Errorf("messageOps.SerializeReply: %w", err)
 	}
 	if _, err := socket.SendMessage(envelope); err != nil {
 		return fmt.Errorf("socket.SendMessage: %w", err)
