@@ -129,6 +129,14 @@ clientURL := cfg.ClientUrl()
 
 Control endpoints are created with `control.CreateInternalConfig(handlerCfg)`. Common manager routes are `status`, `config`, `start`, and `close`.
 
+## Limitations
+
+- Handler routes should return a valid reply. Panics or nil replies are not recovered by the handler layer.
+- `Pair` is sensitive under stress. Heavy client pressure can leave the PAIR handler busy enough that control `close` may time out while waiting for the pair loop to stop.
+- `Publisher` queues broadcasts while stopped and flushes them after restart. This is useful, but the queue is bounded, so excess broadcasts can be dropped or rejected depending on the path.
+- `Publisher` broadcasting works with the TCP, IPC and inproc protocols only. UDP will be in the future.
+- `Replier` and `Pair` work for normal request/reply traffic, but client-side receive stress currently exposes dropped/closed receive channels under heavy pressure. See the root `test` module stress tests.
+
 ## Stress Tests
 
 The `replier` and `worker` packages include stress tests:

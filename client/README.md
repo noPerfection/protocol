@@ -98,6 +98,8 @@ for reply := range subscriber.Receive() {
 }
 ```
 
+`Send` is intentionally fire-and-forget. A nil error means the client accepted or wrote the message, not that the handler processed it.
+
 Clients are thread-safe, so one client can be called from multiple goroutines:
 
 ```go
@@ -107,6 +109,34 @@ for i := 0; i < 5; i++ {
 	}(i)
 }
 ```
+
+## Controls
+
+Each handler package also exposes a control client. Use it when you need to inspect or manage a running handler:
+
+```go
+control, err := client/<handler_name>.NewControl(id, port)
+```
+
+For example:
+
+```go
+control, err := sync_replier.NewControl(id, port)
+status, err := control.HandlerStatus()
+config, err := control.HandlerConfig()
+status, err = control.StartHandler()
+err = control.HandlerClose()
+```
+
+The control endpoint uses the handler control address, not the handler's message endpoint. By default handler controls use the handler id with `"_control"` appended. Check the control type in each `client/<handler_name>` package to see the exact interface. `pair.Control` and `publisher.Control` also expose broadcast-specific methods.
+
+## Limitations
+
+- Client operations are queued internally. The current dispatcher queue is small, so bursts of many simultaneous `Send` or `Request` calls can return `queue is full, try again later`.
+- `Receive` clients close their receive channel automatically when nothing arrives for `Attempt` consecutive idle periods, each lasting `Timeout`. Set `Attempt(0)` to retry forever. Receiving a message resets the idle counter. Call `Receive()` again on a new client after the channel closes.
+- `replier.Client` and `pair.Client` receive paths are not polished under stress yet. Stress tests show receive channels can close after only a few accepted messages during heavy concurrent send pressure.
+- `pair.Client` is sensitive to PAIR socket timing. Start `Receive()` and allow the connection to settle before sending, especially in tests.
+- `publisher.Client.Receive()` exposes published requests through the reply channel by wrapping request parameters in an OK reply. This preserves the current `Receive() <-chan message.ReplyInterface` API, but callers should remember publisher payloads originate as requests.
 
 ## Maintenance Memo
 

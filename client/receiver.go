@@ -68,8 +68,12 @@ func (r *receiver) pollOnce() {
 	packer := r.socket.packer()
 	reply, err := packer.DeserializeReply(raw)
 	if err != nil {
-		r.markIdle()
-		return
+		req, reqErr := packer.DeserializeRequest(raw)
+		if reqErr != nil {
+			r.markIdle()
+			return
+		}
+		reply = req.Ok(req.RouteParameters())
 	}
 
 	r.markReceived()
