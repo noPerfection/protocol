@@ -1,108 +1,122 @@
 # protocol/client
 
-The `client` module exchanges messages with [protocol/handler](https://github.com/noPerfection/protocol/handler/).
+Thread-safe ZeroMQ clients for connecting to [github.com/noPerfection/protocol/handler](https://github.com/noPerfection/protocol/tree/main/handler) handlers.
 
-## Terminology
-*Transmit* &ndash; any message transfers between a client and handler.
+## Requirements
 
-*Request* &ndash; is the two **transmits** with the handler. Sending and receiving. It guarantees a delivery.
+- Go 1.19 or newer.
+- ZeroMQ/libzmq available for [github.com/pebbe/zmq4](https://github.com/pebbe/zmq4).
 
-*Send* &ndash; a one-way **transmit** with the handler.
-The client sends the message.
-Client doesn't wait for a reply. 
+## Installation
 
-*Target* &ndash; a handler to which a message is **transmitted**.
+```sh
+go get github.com/noPerfection/protocol/client
+```
 
-## Rules
-* Client has options
-* - *timeout* &ndash; option that halts sending after this period of time. Minimum value is 2 milliseconds.
-* - *attempt* &ndash; option that repeats the message **transmitting** after *timeout*. Zero means retry indefinitely.
-* Client must set correct message parts for asynchronous handlers for internal zeromq socket.
+## Short Tutorial
 
-## Implementation
+This tutorial assumes you have familiriaty with the `noPerfection` framework and its terminology.
+Such as client and handler.
 
-### Clients
-Handler-specific client packages expose only the message operations that make sense for the target handler.
-
-| Package | Target handler | Client socket | Supported messages |
-|---------|----------------|---------------|--------------------|
-| `client/sync_replier` | `SyncReplier` | `REQ` | `Request` |
-| `client/replier` | `Replier` | `DEALER` | `Send`, channel-based `Receive` |
-| `client/worker` | `Worker` | `PUSH` | `Send` |
-| `client/publisher` | `Publisher` | `SUB` | channel-based `Receive` |
-| `client/pair` | `Pair` | `PAIR` | `Send`, channel-based `Receive` |
-
-The generic `client.New(id, port, handlerType)` constructor is the shared base used by those packages.
-Prefer handler-specific packages in application code:
+Connect to a `SyncReplier` handler with `client/sync_replier`:
 
 ```go
-import "github.com/noPerfection/protocol/client/replier"
+import "github.com/noPerfection/protocol/client/sync_replier"
 
-c, err := replier.NewClient("my_handler", 0)
-if err != nil { /* ... */ }
-defer c.Close()
+reqSync, err := sync_replier.NewClient("localhost", 3000)
+if err != nil {
+	return err
+}
+defer reqSync.Close()
 
-err = c.Send(request)
-for reply := range c.Receive() {
-    _ = reply
+reply, err := reqSync.Request(request)
+```
+
+## Client Types
+
+Clients are divided per package by handler name. Depending on the handler type, a client exposes only the supported interfaces: `SendInterface` for fire-and-forget messages, `RequestInterface` for request-reply messages, and `ReceiveInterface` for receiving handler replies.
+
+Handler types are defined in the README for [github.com/noPerfection/protocol/handler](https://github.com/noPerfection/protocol/tree/main/handler).
+
+| Handler's Client | Client's ZMQ socket | Send Interface | Request Interface | Receive Interface |
+|------------------|---------------------|----------------|-------------------|-------------------|
+| `sync_replier.Client` | `zmq.REQ` | | ✓ | |
+| `replier.Client` | `zmq.DEALER` | ✓ | | ✓ |
+| `worker.Client` | `zmq.PUSH` | ✓ | | |
+| `publisher.Client` | `zmq.SUB` | | | ✓ |
+| `pair.Client` | `zmq.PAIR` | ✓ | | ✓ |
+
+## Client Cycle
+
+First instantiate a new client with `client/<handler_name>.NewClient(id, port)`. The `id` and `port` values are based on [protocol/message](https://github.com/noPerfection/protocol/tree/main/message) endpoint rules. Socket endpoint setup is described in the README for [github.com/noPerfection/protocol/message](https://github.com/noPerfection/protocol/tree/main/message).
+
+```go
+import (
+	"github.com/noPerfection/protocol/client/pair"
+	"github.com/noPerfection/protocol/client/publisher"
+	"github.com/noPerfection/protocol/client/replier"
+	"github.com/noPerfection/protocol/client/sync_replier"
+	"github.com/noPerfection/protocol/client/worker"
+)
+
+id := "localhost"
+port := uint64(3000)
+
+p, err := pair.NewClient(id, port)
+subscriber, err := publisher.NewClient(id, port)
+req, err := replier.NewClient(id, port)
+reqSync, err := sync_replier.NewClient(id, port)
+pusher, err := worker.NewClient(id, port)
+```
+
+Before transmitting, set options if needed:
+
+- `Packer` changes message serialization. If the handler uses a custom packer, use the same packer here.
+- `Timeout` changes how long one attempt can wait. The minimum timeout is 2ms.
+- `Attempt` changes how many retries are allowed. `0` retries forever.
+
+```go
+subscriber.Packer(yamlFormat)
+subscriber.Timeout(time.Second)
+subscriber.Attempt(0)
+
+reqSync.Timeout(time.Second * 30)
+```
+
+Then check the table above and call the available interface:
+
+```go
+// SendInterface
+err := pusher.Send(request)
+
+// RequestInterface
+reply, err := reqSync.Request(request)
+
+// ReceiveInterface
+for reply := range subscriber.Receive() {
+	_ = reply
 }
 ```
 
-The base `client` package also defines `SendInterface`, `RequestInterface`, and `ReceiveInterface` for the supported operations.
-
-### Options
-The default *timeout* is **10 Seconds**.
-The default *attempt* is **5**.
-
-The `Client.Timeout(time.Duration)` method over-writes the timeout. 
-The `minimumTimeout` is **2 milliseconds**. 
-
-The `Client.Attempt(uint8)` method sets the attempt. 
-Zero means retry indefinitely. 
-
-### Type
-The type of the client is the opposite of the target type.
-Thus, when a client is defined, it's defined against the target to whom it will interact with.
-
-The handlers use the clients for creating a managers.
-To avoid import cycling the clients are using the target's internal socket type.
-
-For intercommunication, noPerfection uses ZeroMQ sockets.
-
-### URL
-`client.New(id, port, handlerType)` builds the ZeroMQ endpoint from the given id and port:
-
-| Condition | Endpoint |
-|-----------|----------|
-| `Port` > 0 | `tcp://localhost:{Port}` |
-| `Port` == 0 and `Id` starts with `tmp` | `ipc:///{Id}` (filesystem IPC socket) |
-| `Port` == 0 otherwise | `inproc://{Id}` (in-process) |
-
-`client.New` connects to the generated address and selects the socket type from the handler type.
-
-### Concurrent
-The client is a [thread safe](https://en.wikipedia.org/wiki/Thread_safety) ZeroMQ wrapper for interacting with noPerfection handlers.
-It is intended for creating a few long-lived clients and sharing them across goroutines over time.
-
-One client can accept messages from multiple goroutines. The client queues the messages and serializes ZeroMQ socket access internally.
+Clients are thread-safe, so one client can be called from multiple goroutines:
 
 ```go
-// Thread 1
-client1.Request(message)
-// Thread 2
-client1.Request(message)
+for i := 0; i < 5; i++ {
+	go func(loopIndex int) {
+		_ = pusher.Send(requestFrom(loopIndex))
+	}(i)
+}
 ```
 
-> **Todo**
-> 
-> Optimize the client passing to the handle functions as one child is passed to multiple handle func.
-> We need to avoid passing from parent to the nested child tree.
+## Maintenance Memo
 
-> Test the limits of the clients, and number of the threads.
-> Maybe create a pool of client sockets and get one when it's available?
+This is a memo for myself if I need to change the code after a few months of pause.
 
-> **Todo**
-> 
-> Create a library of the pool for available sockets. 
-> Then design the handle and client based on that.
+The main file is `client.go` at the root. It sets the `Socket` struct, but it is not intended to be used directly by users. Users should use the handler packages that derive from the client. Each handler package ensures its interface and adjusts the client config for that handler.
 
+The client itself is advanced. It depends on two ZeroMQ algorithms for thread-safety:
+
+- The reactor is used for the event-based queue. All messages are queued, and the dispatcher consumes the queue on a timer.
+- The `zmq.Poller` is used for timeout handling and queue/socket readiness.
+
+Receiving is exposed separately because a receiving client is the exception rather than the norm. That is why receiving is not part of the main send/request file.
