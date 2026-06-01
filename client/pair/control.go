@@ -10,6 +10,7 @@ import (
 
 const (
 	broadcastCommand     = "broadcast"
+	broadcastRequestKey  = "request"
 	messageAmountCommand = "message-amount"
 )
 
@@ -25,17 +26,10 @@ func NewControl(id string, port uint64) (*Control, error) {
 	return &Control{BaseControl: control}, nil
 }
 
-func (c *Control) Broadcast(req message.RequestInterface, packers ...message.Packer) error {
-	if req == nil {
-		return fmt.Errorf("request is nil")
-	}
-	if packer := firstPacker(packers); packer != nil {
-		c.Packer(packer)
-	}
-
+func (c *Control) Broadcast(req message.Request) error {
 	broadcastReq := &message.Request{
 		Command:    broadcastCommand,
-		Parameters: req.RouteParameters(),
+		Parameters: datatype.New().Set(broadcastRequestKey, req),
 	}
 
 	reply, err := c.Request(broadcastReq)
@@ -67,11 +61,4 @@ func (c *Control) MessageAmount() (uint, error) {
 		return 0, fmt.Errorf("reply.ReplyParameters().Uint64Value('broadcasting_length'): %w", err)
 	}
 	return uint(amount), nil
-}
-
-func firstPacker(packers []message.Packer) message.Packer {
-	if len(packers) == 0 {
-		return nil
-	}
-	return packers[0]
 }

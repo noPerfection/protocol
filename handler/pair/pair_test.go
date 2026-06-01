@@ -215,13 +215,16 @@ func (test *TestPairSuite) Test_10_StartReceivesAndBroadcasts() {
 	test.requireMessageAmount(0)
 
 	controlReply := test.req(message.Request{
-		Command:    Broadcast,
-		Parameters: datatype.New().Set("number", uint64(22)),
+		Command: Broadcast,
+		Parameters: datatype.New().Set(BroadcastRequestParameter, message.Request{
+			Command:    "broadcast-message",
+			Parameters: datatype.New().Set("number", uint64(22)),
+		}),
 	})
 	s.Require().True(controlReply.IsOK())
 
 	broadcastReq := test.receiveRequest()
-	s.Require().Equal(Broadcast, broadcastReq.CommandName())
+	s.Require().Equal("broadcast-message", broadcastReq.CommandName())
 	number, err = broadcastReq.RouteParameters().Uint64Value("number")
 	s.Require().NoError(err)
 	s.Require().Equal(uint64(22), number)
@@ -250,13 +253,16 @@ func (test *TestPairSuite) Test_11_ControlLifecycle() {
 	time.Sleep(time.Millisecond * 50)
 
 	broadcastReply := test.req(message.Request{
-		Command:    Broadcast,
-		Parameters: datatype.New().Set("number", uint64(33)),
+		Command: Broadcast,
+		Parameters: datatype.New().Set(BroadcastRequestParameter, message.Request{
+			Command:    "broadcast-after-restart",
+			Parameters: datatype.New().Set("number", uint64(33)),
+		}),
 	})
 	s.Require().True(broadcastReply.IsOK())
 
 	broadcastReq := test.receiveRequest()
-	s.Require().Equal(Broadcast, broadcastReq.CommandName())
+	s.Require().Equal("broadcast-after-restart", broadcastReq.CommandName())
 	number, err := broadcastReq.RouteParameters().Uint64Value("number")
 	s.Require().NoError(err)
 	s.Require().Equal(uint64(33), number)

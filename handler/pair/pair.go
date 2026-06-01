@@ -17,6 +17,7 @@ import (
 
 const Broadcast = "broadcast"
 const MessageAmount = "message-amount"
+const BroadcastRequestParameter = "request"
 
 type Pair struct {
 	*base.Handler
@@ -219,7 +220,17 @@ func (c *Pair) onBroadcast(req message.RequestInterface) message.ReplyInterface 
 		return req.Fail("broadcasting queue full")
 	}
 
-	c.broadcasting.Push(req)
+	requestKV, err := req.RouteParameters().NestedValue(BroadcastRequestParameter)
+	if err != nil {
+		return req.Fail(fmt.Sprintf("req.RouteParameters().NestedValue('%s'): %v", BroadcastRequestParameter, err))
+	}
+
+	var broadcastReq message.Request
+	if err := requestKV.Interface(&broadcastReq); err != nil {
+		return req.Fail(fmt.Sprintf("requestKV.Interface('message.Request'): %v", err))
+	}
+
+	c.broadcasting.Push(&broadcastReq)
 
 	return req.Ok(datatype.New())
 }

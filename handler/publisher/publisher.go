@@ -15,6 +15,7 @@ import (
 
 const Broadcast = "broadcast"
 const MessageAmount = "message-amount"
+const BroadcastRequestParameter = "request"
 
 type Publisher struct {
 	*base.Handler
@@ -165,7 +166,17 @@ func (c *Publisher) onBroadcast(req message.RequestInterface) message.ReplyInter
 		return req.Fail("broadcasting queue full")
 	}
 
-	c.broadcasting.Push(req)
+	requestKV, err := req.RouteParameters().NestedValue(BroadcastRequestParameter)
+	if err != nil {
+		return req.Fail(fmt.Sprintf("req.RouteParameters().NestedValue('%s'): %v", BroadcastRequestParameter, err))
+	}
+
+	var broadcastReq message.Request
+	if err := requestKV.Interface(&broadcastReq); err != nil {
+		return req.Fail(fmt.Sprintf("requestKV.Interface('message.Request'): %v", err))
+	}
+
+	c.broadcasting.Push(&broadcastReq)
 
 	return req.Ok(datatype.New())
 }

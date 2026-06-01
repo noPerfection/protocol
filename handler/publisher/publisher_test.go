@@ -133,8 +133,11 @@ func (test *TestPublisherSuite) sendNumberedBroadcasts(start uint64, amount uint
 
 	for number := start; number < start+amount; number++ {
 		reply := test.req(message.Request{
-			Command:    Broadcast,
-			Parameters: datatype.New().Set("number", number),
+			Command: Broadcast,
+			Parameters: datatype.New().Set(BroadcastRequestParameter, message.Request{
+				Command:    "numbered-broadcast",
+				Parameters: datatype.New().Set("number", number),
+			}),
 		})
 		s.Require().True(reply.IsOK())
 		time.Sleep(time.Millisecond * 2)
@@ -149,7 +152,7 @@ func (test *TestPublisherSuite) receiveNumbers(start uint64, amount uint64) {
 		case raw := <-test.subscribed:
 			req, err := test.pub.Packer().DeserializeRequest(raw)
 			s.Require().NoError(err)
-			s.Require().Equal(Broadcast, req.CommandName())
+			s.Require().Equal("numbered-broadcast", req.CommandName())
 
 			received, err := req.RouteParameters().Uint64Value("number")
 			s.Require().NoError(err)
