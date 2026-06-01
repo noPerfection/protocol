@@ -1,6 +1,9 @@
 package client
 
-import zmq "github.com/pebbe/zmq4"
+import (
+	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
+)
 
 // HandlerType defines the available kind of handlers.
 type HandlerType string
@@ -15,6 +18,19 @@ const (
 	PairType    HandlerType = "Pair"
 	WorkerType  HandlerType = "Worker" // Workers receive messages but don't return any result to the caller.
 )
+
+const (
+	Incomplete  = "incomplete"
+	SocketIdle  = "idle"
+	SocketReady = "ready"
+	SocketNil   = "nil"
+)
+
+type HandlerConfig struct {
+	Type             HandlerType `json:"type" yaml:"type"`
+	Category         string      `json:"category" yaml:"category"`
+	message.Endpoint `json:",inline" yaml:",inline"`
+}
 
 // isTarget checks that the given handler type can be targeted by a client.
 func isTarget(target HandlerType) bool {
