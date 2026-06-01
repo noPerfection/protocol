@@ -10,7 +10,7 @@ import (
 
 const (
 	broadcastCommand     = "broadcast"
-	broadcastRequestKey  = "request"
+	broadcastParameter   = "reply"
 	messageAmountCommand = "message-amount"
 )
 
@@ -26,18 +26,18 @@ func NewControl(id string, port uint64) (*Control, error) {
 	return &Control{BaseControl: control}, nil
 }
 
-func (c *Control) Broadcast(req message.Request) error {
+func (c *Control) Broadcast(reply message.Reply) error {
 	broadcastReq := &message.Request{
 		Command:    broadcastCommand,
-		Parameters: datatype.New().Set(broadcastRequestKey, req),
+		Parameters: datatype.New().Set(broadcastParameter, reply),
 	}
 
-	reply, err := c.Request(broadcastReq)
+	controlReply, err := c.Request(broadcastReq)
 	if err != nil {
 		return err
 	}
-	if !reply.IsOK() {
-		return fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
+	if !controlReply.IsOK() {
+		return fmt.Errorf("reply.Message: %s", controlReply.ErrorMessage())
 	}
 	return nil
 }

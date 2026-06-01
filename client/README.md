@@ -128,7 +128,7 @@ status, err = control.StartHandler()
 err = control.HandlerClose()
 ```
 
-The control endpoint uses the handler control address, not the handler's message endpoint. By default handler controls use the handler id with `"_control"` appended. Check the control type in each `client/<handler_name>` package to see the exact interface. `pair.Control` and `publisher.Control` also expose broadcast-specific methods.
+The control endpoint uses the handler control address, not the handler's message endpoint. By default handler controls use the handler id with `"_control"` appended. Check the control type in each `client/<handler_name>` package to see the exact interface. `pair.Control` and `publisher.Control` also expose `Broadcast(message.Reply)`.
 
 ## Limitations
 
@@ -136,8 +136,6 @@ The control endpoint uses the handler control address, not the handler's message
 - `Receive` clients close their receive channel automatically when nothing arrives for `Attempt` consecutive idle periods, each lasting `Timeout`. Set `Attempt(0)` to retry forever. Receiving a message resets the idle counter. Call `Receive()` again on a new client after the channel closes.
 - `replier.Client` and `pair.Client` receive paths are not polished under stress yet. Stress tests show receive channels can close after only a few accepted messages during heavy concurrent send pressure.
 - `pair.Client` is sensitive to PAIR socket timing. Start `Receive()` and allow the connection to settle before sending, especially in tests.
-- `publisher.Client.Receive()` exposes published requests through the reply channel by wrapping request parameters in an OK reply. This preserves the current `Receive() <-chan message.ReplyInterface` API, but callers should remember publisher payloads originate as requests.
-
 ## Maintenance Memo
 
 This is a memo for myself if I need to change the code after a few months of pause.

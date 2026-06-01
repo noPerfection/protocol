@@ -145,7 +145,7 @@ func testPublisherClientHandler(t *testing.T) {
 	replies := client.Receive()
 	time.Sleep(time.Millisecond * 50)
 
-	req.NoError(control.Broadcast(*newRequest("published", "publisher-value")))
+	req.NoError(control.Broadcast(*newReply("publisher-value")))
 	reply := receiveReply(t, replies)
 	req.True(reply.IsOK())
 	value, err := reply.ReplyParameters().StringValue("value")
@@ -160,6 +160,13 @@ func echoRoute(request message.RequestInterface) message.ReplyInterface {
 func newRequest(command string, value string) *message.Request {
 	return &message.Request{
 		Command:    command,
+		Parameters: datatype.New().Set("value", value),
+	}
+}
+
+func newReply(value string) *message.Reply {
+	return &message.Reply{
+		Status:     message.OK,
 		Parameters: datatype.New().Set("value", value),
 	}
 }

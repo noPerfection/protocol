@@ -232,7 +232,7 @@ func stressPublisherReceive(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	sendSequentially(t, stressReceiveMessages, func(seq uint64) error {
-		return control.Broadcast(*newSeqRequest(seq))
+		return control.Broadcast(*newSeqReply(seq))
 	})
 	assertReplySeqs(t, replies, stressReceiveMessages)
 }
@@ -310,6 +310,13 @@ func seqReplyRoute(request message.RequestInterface) message.ReplyInterface {
 func newSeqRequest(seq uint64) *message.Request {
 	return &message.Request{
 		Command:    "stress",
+		Parameters: datatype.New().Set("seq", seq),
+	}
+}
+
+func newSeqReply(seq uint64) *message.Reply {
+	return &message.Reply{
+		Status:     message.OK,
 		Parameters: datatype.New().Set("seq", seq),
 	}
 }

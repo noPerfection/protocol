@@ -164,6 +164,25 @@ func (test *TestPairSuite) receiveRequest() message.RequestInterface {
 	return req
 }
 
+func (test *TestPairSuite) receiveBroadcast() message.ReplyInterface {
+	s := &test.Suite
+
+	poller := zmq.NewPoller()
+	poller.Add(test.externalClient, zmq.POLLIN)
+
+	polled, err := poller.Poll(time.Second * 2)
+	s.Require().NoError(err)
+	s.Require().NotEmpty(polled)
+
+	raw, err := test.externalClient.RecvMessage(0)
+	s.Require().NoError(err)
+
+	reply, err := test.pair.Packer().DeserializeReply(raw)
+	s.Require().NoError(err)
+
+	return reply
+}
+
 func (test *TestPairSuite) pairRequest(request message.Request) message.ReplyInterface {
 	s := &test.Suite
 
@@ -216,16 +235,16 @@ func (test *TestPairSuite) Test_10_StartReceivesAndBroadcasts() {
 
 	controlReply := test.req(message.Request{
 		Command: Broadcast,
-		Parameters: datatype.New().Set(BroadcastRequestParameter, message.Request{
-			Command:    "broadcast-message",
+		Parameters: datatype.New().Set(BroadcastParameter, message.Reply{
+			Status:     message.OK,
 			Parameters: datatype.New().Set("number", uint64(22)),
 		}),
 	})
 	s.Require().True(controlReply.IsOK())
 
-	broadcastReq := test.receiveRequest()
-	s.Require().Equal("broadcast-message", broadcastReq.CommandName())
-	number, err = broadcastReq.RouteParameters().Uint64Value("number")
+	broadcastReply := test.receiveBroadcast()
+	s.Require().True(broadcastReply.IsOK())
+	number, err = broadcastReply.ReplyParameters().Uint64Value("number")
 	s.Require().NoError(err)
 	s.Require().Equal(uint64(22), number)
 }
@@ -254,16 +273,16 @@ func (test *TestPairSuite) Test_11_ControlLifecycle() {
 
 	broadcastReply := test.req(message.Request{
 		Command: Broadcast,
-		Parameters: datatype.New().Set(BroadcastRequestParameter, message.Request{
-			Command:    "broadcast-after-restart",
+		Parameters: datatype.New().Set(BroadcastParameter, message.Reply{
+			Status:     message.OK,
 			Parameters: datatype.New().Set("number", uint64(33)),
 		}),
 	})
 	s.Require().True(broadcastReply.IsOK())
 
-	broadcastReq := test.receiveRequest()
-	s.Require().Equal("broadcast-after-restart", broadcastReq.CommandName())
-	number, err := broadcastReq.RouteParameters().Uint64Value("number")
+	received := test.receiveBroadcast()
+	s.Require().True(received.IsOK())
+	number, err := received.ReplyParameters().Uint64Value("number")
 	s.Require().NoError(err)
 	s.Require().Equal(uint64(33), number)
 }

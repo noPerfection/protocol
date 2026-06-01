@@ -15,7 +15,7 @@ import (
 
 const Broadcast = "broadcast"
 const MessageAmount = "message-amount"
-const BroadcastRequestParameter = "request"
+const BroadcastParameter = "reply"
 
 type Publisher struct {
 	*base.Handler
@@ -130,14 +130,14 @@ func (c *Publisher) startBroadcaster() error {
 				continue
 			}
 
-			req := c.broadcasting.Pop().(message.RequestInterface)
-			reqStr, err := c.Packer().SerializeRequest(req)
+			reply := c.broadcasting.Pop().(message.ReplyInterface)
+			replyStr, err := c.Packer().SerializeReply(reply)
 			if err != nil {
-				c.LogError("publisher.broadcasting.Pop", "type", "message.Request", "error", err)
+				c.LogError("publisher.broadcasting.Pop", "type", "message.Reply", "error", err)
 				break
 			}
-			if _, err = socket.SendMessageDontwait(reqStr); err != nil {
-				c.LogError("socket.SendMessageDontWait", "request", reqStr, "error", err)
+			if _, err = socket.SendMessageDontwait(replyStr); err != nil {
+				c.LogError("socket.SendMessageDontWait", "reply", replyStr, "error", err)
 				break
 			}
 		}
@@ -166,17 +166,17 @@ func (c *Publisher) onBroadcast(req message.RequestInterface) message.ReplyInter
 		return req.Fail("broadcasting queue full")
 	}
 
-	requestKV, err := req.RouteParameters().NestedValue(BroadcastRequestParameter)
+	replyKV, err := req.RouteParameters().NestedValue(BroadcastParameter)
 	if err != nil {
-		return req.Fail(fmt.Sprintf("req.RouteParameters().NestedValue('%s'): %v", BroadcastRequestParameter, err))
+		return req.Fail(fmt.Sprintf("req.RouteParameters().NestedValue('%s'): %v", BroadcastParameter, err))
 	}
 
-	var broadcastReq message.Request
-	if err := requestKV.Interface(&broadcastReq); err != nil {
-		return req.Fail(fmt.Sprintf("requestKV.Interface('message.Request'): %v", err))
+	var broadcastReply message.Reply
+	if err := replyKV.Interface(&broadcastReply); err != nil {
+		return req.Fail(fmt.Sprintf("replyKV.Interface('message.Reply'): %v", err))
 	}
 
-	c.broadcasting.Push(&broadcastReq)
+	c.broadcasting.Push(&broadcastReply)
 
 	return req.Ok(datatype.New())
 }

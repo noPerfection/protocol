@@ -17,7 +17,7 @@ import (
 
 const Broadcast = "broadcast"
 const MessageAmount = "message-amount"
-const BroadcastRequestParameter = "request"
+const BroadcastParameter = "reply"
 
 type Pair struct {
 	*base.Handler
@@ -161,10 +161,10 @@ func (c *Pair) startPair() error {
 
 func (c *Pair) flushBroadcast(socket *zmq.Socket) {
 	for !c.broadcasting.IsEmpty() {
-		req := c.broadcasting.Pop().(message.RequestInterface)
-		envelope, err := c.Packer().SerializeRequest(req)
+		reply := c.broadcasting.Pop().(message.ReplyInterface)
+		envelope, err := c.Packer().SerializeReply(reply)
 		if err != nil {
-			c.LogError("messageOps.SerializeRequest", "error", err)
+			c.LogError("messageOps.SerializeReply", "error", err)
 			continue
 		}
 		if _, err := socket.SendMessageDontwait(envelope); err != nil {
@@ -220,17 +220,17 @@ func (c *Pair) onBroadcast(req message.RequestInterface) message.ReplyInterface 
 		return req.Fail("broadcasting queue full")
 	}
 
-	requestKV, err := req.RouteParameters().NestedValue(BroadcastRequestParameter)
+	replyKV, err := req.RouteParameters().NestedValue(BroadcastParameter)
 	if err != nil {
-		return req.Fail(fmt.Sprintf("req.RouteParameters().NestedValue('%s'): %v", BroadcastRequestParameter, err))
+		return req.Fail(fmt.Sprintf("req.RouteParameters().NestedValue('%s'): %v", BroadcastParameter, err))
 	}
 
-	var broadcastReq message.Request
-	if err := requestKV.Interface(&broadcastReq); err != nil {
-		return req.Fail(fmt.Sprintf("requestKV.Interface('message.Request'): %v", err))
+	var broadcastReply message.Reply
+	if err := replyKV.Interface(&broadcastReply); err != nil {
+		return req.Fail(fmt.Sprintf("replyKV.Interface('message.Reply'): %v", err))
 	}
 
-	c.broadcasting.Push(&broadcastReq)
+	c.broadcasting.Push(&broadcastReply)
 
 	return req.Ok(datatype.New())
 }
