@@ -3,6 +3,7 @@ package control
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/noPerfection/log"
@@ -34,9 +35,15 @@ func New(parent ...*log.Logger) base.Interface {
 	}
 }
 
-// Usually, managers are internally called processes and managed by services
+// ControlEndpointID returns the inproc endpoint id for a handler's control socket.
+// It includes the handler port so multiple handlers can share the same id on different ports.
+func ControlEndpointID(id string, port uint64) string {
+	return id + strconv.FormatUint(port, 10) + "_control"
+}
+
+// CreateInternalConfig builds the control handler config for a handler.
 func CreateInternalConfig(handler *config.Handler) *config.Handler {
-	return config.New(config.SyncReplierType, handler.Id+"_control", ControlCategory, 0)
+	return config.New(config.SyncReplierType, ControlEndpointID(handler.Id, handler.Port), ControlCategory, 0)
 }
 
 // SetClose is intentionally disabled for control handlers.

@@ -12,6 +12,7 @@ import (
 	cworker "github.com/noPerfection/protocol/client/worker"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
+	hcontrol "github.com/noPerfection/protocol/handler/control"
 	hpair "github.com/noPerfection/protocol/handler/pair"
 	hpublisher "github.com/noPerfection/protocol/handler/publisher"
 	hreplier "github.com/noPerfection/protocol/handler/replier"
@@ -135,7 +136,7 @@ func waitForStatus(t *testing.T, control controlClient, expected string) {
 
 func newSyncControl(t *testing.T, id string) *csyncreplier.Control {
 	t.Helper()
-	control, err := csyncreplier.NewControl(controlID(id), 0)
+	control, err := csyncreplier.NewControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)
@@ -144,7 +145,7 @@ func newSyncControl(t *testing.T, id string) *csyncreplier.Control {
 
 func newReplierControl(t *testing.T, id string) *creplier.Control {
 	t.Helper()
-	control, err := creplier.NewControl(controlID(id), 0)
+	control, err := creplier.NewControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)
@@ -153,7 +154,7 @@ func newReplierControl(t *testing.T, id string) *creplier.Control {
 
 func newWorkerControl(t *testing.T, id string) *cworker.Control {
 	t.Helper()
-	control, err := cworker.NewControl(controlID(id), 0)
+	control, err := cworker.NewControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)
@@ -162,7 +163,7 @@ func newWorkerControl(t *testing.T, id string) *cworker.Control {
 
 func newPairControl(t *testing.T, id string) *cpair.Control {
 	t.Helper()
-	control, err := cpair.NewControl(controlID(id), 0)
+	control, err := cpair.NewControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)
@@ -171,13 +172,13 @@ func newPairControl(t *testing.T, id string) *cpair.Control {
 
 func newPublisherControl(t *testing.T, id string) *cpublisher.Control {
 	t.Helper()
-	control, err := cpublisher.NewControl(controlID(id), 0)
+	control, err := cpublisher.NewControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)
 	return control
 }
 
-func controlID(id string) string {
-	return id + "_control"
+func controlID(id string, port uint64) string {
+	return hcontrol.ControlEndpointID(id, port)
 }

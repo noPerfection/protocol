@@ -96,7 +96,7 @@ func testRequestTimeoutWithoutHandler(t *testing.T) {
 
 func testControlTimeoutWithoutHandler(t *testing.T) {
 	req := require.New(t)
-	control, err := csyncreplier.NewControl(controlID(testID(t, "missing-control")), 0)
+	control, err := csyncreplier.NewControl(controlID(testID(t, "missing-control"), 0), 0)
 	req.NoError(err)
 	defer func() { req.NoError(control.Close()) }()
 	control.Timeout(20 * time.Millisecond)

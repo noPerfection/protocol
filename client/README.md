@@ -128,7 +128,7 @@ status, err = control.StartHandler()
 err = control.HandlerClose()
 ```
 
-The control endpoint uses the handler control address, not the handler's message endpoint. By default handler controls use the handler id with `"_control"` appended. Check the control type in each `client/<handler_name>` package to see the exact interface. `pair.Control` and `publisher.Control` also expose `Broadcast(message.Reply)`.
+The control endpoint uses the handler control address, not the handler's message endpoint. By default handler controls use `control.ControlEndpointID(handlerId, handlerPort)` (`<id><port>_control`, e.g. `my-service0_control` for inproc handlers). Pass that id to `NewControl` with port `0` for inproc. Check the control type in each `client/<handler_name>` package to see the exact interface. `pair.Control` and `publisher.Control` also expose `Broadcast(message.Reply)`.
 
 ## Limitations
 
