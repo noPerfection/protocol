@@ -122,8 +122,13 @@ func (request *Raw) Fail(message string) ReplyInterface {
 	return request
 }
 
-func (request *Raw) Ok(parameters datatype.KeyValue) ReplyInterface {
-	request.messages = append(request.messages, parameters.String())
+func (request *Raw) Ok(parameters ...any) ReplyInterface {
+	kv, err := replyParameters(parameters...)
+	if err != nil {
+		request.messages = append(request.messages, err.Error())
+		return request
+	}
+	request.messages = append(request.messages, kv.String())
 	return request
 }
 

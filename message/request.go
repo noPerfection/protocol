@@ -12,7 +12,9 @@ type RequestInterface interface {
 	// Fail creates a new Reply as a failure
 	// It accepts the error message that explains the reason of the failure.
 	Fail(message string) ReplyInterface
-	Ok(parameters datatype.KeyValue) ReplyInterface
+	// Ok creates a successful reply. Parameters are optional.
+	// Pass map[string]interface{}{...}; nested maps are converted recursively.
+	Ok(parameters ...any) ReplyInterface
 	CommandName() string
 	RouteParameters() datatype.KeyValue
 }
@@ -73,13 +75,30 @@ func (request *Request) Fail(message string) ReplyInterface {
 	return reply
 }
 
-func (request *Request) Ok(parameters datatype.KeyValue) ReplyInterface {
+func (request *Request) Ok(parameters ...any) ReplyInterface {
+	kv, err := replyParameters(parameters...)
+	if err != nil {
+		return request.Fail(err.Error())
+	}
+
 	reply := &Reply{
 		Status:     OK,
 		Message:    "",
-		Parameters: parameters,
+		Parameters: kv,
 		conId:      request.conId,
 	}
 
 	return reply
+}
+
+func replyParameters(parameters ...any) (datatype.KeyValue, error) {
+	if len(parameters) == 0 || parameters[0] == nil {
+		return datatype.New(), nil
+	}
+	switch params := parameters[0].(type) {
+	case datatype.KeyValue:
+		return params, nil
+	default:
+		return datatype.NewFromInterface(params)
+	}
 }
