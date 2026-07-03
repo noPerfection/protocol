@@ -20,7 +20,7 @@ import (
 type TestReplierSuite struct {
 	suite.Suite
 	replier        *Replier
-	handlerConfig  *base.EndpointConfig
+	handlerConfig  message.Endpoint
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
 	logger         *log.Logger
@@ -52,7 +52,7 @@ func (test *TestReplierSuite) SetupTest() {
 	s.Require().NoError(err)
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	test.handlerConfig = base.NewEndpoint(base.ReplierType, testID, "test", 0)
+	test.handlerConfig = message.NewEndpoint(testID, 0)
 
 	s.Require().NoError(test.replier.SetLogger(test.logger))
 

@@ -21,8 +21,8 @@ import (
 type TestPairSuite struct {
 	suite.Suite
 
-	externalConfig *base.EndpointConfig
-	pairConfig     *base.EndpointConfig
+	externalConfig message.Endpoint
+	pairConfig     message.Endpoint
 	pair           *Pair
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
@@ -37,8 +37,8 @@ func (test *TestPairSuite) SetupTest() {
 	test.logger = logger
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	test.externalConfig = base.NewEndpoint(base.ReplierType, testID, "external_main", 0)
-	test.pairConfig = base.NewEndpoint(base.PairType, testID+"_pair", "external_main_pair", 0)
+	test.externalConfig = message.NewEndpoint(testID, 0)
+	test.pairConfig = message.NewEndpoint(testID+"_pair", 0)
 	test.pair = New()
 
 	s.Require().NoError(test.pair.SetLogger(test.logger))

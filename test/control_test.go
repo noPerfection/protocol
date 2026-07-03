@@ -179,5 +179,5 @@ func newPublisherControl(t *testing.T, id string) *cpublisher.Control {
 }
 
 func controlID(id string, port uint64) string {
-	return hcontrol.ControlEndpointID(id, port)
+	return hcontrol.NewInternalControlEndpoint(message.NewEndpoint(id, port)).Id
 }

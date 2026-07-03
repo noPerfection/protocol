@@ -20,7 +20,7 @@ import (
 type TestSyncReplierSuite struct {
 	suite.Suite
 	syncReplier    *SyncReplier
-	handlerConfig  *base.EndpointConfig
+	handlerConfig  message.Endpoint
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
 	logger         *log.Logger
@@ -55,7 +55,7 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	s.Require().NoError(err)
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	test.handlerConfig = base.NewEndpoint(base.SyncReplierType, testID, "test", 0)
+	test.handlerConfig = message.NewEndpoint(testID, 0)
 
 	s.Require().NoError(test.syncReplier.SetLogger(test.logger))
 
@@ -265,7 +265,7 @@ func (test *TestSyncReplierSuite) Test_12_StartWithoutLogger() {
 
 	svc := New()
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	handlerConfig := base.NewEndpoint(base.SyncReplierType, testID, "test", 0)
+	handlerConfig := message.NewEndpoint(testID, 0)
 	svc.SetEndpoint(handlerConfig)
 	s.Require().NoError(svc.Route("command_1", test.routes["command_1"]))
 

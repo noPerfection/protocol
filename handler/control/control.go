@@ -38,16 +38,15 @@ func New(parent ...*log.Logger) *Manager {
 	}
 }
 
-// ControlEndpointID returns the inproc endpoint id for a handler's control socket.
-// It includes the handler port so multiple handlers can share the same id on different ports.
-func ControlEndpointID(id string, port uint64) string {
-	return id + strconv.FormatUint(port, 10) + "_control"
+// NewInternalControlEndpoint derives the control endpoint from a handler endpoint.
+func NewInternalControlEndpoint(handlerEndpoint message.Endpoint) message.Endpoint {
+	handlerEndpoint.Id = handlerEndpoint.Id + strconv.FormatUint(handlerEndpoint.Port, 10) + "_control"
+	return handlerEndpoint
 }
 
 // Converts the handler endpoint into a control endpoint and stores it.
 func (m *Manager) SetEndpoint(handlerEndpoint message.Endpoint) {
-	handlerEndpoint.Id = ControlEndpointID(handlerEndpoint.Id, handlerEndpoint.Port)
-	m.Handler.SetEndpoint(handlerEndpoint)
+	m.Handler.SetEndpoint(NewInternalControlEndpoint(handlerEndpoint))
 }
 
 func (m *Manager) Status() string {

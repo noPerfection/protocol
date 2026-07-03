@@ -12,7 +12,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -132,7 +131,7 @@ func runStressTest(t *testing.T, clientAmount int, requestsPerClient int) {
 	require.NoError(t, err)
 
 	testID := strings.ReplaceAll(t.Name(), "/", "_")
-	handlerConfig := base.NewEndpoint(base.ReplierType, testID, "test", 0)
+	handlerConfig := message.NewEndpoint(testID, 0)
 	require.NoError(t, replier.SetLogger(logger))
 
 	replier.SetEndpoint(handlerConfig)

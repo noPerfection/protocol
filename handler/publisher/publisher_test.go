@@ -16,7 +16,7 @@ import (
 type TestPublisherSuite struct {
 	suite.Suite
 	pub           *Publisher
-	config        *base.EndpointConfig
+	config        message.Endpoint
 	managerClient *zmq.Socket
 	sub           *zmq.Socket
 	logger        *log.Logger
@@ -34,12 +34,12 @@ func (test *TestPublisherSuite) SetupTest() {
 
 	test.pub = New()
 
-	test.config = base.NewEndpoint(base.PublisherType, "test", "test", 0)
+	test.config = message.NewEndpoint("test", 0)
 
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
 	test.pub.SetEndpoint(test.config)
-	s.Require().Equal(base.PublisherType, test.pub.Endpoint().Type)
+	s.Require().Equal(base.PublisherType, test.pub.Type())
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)

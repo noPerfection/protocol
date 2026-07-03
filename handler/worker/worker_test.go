@@ -20,7 +20,7 @@ import (
 type TestWorkerSuite struct {
 	suite.Suite
 	worker         *Worker
-	handlerConfig  *base.EndpointConfig
+	handlerConfig  message.Endpoint
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
 	logger         *log.Logger
@@ -67,7 +67,7 @@ func (test *TestWorkerSuite) SetupTest() {
 	s.Require().NoError(err)
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	test.handlerConfig = base.NewEndpoint(base.WorkerType, testID, "test", 0)
+	test.handlerConfig = message.NewEndpoint(testID, 0)
 
 	s.Require().NoError(test.worker.SetLogger(test.logger))
 
