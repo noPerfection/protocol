@@ -97,7 +97,7 @@ func (c *Worker) onControlConfig(req message.RequestInterface) message.ReplyInte
 }
 
 func (c *Worker) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Control.Status() == base.SocketReady {
+	if c.Control.Running() {
 		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
 	}
 	if err := c.restartWork(); err != nil {
