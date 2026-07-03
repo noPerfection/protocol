@@ -3,8 +3,8 @@ package replier
 // Asynchronous replier
 
 import (
-	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/noPerfection/datatype"
@@ -20,10 +20,13 @@ type Replier struct {
 	*base.Handler
 	socket  *zmq.Socket
 	Control *control.Manager
+	workW   sync.WaitGroup
 }
 
 type pendingReply struct {
-	reply message.ReplyInterface
+	reply         message.ReplyInterface
+	cmd           string
+	matchedSecret string
 }
 
 var _ base.Interface = (*Replier)(nil)
@@ -79,6 +82,7 @@ func (c *Replier) Start() error {
 		return err
 	}
 
+	c.workW.Add(1)
 	go c.run()
 
 	return nil
@@ -93,6 +97,7 @@ func (c *Replier) setControlRoutes() {
 func (c *Replier) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	if c.Control.Running() {
 		c.Control.SetSocketNil()
+		c.workW.Wait()
 	}
 	return req.Ok(datatype.New())
 }
@@ -115,6 +120,7 @@ func (c *Replier) restartWork() error {
 	if err := c.bindExternal(); err != nil {
 		return err
 	}
+	c.workW.Add(1)
 	go c.run()
 	return nil
 }
@@ -137,6 +143,8 @@ func (c *Replier) bindExternal() error {
 }
 
 func (c *Replier) run() {
+	defer c.workW.Done()
+
 	socket := c.socket
 	if socket == nil {
 		return
@@ -172,7 +180,7 @@ func (c *Replier) flushReplies(socket *zmq.Socket, replies <-chan pendingReply) 
 	for {
 		select {
 		case pending := <-replies:
-			if err := c.sendReply(socket, pending.reply); err != nil {
+			if err := c.sendReply(socket, pending.reply, pending.cmd, pending.matchedSecret); err != nil {
 				c.LogError("replier.sendReply", "error", err)
 			}
 		default:
@@ -187,33 +195,44 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.Packer().DeserializeRequest(raw)
+	req, hmacHash, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
-		if errors.Is(err, message.ErrAccessDenied) {
-			replies <- pendingReply{reply: c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error())}
-			return nil
-		}
 		reply := c.Packer().EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
 		replies <- pendingReply{reply: reply}
 		return nil
 	}
 
-	handleFunc, err := c.GetHandleFunc(req.CommandName())
+	cmd := req.CommandName()
+	matchedSecret := ""
+	if c.RequiresWhitelist(cmd) {
+		var ok bool
+		matchedSecret, ok = c.MatchRequestSecret(req, hmacHash)
+		if !ok {
+			replies <- pendingReply{reply: c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error())}
+			return nil
+		}
+	}
+
+	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		replies <- pendingReply{reply: req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", req.CommandName(), err))}
+		replies <- pendingReply{reply: req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", cmd, err))}
 		return nil
 	}
 
-	go func() {
+	go func(cmd, matchedSecret string) {
 		reply := handleFunc(req)
-		replies <- pendingReply{reply: reply}
-	}()
+		replies <- pendingReply{reply: reply, cmd: cmd, matchedSecret: matchedSecret}
+	}(cmd, matchedSecret)
 
 	return nil
 }
 
-func (c *Replier) sendReply(socket *zmq.Socket, reply message.ReplyInterface) error {
-	envelope, err := c.Packer().SerializeReply(reply)
+func (c *Replier) sendReply(socket *zmq.Socket, reply message.ReplyInterface, cmd, matchedSecret string) error {
+	var hmac string
+	if c.RequiresWhitelist(cmd) && matchedSecret != "" {
+		hmac = c.SignReplyHmac(reply, matchedSecret)
+	}
+	envelope, err := c.Packer().SerializeReply(reply, hmac)
 	if err != nil {
 		return fmt.Errorf("messageOps.SerializeReply: %w", err)
 	}

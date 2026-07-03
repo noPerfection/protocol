@@ -32,62 +32,62 @@ type controlClient interface {
 func TestHandlerControls(t *testing.T) {
 	t.Run("sync replier control", func(t *testing.T) {
 		svc := hsyncreplier.New()
-		cfg := base.NewEndpoint(base.SyncReplierType, testID(t, "sync-control"), "test", 0)
-		svc.SetEndpoint(cfg)
+		endpoint := message.NewEndpoint(testID(t, "sync-control"), 0)
+		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Route("echo", echoRoute))
 		require.NoError(t, svc.Start())
-		control := newSyncControl(t, cfg.Id)
+		control := newSyncControl(t, endpoint.Id)
 		defer func() { require.NoError(t, control.Close()) }()
-		assertControlLifecycle(t, control, cfg)
+		assertControlLifecycle(t, control, endpoint)
 	})
 
 	t.Run("replier control", func(t *testing.T) {
 		svc := hreplier.New()
-		cfg := base.NewEndpoint(base.ReplierType, testID(t, "replier-control"), "test", 0)
-		svc.SetEndpoint(cfg)
+		endpoint := message.NewEndpoint(testID(t, "replier-control"), 0)
+		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Route("echo", echoRoute))
 		require.NoError(t, svc.Start())
-		control := newReplierControl(t, cfg.Id)
+		control := newReplierControl(t, endpoint.Id)
 		defer func() { require.NoError(t, control.Close()) }()
-		assertControlLifecycle(t, control, cfg)
+		assertControlLifecycle(t, control, endpoint)
 	})
 
 	t.Run("worker control", func(t *testing.T) {
 		svc := hworker.New()
-		cfg := base.NewEndpoint(base.WorkerType, testID(t, "worker-control"), "test", 0)
-		svc.SetEndpoint(cfg)
+		endpoint := message.NewEndpoint(testID(t, "worker-control"), 0)
+		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Route("work", func(request message.RequestInterface) message.ReplyInterface {
 			return request.Ok(request.RouteParameters())
 		}))
 		require.NoError(t, svc.Start())
-		control := newWorkerControl(t, cfg.Id)
+		control := newWorkerControl(t, endpoint.Id)
 		defer func() { require.NoError(t, control.Close()) }()
-		assertControlLifecycle(t, control, cfg)
+		assertControlLifecycle(t, control, endpoint)
 	})
 
 	t.Run("pair control", func(t *testing.T) {
 		svc := hpair.New()
-		cfg := base.NewEndpoint(base.PairType, testID(t, "pair-control"), "test", 0)
-		svc.SetEndpoint(cfg)
+		endpoint := message.NewEndpoint(testID(t, "pair-control"), 0)
+		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Route("echo", echoRoute))
 		require.NoError(t, svc.Start())
-		control := newPairControl(t, cfg.Id)
+		control := newPairControl(t, endpoint.Id)
 		defer func() { require.NoError(t, control.Close()) }()
-		assertControlLifecycle(t, control, cfg)
+		assertControlLifecycle(t, control, endpoint)
 	})
 
 	t.Run("publisher control", func(t *testing.T) {
 		svc := hpublisher.New()
-		cfg := base.NewEndpoint(base.PublisherType, testID(t, "publisher-control"), "test", 0)
-		svc.SetEndpoint(cfg)
+		endpoint := message.NewEndpoint(testID(t, "publisher-control"), 0)
+		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Start())
-		control := newPublisherControl(t, cfg.Id)
+		control := newPublisherControl(t, endpoint.Id)
 		defer func() { require.NoError(t, control.Close()) }()
-		assertControlLifecycle(t, control, cfg)
+		assertControlLifecycle(t, control, endpoint)
 	})
 }
 
-func assertControlLifecycle(t *testing.T, control controlClient, cfg *base.EndpointConfig) {
+func assertControlLifecycle(t *testing.T, control controlClient, endpoint message.Endpoint) {
 	t.Helper()
 	req := require.New(t)
 
@@ -97,10 +97,8 @@ func assertControlLifecycle(t *testing.T, control controlClient, cfg *base.Endpo
 
 	handlerConfig, err := control.HandlerConfig()
 	req.NoError(err)
-	req.Equal(string(cfg.Type), string(handlerConfig.Type))
-	req.Equal(cfg.Category, handlerConfig.Category)
-	req.Equal(cfg.Id, handlerConfig.Id)
-	req.Equal(cfg.Port, handlerConfig.Port)
+	req.Equal(endpoint.Id, handlerConfig.Id)
+	req.Equal(endpoint.Port, handlerConfig.Port)
 
 	req.NoError(control.HandlerClose())
 	waitForStatus(t, control, base.SocketNil)

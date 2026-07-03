@@ -124,19 +124,30 @@ func (m *Manager) Start() error {
 				break
 			}
 
-			req, err := m.Packer().DeserializeRequest(raw)
+			req, hmacHash, err := m.Packer().DeserializeRequest(raw)
 			if err != nil {
 				m.LogError("Packer().DeserializeRequest", "messages", raw, "error", err)
 				continue
 			}
 
-			handleFunc, err := m.GetHandleFunc(req.CommandName())
+			cmd := req.CommandName()
+			matchedSecret := ""
+			if m.RequiresWhitelist(cmd) {
+				var ok bool
+				matchedSecret, ok = m.MatchRequestSecret(req, hmacHash)
+				if !ok {
+					m.sendReply(socket, req, m.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
+					continue
+				}
+			}
+
+			handleFunc, err := m.GetHandleFunc(cmd)
 			if err != nil {
-				m.sendReply(socket, req, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", req.CommandName(), err)))
+				m.sendReply(socket, req, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 				continue
 			}
 
-			m.sendReply(socket, req, handleFunc(req))
+			m.sendReply(socket, req, handleFunc(req), cmd, matchedSecret)
 		}
 
 		if err := socket.Close(); err != nil {
@@ -149,8 +160,12 @@ func (m *Manager) Start() error {
 	return <-ready
 }
 
-func (m *Manager) sendReply(socket *zmq.Socket, req message.RequestInterface, reply message.ReplyInterface) {
-	replyStr, err := m.Packer().SerializeReply(reply)
+func (m *Manager) sendReply(socket *zmq.Socket, req message.RequestInterface, reply message.ReplyInterface, cmd, matchedSecret string) {
+	var hmac string
+	if m.RequiresWhitelist(cmd) && matchedSecret != "" {
+		hmac = m.SignReplyHmac(reply, matchedSecret)
+	}
+	replyStr, err := m.Packer().SerializeReply(reply, hmac)
 	if err != nil {
 		fail := req.Fail(fmt.Sprintf("failed to convert reply [%v] to string", reply))
 		replyStr, err = m.Packer().SerializeReply(fail)

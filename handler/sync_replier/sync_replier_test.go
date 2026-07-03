@@ -108,7 +108,7 @@ func (test *TestSyncReplierSuite) req(client *zmq.Socket, request message.Reques
 	raw, err := client.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := test.syncReplier.Packer().DeserializeReply(raw)
+	reply, _, err := test.syncReplier.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply
@@ -128,7 +128,8 @@ func (test *TestSyncReplierSuite) externalReq(client *zmq.Socket, request messag
 		return nil, err
 	}
 
-	return test.syncReplier.Packer().DeserializeReply(raw)
+	reply, _, err := test.syncReplier.Packer().DeserializeReply(raw)
+	return reply, err
 }
 
 func (test *TestSyncReplierSuite) handlerStatus() string {
@@ -257,6 +258,52 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().True(controlReply.IsOK())
 
 	test.cleanOut()
+}
+
+func (test *TestSyncReplierSuite) Test_13_WhitelistHMAC() {
+	s := &test.Suite
+	defer test.cleanOut()
+
+	const secret = "sync-replier-secret"
+	s.Require().NoError(test.syncReplier.Whitelist("command_1", secret))
+	s.Require().NoError(test.syncReplier.Start())
+	time.Sleep(time.Millisecond * 100)
+
+	unsigned := message.Request{
+		Command:    "command_1",
+		Parameters: datatype.New().Set("id", "unsigned"),
+	}
+	unsignedEnvelope, err := test.syncReplier.Packer().SerializeRequest(&unsigned)
+	s.Require().NoError(err)
+	_, err = test.externalClient.SendMessage(unsignedEnvelope)
+	s.Require().NoError(err)
+	raw, err := test.externalClient.RecvMessage(0)
+	s.Require().NoError(err)
+	unsignedReply, _, err := test.syncReplier.Packer().DeserializeReply(raw)
+	s.Require().NoError(err)
+	s.Require().False(unsignedReply.IsOK())
+	s.Require().Equal(message.ErrAccessDenied.Error(), unsignedReply.ErrorMessage())
+
+	signed := message.Request{
+		Command:    "command_1",
+		Parameters: datatype.New().Set("id", "signed"),
+	}
+	hmacHash := test.syncReplier.SignRequestHmac(&signed, secret)
+	signedEnvelope, err := test.syncReplier.Packer().SerializeRequest(&signed, hmacHash)
+	s.Require().NoError(err)
+	_, err = test.externalClient.SendMessage(signedEnvelope)
+	s.Require().NoError(err)
+	raw, err = test.externalClient.RecvMessage(0)
+	s.Require().NoError(err)
+	signedReply, replyHmac, err := test.syncReplier.Packer().DeserializeReply(raw)
+	s.Require().NoError(err)
+	s.Require().True(signedReply.IsOK())
+	s.Require().NotEmpty(replyHmac)
+	s.Require().True(message.VerifyHMAC(signedReply.String(), secret, replyHmac))
+
+	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReply := test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
 }
 
 func (test *TestSyncReplierSuite) Test_12_StartWithoutLogger() {

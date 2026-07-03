@@ -45,3 +45,7 @@ func (c *Client) Attempt(attempt uint8) {
 func (c *Client) Packer(packer message.Packer) {
 	c.socket.Packer(packer)
 }
+
+func (c *Client) Whitelist(cmd string, secrets ...string) error {
+	return c.socket.Whitelist(cmd, secrets...)
+}

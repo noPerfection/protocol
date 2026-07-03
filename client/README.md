@@ -72,6 +72,7 @@ pusher, err := worker.NewClient(id, port)
 Before transmitting, set options if needed:
 
 - `Packer` changes message serialization. If the handler uses a custom packer, use the same packer here.
+- `Whitelist` registers a shared secret for a command on the target handler. When set, the client signs outbound requests and verifies signed replies.
 - `Timeout` changes how long one attempt can wait. The minimum timeout is 2ms.
 - `Attempt` changes how many retries are allowed. `0` retries forever.
 
@@ -81,6 +82,8 @@ subscriber.Timeout(time.Second)
 subscriber.Attempt(0)
 
 reqSync.Timeout(time.Second * 30)
+reqSync.Whitelist("charge", "billing-secret")
+reqSync.Whitelist(client.Any, "global-secret") // all commands when no command-specific entry exists
 ```
 
 Then check the table above and call the available interface:
@@ -99,6 +102,33 @@ for reply := range subscriber.Receive() {
 ```
 
 `Send` is intentionally fire-and-forget. A nil error means the client accepted or wrote the message, not that the handler processed it.
+
+## HMAC Whitelisting
+
+When the target handler whitelists a command, configure the same secret on the client before `Send` or `Request`:
+
+```go
+import "github.com/noPerfection/protocol/client"
+
+reqSync, _ := sync_replier.NewClient("billing", 0)
+reqSync.Whitelist("charge", "billing-secret")
+
+reply, err := reqSync.Request(&message.Request{
+	Command:    "charge",
+	Parameters: datatype.New().Set("amount", 100),
+})
+```
+
+Behavior:
+
+- If the command is whitelisted on the client, `Send` / `Request` sign the JSON body with HMAC-SHA256 and attach the hash as the first envelope tail frame.
+- If the command is not whitelisted on the client, messages are sent without an HMAC tail (unchanged behavior).
+- On `Request`, when the command is whitelisted and the reply includes an HMAC tail, the client verifies it with the same secret.
+- On `Receive` (replier, pair, publisher), reply HMAC is verified when `client.Any` (`"*"`) is whitelisted and the reply carries an HMAC frame.
+
+When a handler calls another handler internally, sign with the **downstream** handler's secret for the command you send. Do not forward the inbound HMAC from the external caller.
+
+See [protocol/test/hmac_test.go](../test/hmac_test.go) for client/handler integration tests.
 
 Clients are thread-safe, so one client can be called from multiple goroutines:
 
@@ -128,7 +158,7 @@ status, err = control.StartHandler()
 err = control.HandlerClose()
 ```
 
-The control endpoint uses the handler control address, not the handler's message endpoint. Handler controls use `control.ControlEndpointID(handlerId, handlerPort)` (`<id><port>_control`, e.g. `localhost8000_control` for `localhost:8000`). Pass that id to `NewControl` with port `0` for inproc. Check the control type in each `client/<handler_name>` package to see the exact interface. `pair.Control` and `publisher.Control` also expose `Broadcast(message.Reply)`.
+The control endpoint uses the handler control address, not the handler's message endpoint. Derive it with `control.NewInternalControlEndpoint(message.NewEndpoint(handlerId, handlerPort))` and pass the returned `Id` to `NewControl` with port `0` for inproc (for example `localhost0_control` for `localhost` on port `0`). Check the control type in each `client/<handler_name>` package to see the exact interface. `pair.Control` and `publisher.Control` also expose `Broadcast(message.Reply)`.
 
 ## Limitations
 

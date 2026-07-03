@@ -66,8 +66,13 @@ func (r *receiver) pollOnce() {
 	}
 
 	packer := r.socket.packer()
-	reply, err := packer.DeserializeReply(raw)
+	reply, replyHmac, err := packer.DeserializeReply(raw)
 	if err != nil {
+		r.markIdle()
+		return
+	}
+
+	if err := r.socket.validateReplyAny(reply, replyHmac); err != nil {
 		r.markIdle()
 		return
 	}

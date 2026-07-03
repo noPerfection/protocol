@@ -4,6 +4,7 @@ package worker
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/noPerfection/datatype"
@@ -19,6 +20,7 @@ type Worker struct {
 	*base.Handler
 	socket  *zmq.Socket
 	Control *control.Manager
+	workW   sync.WaitGroup
 }
 
 var _ base.Interface = (*Worker)(nil)
@@ -74,6 +76,7 @@ func (c *Worker) Start() error {
 		return err
 	}
 
+	c.workW.Add(1)
 	go c.run()
 
 	return nil
@@ -88,6 +91,7 @@ func (c *Worker) setControlRoutes() {
 func (c *Worker) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	if c.Control.Running() {
 		c.Control.SetSocketNil()
+		c.workW.Wait()
 	}
 	return req.Ok(datatype.New())
 }
@@ -110,6 +114,7 @@ func (c *Worker) restartWork() error {
 	if err := c.bindExternal(); err != nil {
 		return err
 	}
+	c.workW.Add(1)
 	go c.run()
 	return nil
 }
@@ -132,6 +137,8 @@ func (c *Worker) bindExternal() error {
 }
 
 func (c *Worker) run() {
+	defer c.workW.Done()
+
 	socket := c.socket
 	if socket == nil {
 		return
@@ -166,14 +173,21 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.Packer().DeserializeRequest(raw)
+	req, hmacHash, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
 		return fmt.Errorf("messageOps.DeserializeRequest: %w", err)
 	}
 
-	handleFunc, err := c.GetHandleFunc(req.CommandName())
+	cmd := req.CommandName()
+	if c.RequiresWhitelist(cmd) {
+		if _, ok := c.MatchRequestSecret(req, hmacHash); !ok {
+			return fmt.Errorf("%w", message.ErrAccessDenied)
+		}
+	}
+
+	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		return fmt.Errorf("base.GetHandleFunc(%s): %w", req.CommandName(), err)
+		return fmt.Errorf("base.GetHandleFunc(%s): %w", cmd, err)
 	}
 
 	go handleFunc(req)

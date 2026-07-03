@@ -23,7 +23,7 @@ go get github.com/noPerfection/protocol/handler@latest
 | [`worker`](worker) | `Worker` | Consume fire-and-forget messages without replying to the caller |
 | [`pair`](pair) | `Pair` | Bridge another protocol or in-process component through a PAIR socket |
 
-All handlers implement [`base.Interface`](base/interface.go): `SetConfig`, `SetLogger`, `Route`, `Start`, and related lifecycle methods.
+All handlers implement [`base.Interface`](base/interface.go): `SetEndpoint`, `SetLogger`, `Route`, `Start`, and related lifecycle methods.
 
 ## Quick Start
 
@@ -36,14 +36,13 @@ import (
 	"log"
 
 	"github.com/noPerfection/datatype"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/sync_replier"
 	"github.com/noPerfection/protocol/message"
 )
 
 func main() {
 	handler := sync_replier.New()
-	handler.SetConfig(config.New(config.SyncReplierType, "my_service", "my_service", 0))
+	handler.SetEndpoint(message.NewEndpoint("my_service", 0))
 
 	err := handler.Route("hello", func(req message.RequestInterface) message.ReplyInterface {
 		name, _ := req.RouteParameters().StringValue("name")
@@ -63,7 +62,7 @@ func main() {
 
 ### Optional Logs
 
-Handlers run without a logger. To enable logs, create one and pass it with `SetLogger` before or after `SetConfig`:
+Handlers run without a logger. To enable logs, create one and pass it with `SetLogger` before or after `SetEndpoint`:
 
 ```go
 import loglib "github.com/noPerfection/log"
@@ -89,16 +88,16 @@ The lifecycle starts with choosing the handler behavior, then preparing it befor
 
 ```go
 myHandler := handlerType.New()
-myConfig := config.New(...)
+myEndpoint := message.NewEndpoint("my_service", 0)
 
-myHandler.SetConfig(myConfig) -> myHandler.SetLogger(...) -> myHandler.Route(...) -> myHandler.Start()
+myHandler.SetEndpoint(myEndpoint) -> myHandler.SetLogger(...) -> myHandler.Route(...) -> myHandler.Start()
 ```
 
 `handlerType.New()` creates the handler implementation you want to run. For example, `sync_replier.New()` creates a serial request/reply handler, while `replier.New()` creates an asynchronous request/reply handler.
 
-`config.New()` creates the handler config: type, endpoint id, category, and port. The config decides where the handler binds and which ZeroMQ socket type it uses.
+`message.NewEndpoint(id, port)` creates the ZeroMQ endpoint the handler binds. `port = 0` uses in-process transport (`inproc://`).
 
-`SetConfig` attaches that config to the handler. This should happen before `Start`, because the handler needs the endpoint and type before it can bind sockets.
+`SetEndpoint` attaches that endpoint to the handler. This should happen before `Start`, because the handler needs the endpoint before it can bind sockets.
 
 `SetLogger` is optional. Pass a logger from [noPerfection/log](https://github.com/noPerfection/log) when you want internal logs; if you skip it, the handler simply omits log messages.
 
@@ -112,22 +111,48 @@ Each handler exposes its controller through the exported `Control` field. The co
 
 All controls use the special category `control` (`control.ControlCategory`). This lets the [noPerfection/service](https://github.com/noPerfection/service) module find another service's control handler and manage its handlers through it. In normal handler code, you do not have to use the control handler directly.
 
-By default, `SetConfig` configures `Control` with `control.CreateInternalConfig(yourHandlerConfig)`. If you want the controller somewhere else, call `yourHandler.Control.SetConfig(...)` after `SetConfig` and before `Start`.
+`SetEndpoint` also configures the handler `Control` socket through `control.NewInternalControlEndpoint`. Common manager routes are `status`, `config`, `start`, and `close`.
 
 ## Configuration
 
-Create handler config with `config.New(type, id, category, port)`.
+Create a handler endpoint with `message.NewEndpoint(id, port)`.
 
 ```go
-cfg := config.New(config.ReplierType, "localhost", "api", 5555)
+endpoint := message.NewEndpoint("localhost", 5555)
 
-bindURL := cfg.HandlerUrl()
-clientURL := cfg.ClientUrl()
+bindURL := endpoint.HandlerUrl()
+clientURL := endpoint.ClientUrl()
 ```
 
 `port = 0` creates a local endpoint: `inproc://{Id}` by default, or `ipc:///{Id}` when `Id` starts with `tmp`. Non-zero ports use TCP.
 
-Control endpoints are created with `control.CreateInternalControlEndpoint(handlerCfg)`. Common manager routes are `status`, `config`, `start`, and `close`.
+Control clients connect to `control.NewInternalControlEndpoint(handlerEndpoint).Id` with port `0` for inproc.
+
+## HMAC Whitelisting
+
+Routes can optionally require HMAC-SHA256 authentication. Whitelisting is per command and opt-in: routes without a whitelist behave as before.
+
+Register allowed secrets before `Start`:
+
+```go
+handler.Whitelist("charge", "billing-secret")
+handler.Whitelist("admin", "ops-secret", "backup-secret")
+
+// Apply to every command when no command-specific whitelist exists:
+handler.Whitelist(base.Any, "global-secret")
+```
+
+Lookup order mirrors routing: the handler checks `whitelists[cmd]` first, then `whitelists[base.Any]` (`"*"`).
+
+When a route requires a whitelist:
+
+1. The client must send the request body with an HMAC in the first envelope tail frame (see [protocol/message](../message)).
+2. The handler validates the HMAC against the whitelisted secrets for that command.
+3. On success, the handler signs the reply with the same secret that matched the request.
+
+Failed validation returns `access-denied`. Routes without a whitelist ignore the HMAC tail frame.
+
+Use the matching [protocol/client](../client) `Whitelist` on the client when calling protected routes. Integration tests live in [protocol/test](../test/hmac_test.go).
 
 ## Limitations
 

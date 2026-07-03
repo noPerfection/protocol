@@ -37,6 +37,7 @@ type Socket struct {
 	messagePacker message.Packer
 	dispatcher    *dispatcher
 	receiver      *receiver
+	whitelists    map[string]string
 }
 
 // New creates a client for the given handler endpoint. Client type is determined by the target handler.
@@ -54,6 +55,7 @@ func New(id string, port uint64, handlerTargetType HandlerType) (*Socket, error)
 		endpoint:      endpoint,
 		handlerType:   handlerTargetType,
 		messagePacker: &message.MessagePacker{},
+		whitelists:    make(map[string]string),
 	}
 
 	if supportsReceive(handlerTargetType) {
@@ -319,7 +321,7 @@ func (socket *Socket) omitReplyIfPresent() {
 
 func (socket *Socket) Send(req message.RequestInterface) error {
 	packer := socket.packer()
-	reqStr, err := packer.SerializeRequest(req)
+	reqStr, err := socket.serializeRequest(packer, req)
 	if err != nil {
 		return fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
@@ -336,7 +338,7 @@ func (socket *Socket) Send(req message.RequestInterface) error {
 // Returns the message.Reply.Parameters in case of success.
 func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterface, error) {
 	packer := socket.packer()
-	reqStr, err := packer.SerializeRequest(req)
+	reqStr, err := socket.serializeRequest(packer, req)
 	if err != nil {
 		return nil, fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
@@ -346,9 +348,13 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 		return nil, fmt.Errorf("socket.request: %w", err)
 	}
 
-	reply, err := packer.DeserializeReply(rawReply)
+	reply, replyHmac, err := packer.DeserializeReply(rawReply)
 	if err != nil {
 		return nil, fmt.Errorf("packer.DeserializeReply('%v'): %w", rawReply, err)
+	}
+
+	if err := socket.validateReply(req.CommandName(), reply, replyHmac); err != nil {
+		return nil, fmt.Errorf("reply hmac validation: %w", err)
 	}
 
 	return reply, nil

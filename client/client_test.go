@@ -350,7 +350,7 @@ func (test *TestClientSuite) Test_18_ThreadSafety() {
 			return result.err
 		}
 
-		reply, err := packer.DeserializeReply(result.raw)
+		reply, _, err := packer.DeserializeReply(result.raw)
 		if err != nil {
 			return fmt.Errorf("packer.DeserializeReply: %w", err)
 		}

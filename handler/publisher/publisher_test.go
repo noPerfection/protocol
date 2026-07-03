@@ -121,7 +121,7 @@ func (test *TestPublisherSuite) req(request message.Request) message.ReplyInterf
 	raw, err := test.managerClient.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := test.pub.Packer().DeserializeReply(raw)
+	reply, _, err := test.pub.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply
@@ -149,7 +149,7 @@ func (test *TestPublisherSuite) receiveNumbers(start uint64, amount uint64) {
 	for number := start; number < start+amount; number++ {
 		select {
 		case raw := <-test.subscribed:
-			reply, err := test.pub.Packer().DeserializeReply(raw)
+			reply, _, err := test.pub.Packer().DeserializeReply(raw)
 			s.Require().NoError(err)
 			s.Require().True(reply.IsOK())
 

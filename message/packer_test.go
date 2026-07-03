@@ -17,31 +17,31 @@ func TestMessagePackerDeserializeRequest(t *testing.T) {
 		Parameters: datatype.New(),
 	}
 
-	ok, err := packer.DeserializeRequest(MessageToEnvelope("", okRequest.String()))
+	ok, _, err := packer.DeserializeRequest(MessageToEnvelope("", okRequest.String()))
 	require.NoError(t, err)
 	require.EqualValues(t, okRequest, ok)
 
-	_, err = packer.DeserializeRequest(MessageToEnvelope("", `{"command":"","parameters":null}`))
+	_, _, err = packer.DeserializeRequest(MessageToEnvelope("", `{"command":"","parameters":null}`))
 	require.Error(t, err)
 
-	_, err = packer.DeserializeRequest(MessageToEnvelope("", `{}`))
+	_, _, err = packer.DeserializeRequest(MessageToEnvelope("", `{}`))
 	require.Error(t, err)
 
-	_, err = packer.DeserializeRequest(MessageToEnvelope("", `{"command":"is here","parameters":{},"status":"OK", "sig": ""}`))
+	_, _, err = packer.DeserializeRequest(MessageToEnvelope("", `{"command":"is here","parameters":{},"status":"OK", "sig": ""}`))
 	require.NoError(t, err)
 
-	_, err = packer.DeserializeRequest(MessageToEnvelope("", `{"parameters":{}}`))
+	_, _, err = packer.DeserializeRequest(MessageToEnvelope("", `{"parameters":{}}`))
 	require.NoError(t, err)
 
-	_, err = packer.DeserializeRequest(MessageToEnvelope("", `{"command":"command"}`))
+	_, _, err = packer.DeserializeRequest(MessageToEnvelope("", `{"command":"command"}`))
 	require.Error(t, err)
 
 	// Request parameters are case-insensitive.
 	// No way to turn off: https://golang.org/pkg/encoding/json/#Unmarshal
-	_, err = packer.DeserializeRequest(MessageToEnvelope("", `{"Command":"command","parameters":{}}`))
+	_, _, err = packer.DeserializeRequest(MessageToEnvelope("", `{"Command":"command","parameters":{}}`))
 	require.NoError(t, err)
 
-	_, err = packer.DeserializeRequest(MessageToEnvelope("", `{"command":"command","parameters":{}}`))
+	_, _, err = packer.DeserializeRequest(MessageToEnvelope("", `{"command":"command","parameters":{}}`))
 	require.NoError(t, err)
 }
 
@@ -58,36 +58,36 @@ func TestMessagePackerDeserializeReply(t *testing.T) {
 		Parameters: datatype.New(),
 	}
 
-	ok, err := packer.DeserializeReply(MessageToEnvelope("", okReply.String()))
+	ok, _, err := packer.DeserializeReply(MessageToEnvelope("", okReply.String()))
 	require.NoError(t, err)
-	fail, err := packer.DeserializeReply(MessageToEnvelope("", failReply.String()))
+	fail, _, err := packer.DeserializeReply(MessageToEnvelope("", failReply.String()))
 	require.NoError(t, err)
 
 	require.EqualValues(t, okReply, ok)
 	require.EqualValues(t, failReply, fail)
 
-	_, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":null,"status":"OK"}`))
+	_, _, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":null,"status":"OK"}`))
 	require.Error(t, err)
 
-	_, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":{},"status":""}`))
+	_, _, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":{},"status":""}`))
 	require.Error(t, err)
 
-	_, err = packer.DeserializeReply(MessageToEnvelope("", `{}`))
+	_, _, err = packer.DeserializeReply(MessageToEnvelope("", `{}`))
 	require.Error(t, err)
 
-	_, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":{},"status":"OK", "sig": ""}`))
+	_, _, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":{},"status":"OK", "sig": ""}`))
 	require.NoError(t, err)
 
-	_, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":{},"status":"fail", "sig": ""}`))
+	_, _, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":{},"status":"fail", "sig": ""}`))
 	require.Error(t, err)
 
-	_, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":{}}`))
+	_, _, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","parameters":{}}`))
 	require.Error(t, err)
 
-	_, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","status":"OK"}`))
+	_, _, err = packer.DeserializeReply(MessageToEnvelope("", `{"message":"","status":"OK"}`))
 	require.Error(t, err)
 
-	_, err = packer.DeserializeReply(MessageToEnvelope("", `{"parameters":{}, "status":"OK"}`))
+	_, _, err = packer.DeserializeReply(MessageToEnvelope("", `{"parameters":{}, "status":"OK"}`))
 	require.NoError(t, err)
 }
 
@@ -192,7 +192,7 @@ func TestMessagePackerWithReqRepSockets(t *testing.T) {
 
 	rawRequest, err := handler.RecvMessage(0)
 	require.NoError(t, err)
-	receivedRequest, err := packer.DeserializeRequest(rawRequest)
+	receivedRequest, _, err := packer.DeserializeRequest(rawRequest)
 	require.NoError(t, err)
 	require.Equal(t, request.CommandName(), receivedRequest.CommandName())
 
@@ -207,7 +207,7 @@ func TestMessagePackerWithReqRepSockets(t *testing.T) {
 
 	rawReply, err := client.RecvMessage(0)
 	require.NoError(t, err)
-	receivedReply, err := packer.DeserializeReply(rawReply)
+	receivedReply, _, err := packer.DeserializeReply(rawReply)
 	require.NoError(t, err)
 	require.True(t, receivedReply.IsOK())
 
@@ -251,7 +251,7 @@ func TestMessagePackerWithDealerRouterSockets(t *testing.T) {
 
 	rawRequest, err := router.RecvMessage(0)
 	require.NoError(t, err)
-	receivedRequest, err := packer.DeserializeRequest(rawRequest)
+	receivedRequest, _, err := packer.DeserializeRequest(rawRequest)
 	require.NoError(t, err)
 	require.Equal(t, "message-packer-dealer", receivedRequest.ConId())
 	require.Equal(t, request.CommandName(), receivedRequest.CommandName())
@@ -267,7 +267,7 @@ func TestMessagePackerWithDealerRouterSockets(t *testing.T) {
 
 	rawReply, err := dealer.RecvMessage(0)
 	require.NoError(t, err)
-	receivedReply, err := packer.DeserializeReply(rawReply)
+	receivedReply, _, err := packer.DeserializeReply(rawReply)
 	require.NoError(t, err)
 	require.True(t, receivedReply.IsOK())
 
@@ -310,7 +310,7 @@ func TestMessagePackerWithRequestRouterSockets(t *testing.T) {
 
 	rawRequest, err := router.RecvMessage(0)
 	require.NoError(t, err)
-	receivedRequest, err := packer.DeserializeRequest(rawRequest)
+	receivedRequest, _, err := packer.DeserializeRequest(rawRequest)
 	require.NoError(t, err)
 	require.NotEmpty(t, receivedRequest.ConId())
 	require.Equal(t, request.CommandName(), receivedRequest.CommandName())
@@ -326,7 +326,7 @@ func TestMessagePackerWithRequestRouterSockets(t *testing.T) {
 
 	rawReply, err := req.RecvMessage(0)
 	require.NoError(t, err)
-	receivedReply, err := packer.DeserializeReply(rawReply)
+	receivedReply, _, err := packer.DeserializeReply(rawReply)
 	require.NoError(t, err)
 	require.True(t, receivedReply.IsOK())
 

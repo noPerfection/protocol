@@ -94,7 +94,7 @@ func (test *TestPairSuite) req(request message.Request) message.ReplyInterface {
 	raw, err := test.managerClient.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := test.pair.Packer().DeserializeReply(raw)
+	reply, _, err := test.pair.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply
@@ -157,7 +157,7 @@ func (test *TestPairSuite) receiveRequest() message.RequestInterface {
 	raw, err := test.externalClient.RecvMessage(0)
 	s.Require().NoError(err)
 
-	req, err := test.pair.Packer().DeserializeRequest(raw)
+	req, _, err := test.pair.Packer().DeserializeRequest(raw)
 	s.Require().NoError(err)
 
 	return req
@@ -176,7 +176,7 @@ func (test *TestPairSuite) receiveBroadcast() message.ReplyInterface {
 	raw, err := test.externalClient.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := test.pair.Packer().DeserializeReply(raw)
+	reply, _, err := test.pair.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply
@@ -201,7 +201,7 @@ func (test *TestPairSuite) pairRequest(request message.Request) message.ReplyInt
 	raw, err := test.externalClient.RecvMessage(0)
 	s.Require().NoError(err)
 
-	reply, err := test.pair.Packer().DeserializeReply(raw)
+	reply, _, err := test.pair.Packer().DeserializeReply(raw)
 	s.Require().NoError(err)
 
 	return reply

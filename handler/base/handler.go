@@ -1,6 +1,3 @@
-// Package base keeps the generic Handler.
-// It's not intended to be used independently.
-// Other handlers should be defined based on this handler
 package base
 
 import (
@@ -31,6 +28,8 @@ type Handler struct {
 	logger        *log.Logger
 	messagePacker message.Packer
 	routes        datatype.KeyValue
+	// command -> secret -> true
+	whitelists map[string]map[string]bool
 }
 
 // New creates a handler.
@@ -39,6 +38,7 @@ func New(logger ...*log.Logger) *Handler {
 	h := &Handler{
 		messagePacker: &message.MessagePacker{},
 		routes:        datatype.New(),
+		whitelists:    make(map[string]map[string]bool),
 	}
 
 	if len(logger) > 0 && logger[0] != nil {
@@ -117,6 +117,88 @@ func (c *Handler) LogWarn(msg string, args ...interface{}) {
 		return
 	}
 	c.logger.Warn(msg, args...)
+}
+
+// Whitelist registers one or more shared secrets for a command.
+// Use Any for a route-wide policy that applies when no command-specific whitelist exists.
+func (c *Handler) Whitelist(cmd string, secrets ...string) error {
+	if len(secrets) == 0 {
+		return fmt.Errorf("at least one secret is required for whitelist on '%s'", cmd)
+	}
+	if c.whitelists[cmd] == nil {
+		c.whitelists[cmd] = make(map[string]bool)
+	}
+	for _, secret := range secrets {
+		c.whitelists[cmd][secret] = true
+	}
+	return nil
+}
+
+// RequiresWhitelist reports whether the given command requires HMAC validation.
+func (c *Handler) RequiresWhitelist(cmd string) bool {
+	if _, ok := c.whitelists[cmd]; ok {
+		return true
+	}
+	_, ok := c.whitelists[Any]
+	return ok
+}
+
+func (c *Handler) whitelistFor(cmd string) map[string]bool {
+	if secrets, ok := c.whitelists[cmd]; ok {
+		return secrets
+	}
+	return c.whitelists[Any]
+}
+
+// ValidateRequestHmac reports whether hash is valid for the request command whitelist.
+func (c *Handler) ValidateRequestHmac(req message.RequestInterface, hash string) bool {
+	_, ok := c.MatchRequestSecret(req, hash)
+	return ok
+}
+
+// ValidateReplyHmac reports whether hash is valid for the Any-route whitelist.
+func (c *Handler) ValidateReplyHmac(reply message.ReplyInterface, hash string) bool {
+	secrets := c.whitelistFor(Any)
+	if secrets == nil {
+		return true
+	}
+	if hash == "" {
+		return false
+	}
+	body := reply.String()
+	for secret := range secrets {
+		if message.VerifyHMAC(body, secret, hash) {
+			return true
+		}
+	}
+	return false
+}
+
+// SignRequestHmac returns the HMAC hash for a request signed with secret.
+func (c *Handler) SignRequestHmac(req message.RequestInterface, secret string) string {
+	return message.ComputeHMAC(req.String(), secret)
+}
+
+// SignReplyHmac returns the HMAC hash for a reply signed with secret.
+func (c *Handler) SignReplyHmac(reply message.ReplyInterface, secret string) string {
+	return message.ComputeHMAC(reply.String(), secret)
+}
+
+func (c *Handler) MatchRequestSecret(req message.RequestInterface, hash string) (string, bool) {
+	secrets := c.whitelistFor(req.CommandName())
+	if secrets == nil {
+		return "", true
+	}
+	if hash == "" {
+		return "", false
+	}
+	body := req.String()
+	for secret := range secrets {
+		if message.VerifyHMAC(body, secret, hash) {
+			return secret, true
+		}
+	}
+	return "", false
 }
 
 // Route adds a route along with its handler to this handler.

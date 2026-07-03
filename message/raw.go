@@ -24,61 +24,74 @@ func RawMessage() Packer {
 	return &RawPacker{}
 }
 
-func (packer *RawPacker) DeserializeRequest(envelope []string) (RequestInterface, error) {
+func (packer *RawPacker) DeserializeRequest(envelope []string) (RequestInterface, string, error) {
 	if err := ValidEnvelope(envelope); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	conId, message, tail := EnvelopeToMessage(envelope)
-	fmt.Println("DeserializeRequest conId: ", conId, "message: ", message, "tail: ", tail)
+	hmacHash, rest := hmacFromTail(tail)
 
 	request := &Raw{
 		conId:    conId,
 		messages: []string{message},
 	}
+	request.messages = append(request.messages, rest...)
 
-	request.messages = append(request.messages, tail...)
-
-	fmt.Println("DeserializeRequest request: ", request.messages)
-
-	return request, nil
+	return request, hmacHash, nil
 }
 
-func (packer *RawPacker) DeserializeReply(envelope []string) (ReplyInterface, error) {
+func (packer *RawPacker) DeserializeReply(envelope []string) (ReplyInterface, string, error) {
 	if err := ValidEnvelope(envelope); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	conId, message, tail := EnvelopeToMessage(envelope)
+	hmacHash, rest := hmacFromTail(tail)
 
-	request := &Raw{
+	reply := &Raw{
 		conId:    conId,
 		messages: []string{message},
 	}
+	reply.messages = append(reply.messages, rest...)
 
-	request.messages = append(request.messages, tail...)
-
-	return request, nil
+	return reply, hmacHash, nil
 }
 
-func (packer *RawPacker) SerializeRequest(generic RequestInterface) ([]string, error) {
+func (packer *RawPacker) SerializeRequest(generic RequestInterface, hmac ...string) ([]string, error) {
 	request, ok := generic.(*Raw)
 	if !ok {
 		return nil, fmt.Errorf("generic is not a *Raw")
 	}
+	if len(request.messages) == 0 {
+		return nil, fmt.Errorf("raw request has no message body")
+	}
+
+	tail := envelopeHMACTail(hmac...)
 	if len(request.messages) > 1 {
-		return MessageToEnvelope(request.ConId(), request.messages[0], request.messages[1:]...), nil
+		tail = append(tail, request.messages[1:]...)
+	}
+	if len(tail) > 0 {
+		return MessageToEnvelope(request.ConId(), request.messages[0], tail...), nil
 	}
 	return MessageToEnvelope(request.conId, request.messages[0]), nil
 }
 
-func (packer *RawPacker) SerializeReply(generic ReplyInterface) ([]string, error) {
+func (packer *RawPacker) SerializeReply(generic ReplyInterface, hmac ...string) ([]string, error) {
 	reply, ok := generic.(*Raw)
 	if !ok {
 		return nil, fmt.Errorf("generic is not a *Raw")
 	}
+	if len(reply.messages) == 0 {
+		return nil, fmt.Errorf("raw reply has no message body")
+	}
+
+	tail := envelopeHMACTail(hmac...)
 	if len(reply.messages) > 1 {
-		return MessageToEnvelope(reply.conId, reply.messages[0], reply.messages[1:]...), nil
+		tail = append(tail, reply.messages[1:]...)
+	}
+	if len(tail) > 0 {
+		return MessageToEnvelope(reply.conId, reply.messages[0], tail...), nil
 	}
 	return MessageToEnvelope(reply.conId, reply.messages[0]), nil
 }

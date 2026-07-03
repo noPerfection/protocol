@@ -28,7 +28,7 @@ func testWrongCommand(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "wrong-command")
 	svc := hsyncreplier.New()
-	svc.SetEndpoint(base.NewEndpoint(base.SyncReplierType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("known", echoRoute))
 	req.NoError(svc.Start())
 
@@ -51,7 +51,7 @@ func testWrongParameters(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "wrong-parameters")
 	svc := hsyncreplier.New()
-	svc.SetEndpoint(base.NewEndpoint(base.SyncReplierType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("needs-required", func(request message.RequestInterface) message.ReplyInterface {
 		value, err := request.RouteParameters().StringValue("required")
 		if err != nil {
@@ -128,7 +128,7 @@ func testSendAfterHandlerStoppedDoesNotDeliver(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stopped-pair")
 	svc := hpair.New()
-	svc.SetEndpoint(base.NewEndpoint(base.PairType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
 

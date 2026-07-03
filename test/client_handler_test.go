@@ -11,7 +11,6 @@ import (
 	creplier "github.com/noPerfection/protocol/client/replier"
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	cworker "github.com/noPerfection/protocol/client/worker"
-	"github.com/noPerfection/protocol/handler/base"
 	hpair "github.com/noPerfection/protocol/handler/pair"
 	hpublisher "github.com/noPerfection/protocol/handler/publisher"
 	hreplier "github.com/noPerfection/protocol/handler/replier"
@@ -33,7 +32,7 @@ func testSyncReplierClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "sync")
 	svc := hsyncreplier.New()
-	svc.SetEndpoint(base.NewEndpoint(base.SyncReplierType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
 
@@ -54,7 +53,7 @@ func testReplierClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "replier")
 	svc := hreplier.New()
-	svc.SetEndpoint(base.NewEndpoint(base.ReplierType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
 
@@ -77,7 +76,7 @@ func testWorkerClientHandler(t *testing.T) {
 	id := testID(t, "worker")
 	handled := make(chan string, 1)
 	svc := hworker.New()
-	svc.SetEndpoint(base.NewEndpoint(base.WorkerType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("work", func(request message.RequestInterface) message.ReplyInterface {
 		value, err := request.RouteParameters().StringValue("value")
 		if err == nil {
@@ -108,7 +107,7 @@ func testPairClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "pair")
 	svc := hpair.New()
-	svc.SetEndpoint(base.NewEndpoint(base.PairType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
 
@@ -131,7 +130,7 @@ func testPublisherClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "publisher")
 	svc := hpublisher.New()
-	svc.SetEndpoint(base.NewEndpoint(base.PublisherType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Start())
 
 	control := newPublisherControl(t, id)

@@ -8,6 +8,7 @@ Use the module for:
 
 - Client/handler integration tests for each handler type.
 - Handler control tests that start, stop, inspect, and restart handlers through their matching client control package.
+- HMAC whitelisting tests that exercise signed and unsigned traffic between client and handler (`hmac_test.go`).
 
 Keep unit tests that only need one module inside that module instead.
 
@@ -15,6 +16,12 @@ Run it from the repository root with:
 
 ```sh
 go test ./test/...
+```
+
+HMAC integration tests:
+
+```sh
+go test ./test/... -run TestClientHandlerHMAC -v
 ```
 
 Stress tests are intentionally separate because they push queue and timeout edges and may fail while exposing limits:

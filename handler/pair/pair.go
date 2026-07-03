@@ -194,23 +194,37 @@ func (c *Pair) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
 	}
 
-	req, err := c.Packer().DeserializeRequest(raw)
+	req, hmacHash, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
 		reply := c.Packer().EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
-		return c.sendReply(socket, reply)
+		return c.sendReply(socket, reply, "", "")
 	}
 
-	handleFunc, err := c.GetHandleFunc(req.CommandName())
+	cmd := req.CommandName()
+	matchedSecret := ""
+	if c.RequiresWhitelist(cmd) {
+		var ok bool
+		matchedSecret, ok = c.MatchRequestSecret(req, hmacHash)
+		if !ok {
+			return c.sendReply(socket, c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
+		}
+	}
+
+	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", req.CommandName(), err)))
+		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
 	reply := handleFunc(req)
-	return c.sendReply(socket, reply)
+	return c.sendReply(socket, reply, cmd, matchedSecret)
 }
 
-func (c *Pair) sendReply(socket *zmq.Socket, reply message.ReplyInterface) error {
-	envelope, err := c.Packer().SerializeReply(reply)
+func (c *Pair) sendReply(socket *zmq.Socket, reply message.ReplyInterface, cmd, matchedSecret string) error {
+	var hmac string
+	if c.RequiresWhitelist(cmd) && matchedSecret != "" {
+		hmac = c.SignReplyHmac(reply, matchedSecret)
+	}
+	envelope, err := c.Packer().SerializeReply(reply, hmac)
 	if err != nil {
 		return fmt.Errorf("messageOps.SerializeReply: %w", err)
 	}

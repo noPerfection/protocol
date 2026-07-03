@@ -58,7 +58,7 @@ func stressWorkerSends(t *testing.T) {
 	id := testID(t, "stress-worker-send")
 	handled := make(chan uint64, stressPressureMessages)
 	svc := hworker.New()
-	svc.SetEndpoint(base.NewEndpoint(base.WorkerType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("stress", func(request message.RequestInterface) message.ReplyInterface {
 		seq, err := request.RouteParameters().Uint64Value("seq")
 		if err == nil {
@@ -88,7 +88,7 @@ func stressReplierSends(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-replier-send")
 	svc := hreplier.New()
-	svc.SetEndpoint(base.NewEndpoint(base.ReplierType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("stress", seqReplyRoute))
 	req.NoError(svc.Start())
 
@@ -113,7 +113,7 @@ func stressPairSends(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-pair-send")
 	svc := hpair.New()
-	svc.SetEndpoint(base.NewEndpoint(base.PairType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("stress", seqReplyRoute))
 	req.NoError(svc.Start())
 
@@ -139,7 +139,7 @@ func stressSyncReplierRequests(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-sync-request")
 	svc := hsyncreplier.New()
-	svc.SetEndpoint(base.NewEndpoint(base.SyncReplierType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("stress", seqReplyRoute))
 	req.NoError(svc.Start())
 
@@ -168,7 +168,7 @@ func stressReplierReceive(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-replier-receive")
 	svc := hreplier.New()
-	svc.SetEndpoint(base.NewEndpoint(base.ReplierType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("stress", seqReplyRoute))
 	req.NoError(svc.Start())
 
@@ -192,7 +192,7 @@ func stressPairReceive(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-pair-receive")
 	svc := hpair.New()
-	svc.SetEndpoint(base.NewEndpoint(base.PairType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("stress", seqReplyRoute))
 	req.NoError(svc.Start())
 
@@ -217,7 +217,7 @@ func stressPublisherReceive(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-publisher-receive")
 	svc := hpublisher.New()
-	svc.SetEndpoint(base.NewEndpoint(base.PublisherType, id, "test", 0))
+	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Start())
 
 	control := newPublisherControl(t, id)
