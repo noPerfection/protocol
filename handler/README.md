@@ -113,7 +113,7 @@ All controls use the special category `control` (`control.ControlCategory`). Thi
 
 `SetEndpoint` also configures the handler `Control` socket through `control.NewInternalControlEndpoint`. Common manager routes are `status`, `config`, `start`, and `close`.
 
-## Configuration
+## Endpoints
 
 Create a handler endpoint with `message.NewEndpoint(id, port)`.
 
