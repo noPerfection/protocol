@@ -159,8 +159,8 @@ func (test *TestReplierSuite) Test_10_StartHandlesRequests() {
 	err := test.replier.Start()
 	s.Require().NoError(err)
 
-	s.Require().Equal(base.SocketReady, test.replier.Status())
-	s.Require().NotNil(test.replier.Socket())
+	s.Require().Equal(base.SocketReady, test.replier.Control.Status())
+	s.Require().NotNil(test.replier.socket)
 
 	req := message.Request{Command: "command_1", Parameters: datatype.New()}
 	reply, err := test.externalReq(test.externalClient, req)

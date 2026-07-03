@@ -57,7 +57,7 @@ func (test *TestPairSuite) SetupTest() {
 
 func (test *TestPairSuite) TearDownTest() {
 	if test.managerClient != nil {
-		if test.pair != nil && test.pair.Status() == base.SocketReady {
+		if test.pair != nil && test.pair.Control.Status() == base.SocketReady {
 			reply := test.req(message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
 			test.Require().True(reply.IsOK())
 		}
@@ -213,7 +213,7 @@ func (test *TestPairSuite) Test_10_StartReceivesAndBroadcasts() {
 
 	err := test.pair.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, test.pair.Status())
+	s.Require().Equal(base.SocketReady, test.pair.Control.Status())
 
 	test.newExternalClient()
 	time.Sleep(time.Millisecond * 50)

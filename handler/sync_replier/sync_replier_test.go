@@ -165,8 +165,8 @@ func (test *TestSyncReplierSuite) Test_10_StartHandlesOneRequestAtATime() {
 	err := test.syncReplier.Start()
 	s.Require().NoError(err)
 
-	s.Require().Equal(base.SocketReady, test.syncReplier.Status())
-	s.Require().NotNil(test.syncReplier.Socket())
+	s.Require().Equal(base.SocketReady, test.syncReplier.Control.Status())
+	s.Require().NotNil(test.syncReplier.socket)
 
 	secondClient, err := test.newExternalClient()
 	s.Require().NoError(err)
@@ -271,7 +271,7 @@ func (test *TestSyncReplierSuite) Test_12_StartWithoutLogger() {
 	s.Require().NoError(handler.Route("command_1", test.routes["command_1"]))
 
 	s.Require().NoError(handler.Start())
-	s.Require().Equal(base.SocketReady, handler.Status())
+	s.Require().Equal(base.SocketReady, handler.Control.Status())
 
 	managerClient, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)

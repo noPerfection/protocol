@@ -21,9 +21,10 @@ const BroadcastParameter = "reply"
 
 type Pair struct {
 	*base.Handler
+	socket       *zmq.Socket
 	pairW        sync.WaitGroup
 	broadcasting *datatype.Queue
-	Control      base.Interface
+	Control      *control.Manager
 }
 
 var _ base.Interface = (*Pair)(nil)
@@ -86,20 +87,37 @@ func (c *Pair) Start() error {
 }
 
 func (c *Pair) setControlRoutes() {
-	c.Control.Route(Broadcast, c.onBroadcast)
-	c.Control.Route(control.HandlerStart, c.onControlStart)
-	c.Control.Route(control.HandlerClose, c.onControlClose)
-	c.Control.Route(control.HandlerStatus, c.onControlStatus)
-	c.Control.Route(control.HandlerConfig, c.onControlConfig)
-	c.Control.Route(MessageAmount, c.onMessageAmount)
+	_ = c.Control.Route(control.HandlerConfig, c.onControlConfig)
+	_ = c.Control.Route(control.HandlerStart, c.onControlStart)
+	_ = c.Control.Route(control.HandlerClose, c.onControlClose)
+	_ = c.Control.Route(Broadcast, c.onBroadcast)
+	_ = c.Control.Route(MessageAmount, c.onMessageAmount)
+}
+
+func (c *Pair) onControlClose(req message.RequestInterface) message.ReplyInterface {
+	c.stopPair()
+	return req.Ok(datatype.New())
+}
+
+func (c *Pair) onControlConfig(req message.RequestInterface) message.ReplyInterface {
+	return req.Ok(datatype.New().Set("config", c.Config()))
+}
+
+func (c *Pair) onControlStart(req message.RequestInterface) message.ReplyInterface {
+	if c.Control.Status() == base.SocketReady {
+		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
+	}
+	if err := c.startPair(); err != nil {
+		return req.Fail(err.Error())
+	}
+	return req.Ok(datatype.New().Set("status", c.Control.Status()))
 }
 
 func (c *Pair) startPair() error {
-	if c.Handler.Status() == base.SocketReady {
+	if c.socket != nil {
 		return fmt.Errorf("pair already running")
 	}
 
-	c.Handler.SetClose(false)
 	c.pairW.Add(1)
 
 	ready := make(chan error)
@@ -120,14 +138,14 @@ func (c *Pair) startPair() error {
 			return
 		}
 
-		c.Handler.SetSocket(socket)
-		c.Handler.SetSocketReady()
+		c.socket = socket
+		c.Control.SetSocketReady()
 		ready <- nil
 
 		poller := zmq.NewPoller()
 		poller.Add(socket, zmq.POLLIN)
 
-		for !c.Handler.Closed() {
+		for c.Control.Running() {
 			c.flushBroadcast(socket)
 
 			polled, err := poller.Poll(time.Millisecond)
@@ -152,8 +170,8 @@ func (c *Pair) startPair() error {
 		if err := socket.Close(); err != nil {
 			c.LogError("socket.Close", "error", err)
 		}
-		c.Handler.SetClose(false)
-		c.Handler.SetSocketNil()
+		c.socket = nil
+		c.Control.SetSocketNil()
 	}(ready)
 
 	return <-ready
@@ -207,11 +225,11 @@ func (c *Pair) sendReply(socket *zmq.Socket, reply message.ReplyInterface) error
 }
 
 func (c *Pair) stopPair() {
-	if c.Handler.Socket() == nil && c.Handler.Status() != base.SocketReady {
+	if c.socket == nil && !c.Control.Running() {
 		return
 	}
 
-	c.Handler.SetClose(true)
+	c.Control.SetSocketNil()
 	c.pairW.Wait()
 }
 
@@ -233,29 +251,6 @@ func (c *Pair) onBroadcast(req message.RequestInterface) message.ReplyInterface 
 	c.broadcasting.Push(&broadcastReply)
 
 	return req.Ok(datatype.New())
-}
-
-func (c *Pair) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Handler.Status() == base.SocketReady {
-		return req.Fail(fmt.Sprintf("pair already running with status %s", c.Handler.Status()))
-	}
-	if err := c.startPair(); err != nil {
-		return req.Fail(err.Error())
-	}
-	return req.Ok(datatype.New().Set("status", c.Handler.Status()))
-}
-
-func (c *Pair) onControlClose(req message.RequestInterface) message.ReplyInterface {
-	c.stopPair()
-	return req.Ok(datatype.New())
-}
-
-func (c *Pair) onControlStatus(req message.RequestInterface) message.ReplyInterface {
-	return req.Ok(datatype.New().Set("status", c.Handler.Status()))
-}
-
-func (c *Pair) onControlConfig(req message.RequestInterface) message.ReplyInterface {
-	return req.Ok(datatype.New().Set("config", c.Config()))
 }
 
 func (c *Pair) onMessageAmount(req message.RequestInterface) message.ReplyInterface {

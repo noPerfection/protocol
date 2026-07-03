@@ -26,15 +26,16 @@ func New(as HandlerType, id string, category string, port uint64) *Handler {
 
 // SocketType gets the ZMQ analog of the handler type
 func SocketType(handlerType HandlerType) zmq.Type {
-	if handlerType == SyncReplierType {
+	switch handlerType {
+	case SyncReplierType:
 		return zmq.REP
-	} else if handlerType == ReplierType {
+	case ReplierType:
 		return zmq.ROUTER
-	} else if handlerType == WorkerType {
+	case WorkerType:
 		return zmq.PULL
-	} else if handlerType == PublisherType {
+	case PublisherType:
 		return zmq.PUB
-	} else if handlerType == PairType {
+	case PairType:
 		return zmq.PAIR
 	}
 

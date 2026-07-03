@@ -196,7 +196,7 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 
 	err := test.worker.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, test.worker.Status())
+	s.Require().Equal(base.SocketReady, test.worker.Control.Status())
 
 	req := message.Request{
 		Command:    "command_1",
@@ -211,7 +211,7 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 	controlReply := test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	time.Sleep(time.Millisecond * 150)
-	s.Require().Equal(base.SocketNil, test.worker.Status())
+	s.Require().Equal(base.SocketNil, test.worker.Control.Status())
 
 	controlReq = message.Request{Command: control.HandlerStart, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)

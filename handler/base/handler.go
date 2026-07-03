@@ -11,14 +11,13 @@ import (
 	"github.com/noPerfection/protocol/handler/config"
 
 	"github.com/noPerfection/protocol/message"
-	zmq "github.com/pebbe/zmq4"
 )
 
 const (
 	Incomplete  = "incomplete"
-	SocketIdle  = "idle"
-	SocketReady = "ready"
-	SocketNil   = "nil"
+	SocketIdle  = "idle"  // Socket is bind but not listening to receive messages
+	SocketReady = "ready" // Socket is bind and started
+	SocketNil   = "nil"   // Socket is removed and all clean
 )
 
 // Any route name.
@@ -30,12 +29,9 @@ type HandleFunc = func(message.RequestInterface) message.ReplyInterface
 // The Handler is the socket wrapper for the zeromq socket.
 type Handler struct {
 	config        *config.Handler
-	socket        *zmq.Socket
 	logger        *log.Logger
 	messagePacker message.Packer
 	routes        datatype.KeyValue
-	status        string
-	close         bool
 }
 
 // New creates a handler.
@@ -44,8 +40,6 @@ func New(logger ...*log.Logger) *Handler {
 	h := &Handler{
 		messagePacker: &message.MessagePacker{},
 		routes:        datatype.New(),
-		status:        SocketNil,
-		close:         false,
 	}
 
 	if len(logger) > 0 && logger[0] != nil {
@@ -135,10 +129,6 @@ func (c *Handler) Route(cmd string, handle HandleFunc) error {
 
 // SetRoutes registers or overwrites multiple routes.
 func (c *Handler) SetRoutes(routes map[string]HandleFunc) error {
-	if c.status == SocketReady {
-		return fmt.Errorf("can not overwrite handler when handler is running")
-	}
-
 	for cmd, handle := range routes {
 		if err := c.Route(cmd, handle); err != nil {
 			return err
@@ -158,51 +148,6 @@ func (c *Handler) Type() config.HandlerType {
 		return config.UnknownType
 	}
 	return c.config.Type
-}
-
-func (c *Handler) Status() string {
-	return c.status
-}
-
-// Closed returns true when the handler received a close signal.
-func (c *Handler) Closed() bool {
-	return c.close
-}
-
-// SetClose sets the handler close state.
-func (c *Handler) SetClose(close bool) {
-	c.close = close
-}
-
-// SetSocketIdle marks the handler socket as idle.
-func (c *Handler) SetSocketIdle() {
-	c.status = SocketIdle
-}
-
-// SetSocketReady marks the handler socket as ready.
-func (c *Handler) SetSocketReady() {
-	c.status = SocketReady
-}
-
-// SetSocketNil clears the handler socket and marks it nil.
-func (c *Handler) SetSocketNil() {
-	c.socket = nil
-	c.status = SocketNil
-}
-
-// SetSocket assigns the handler's external ZeroMQ socket.
-func (c *Handler) SetSocket(socket *zmq.Socket) {
-	c.socket = socket
-	if socket == nil {
-		c.status = SocketNil
-	} else {
-		c.status = SocketIdle
-	}
-}
-
-// Socket returns the handler's external ZeroMQ socket.
-func (c *Handler) Socket() *zmq.Socket {
-	return c.socket
 }
 
 // FindRoute returns the command handler or the catch-all handler.

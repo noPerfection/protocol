@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/config"
@@ -14,9 +15,9 @@ import (
 )
 
 const (
-	HandlerStatus   = "status"
-	HandlerStart    = "start"  // Close the handler
-	HandlerClose    = "close"  // Close the handler
+	HandlerStatus   = "status" // Returns the handler status
+	HandlerStart    = "start"  // Starts the handler
+	HandlerClose    = "close"  // Closes the handler
 	HandlerConfig   = "config" // Returns the handler configuration
 	ControlCategory = "control"
 )
@@ -24,14 +25,17 @@ const (
 // Manager is the control ROUTER socket for a handler.
 type Manager struct {
 	*base.Handler
+	socket *zmq.Socket
+	status string
 }
 
 var _ base.Interface = (*Manager)(nil)
 
 // New creates a control handler.
-func New(parent ...*log.Logger) base.Interface {
+func New(parent ...*log.Logger) *Manager {
 	return &Manager{
 		Handler: base.New(parent...),
+		status:  base.SocketNil,
 	}
 }
 
@@ -46,9 +50,29 @@ func CreateInternalConfig(handler *config.Handler) *config.Handler {
 	return config.New(config.SyncReplierType, ControlEndpointID(handler.Id, handler.Port), ControlCategory, 0)
 }
 
-// SetClose is intentionally disabled for control handlers.
-func (m *Manager) SetClose(_ bool) {
-	m.LogWarn("Handler controls can not be closed. Please don't call it")
+func (m *Manager) Status() string {
+	return m.status
+}
+
+// Running returns true while the handler socket is ready to serve.
+func (m *Manager) Running() bool {
+	return m.status == base.SocketReady
+}
+
+func (m *Manager) SetSocketIdle() {
+	m.status = base.SocketIdle
+}
+
+func (m *Manager) SetSocketReady() {
+	m.status = base.SocketReady
+}
+
+func (m *Manager) SetSocketNil() {
+	m.status = base.SocketNil
+}
+
+func (m *Manager) onBuiltinStatus(req message.RequestInterface) message.ReplyInterface {
+	return req.Ok(datatype.New().Set("status", m.Status()))
 }
 
 // Start binds the control ROUTER socket and serves registered routes.
@@ -62,6 +86,8 @@ func (m *Manager) Start() error {
 	if m.Config().Type != config.SyncReplierType {
 		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", m.Config().Type, config.SyncReplierType)
 	}
+
+	m.Route(HandlerStatus, m.onBuiltinStatus)
 
 	ready := make(chan error)
 
@@ -79,7 +105,7 @@ func (m *Manager) Start() error {
 			return
 		}
 
-		m.SetSocket(socket)
+		m.socket = socket
 
 		poller := zmq.NewPoller()
 		poller.Add(socket, zmq.POLLIN)
@@ -89,13 +115,6 @@ func (m *Manager) Start() error {
 		ready <- nil
 
 		for {
-			if m.Closed() {
-				if err := poller.RemoveBySocket(socket); err != nil {
-					m.LogError("poller.RemoveBySocket", "error", err)
-				}
-				break
-			}
-
 			sockets, err := poller.Poll(time.Millisecond)
 			if err != nil {
 				m.LogError("poller.Poll", "error", err)
@@ -127,12 +146,11 @@ func (m *Manager) Start() error {
 			m.sendReply(socket, req, base.Handle(req, handleFunc))
 		}
 
-		m.SetClose(false)
-
 		if err := socket.Close(); err != nil {
 			m.LogError("socket.Close", "error", err)
 		}
-		m.SetSocket(nil)
+		m.socket = nil
+		m.status = base.SocketNil
 	}(ready)
 
 	return <-ready

@@ -27,6 +27,8 @@ func ValidEnvelope(messages []string) error {
 }
 
 // EnvelopeToMessage splits an envelope into connection id, first message body, and tail frames.
+// SIlently fails if envelope is invalid.
+// Connection ID depends on the handler type, and might be empty.
 func EnvelopeToMessage(messages []string) (conId string, message string, tail []string) {
 	if err := ValidEnvelope(messages); err != nil {
 		return "", "", []string{}

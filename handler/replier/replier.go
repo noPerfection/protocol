@@ -3,6 +3,7 @@ package replier
 // Asynchronous replier
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,7 +19,8 @@ import (
 // Replier is the socket wrapper for the service.
 type Replier struct {
 	*base.Handler
-	Control base.Interface
+	socket  *zmq.Socket
+	Control *control.Manager
 }
 
 type pendingReply struct {
@@ -71,16 +73,15 @@ func (c *Replier) Start() error {
 
 	c.setControlRoutes()
 
-	if err := c.bindExternal(); err != nil {
-		return err
-	}
-
-	c.Handler.SetClose(false)
 	if c.Control.Status() != base.SocketReady {
 		if err := c.Control.Start(); err != nil {
-			c.cleanup()
 			return fmt.Errorf("control.Start: %w", err)
 		}
+	}
+
+	if err := c.bindExternal(); err != nil {
+		c.cleanup()
+		return err
 	}
 
 	go c.run()
@@ -89,10 +90,38 @@ func (c *Replier) Start() error {
 }
 
 func (c *Replier) setControlRoutes() {
-	c.Control.Route(control.HandlerStatus, c.onControlStatus)
+	c.Control.Route(control.HandlerConfig, c.onControlConfig)
 	c.Control.Route(control.HandlerStart, c.onControlStart)
 	c.Control.Route(control.HandlerClose, c.onControlClose)
-	c.Control.Route(control.HandlerConfig, c.onControlConfig)
+}
+
+func (c *Replier) onControlClose(req message.RequestInterface) message.ReplyInterface {
+	if c.Control.Running() {
+		c.Control.SetSocketNil()
+	}
+	return req.Ok(datatype.New())
+}
+
+func (c *Replier) onControlConfig(req message.RequestInterface) message.ReplyInterface {
+	return req.Ok(datatype.New().Set("config", c.Config()))
+}
+
+func (c *Replier) onControlStart(req message.RequestInterface) message.ReplyInterface {
+	if c.Control.Status() == base.SocketReady {
+		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
+	}
+	if err := c.restartWork(); err != nil {
+		return req.Fail(err.Error())
+	}
+	return req.Ok(datatype.New().Set("status", c.Control.Status()))
+}
+
+func (c *Replier) restartWork() error {
+	if err := c.bindExternal(); err != nil {
+		return err
+	}
+	go c.run()
+	return nil
 }
 
 func (c *Replier) bindExternal() error {
@@ -107,13 +136,13 @@ func (c *Replier) bindExternal() error {
 		return fmt.Errorf("external.Bind('%s'): %w", externalUrl, err)
 	}
 
-	c.Handler.SetSocket(socket)
-	c.Handler.SetSocketReady()
+	c.socket = socket
+	c.Control.SetSocketReady()
 	return nil
 }
 
 func (c *Replier) run() {
-	socket := c.Socket()
+	socket := c.socket
 	if socket == nil {
 		return
 	}
@@ -122,7 +151,7 @@ func (c *Replier) run() {
 	poller.Add(socket, zmq.POLLIN)
 	replies := make(chan pendingReply, 65536)
 
-	for !c.Handler.Closed() {
+	for c.Control.Running() {
 		c.flushReplies(socket, replies)
 
 		sockets, err := poller.Poll(time.Millisecond)
@@ -165,6 +194,10 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 
 	req, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
+		if errors.Is(err, message.ErrAccessDenied) {
+			replies <- pendingReply{reply: c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error())}
+			return nil
+		}
 		reply := c.Packer().EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
 		replies <- pendingReply{reply: reply}
 		return nil
@@ -196,33 +229,9 @@ func (c *Replier) sendReply(socket *zmq.Socket, reply message.ReplyInterface) er
 }
 
 func (c *Replier) cleanup() {
-	if socket := c.Socket(); socket != nil {
+	if socket := c.socket; socket != nil {
 		_ = socket.Close()
 	}
-	c.Handler.SetSocket(nil)
-}
-
-func (c *Replier) onControlStatus(req message.RequestInterface) message.ReplyInterface {
-	return req.Ok(datatype.New().Set("status", c.Handler.Status()))
-}
-
-func (c *Replier) onControlConfig(req message.RequestInterface) message.ReplyInterface {
-	return req.Ok(datatype.New().Set("config", c.Config()))
-}
-
-func (c *Replier) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Handler.Status() == base.SocketReady {
-		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Handler.Status()))
-	}
-	if err := c.Start(); err != nil {
-		return req.Fail(err.Error())
-	}
-	return req.Ok(datatype.New().Set("status", c.Handler.Status()))
-}
-
-func (c *Replier) onControlClose(req message.RequestInterface) message.ReplyInterface {
-	if c.Handler.Status() == base.SocketReady {
-		c.Handler.SetClose(true)
-	}
-	return req.Ok(datatype.New())
+	c.socket = nil
+	c.Control.SetSocketNil()
 }
