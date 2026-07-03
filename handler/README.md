@@ -128,7 +128,9 @@ clientURL := endpoint.ClientUrl()
 
 Control clients connect to `control.NewInternalControlEndpoint(handlerEndpoint).Id` with port `0` for inproc.
 
-## HMAC Whitelisting
+## Security
+
+### HMAC Whitelisting
 
 Routes can optionally require HMAC-SHA256 authentication. Whitelisting is per command and opt-in: routes without a whitelist behave as before.
 
@@ -153,6 +155,51 @@ When a route requires a whitelist:
 Failed validation returns `access-denied`. Routes without a whitelist ignore the HMAC tail frame.
 
 Use the matching [protocol/client](../client) `Whitelist` on the client when calling protected routes. Integration tests live in [protocol/test](../test/hmac_test.go).
+
+### Encryption
+
+Handlers can optionally encrypt their transport with ZeroMQ CURVE using `Secure`. An empty key keeps the handler non-secure:
+
+```go
+import "github.com/noPerfection/protocol/handler/base"
+
+_, serverSecret, _ := base.GenerateCurveKey()
+
+handler.Secure(serverSecret)
+```
+
+Each handler keeps its secret key privately. Control sockets are inproc by design and are not secured.
+
+CURVE is applied only when the endpoint is not `inproc`; `inproc` endpoints skip it (in-process traffic never leaves the process).
+
+Clients must connect with the matching CURVE configuration; see [protocol/client](../client).
+
+### Authentication
+
+Along with `Secure`, you can maintain an allowlist of client public keys permitted to connect. Register each allowed client before `Start`:
+
+```go
+clientPublic, _, _ := base.GenerateCurveKey()
+
+handler.Allow(clientPublic)
+```
+
+To enforce the allowlist, start ZAP once in your process before handlers bind:
+
+```go
+import zmq "github.com/pebbe/zmq4"
+
+if err := zmq.AuthStart(); err != nil {
+	// already running is fine on restart paths
+}
+defer zmq.AuthStop()
+```
+
+When a client uses a fixed identity, pass its public key to `Allow` and configure the client with `Secure(serverPublic, clientSecret)`.
+
+---
+
+Together, `Whitelist` (which commands may be called), `Secure` (encrypt messages on the wire), and `Allow` (restrict who can connect at the connection stage) work together to secure communication between handler and client.
 
 ## Limitations
 

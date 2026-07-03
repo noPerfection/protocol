@@ -18,10 +18,12 @@ const BroadcastParameter = "reply"
 
 type Publisher struct {
 	*base.Handler
-	socket       *zmq.Socket
-	broadcasterW sync.WaitGroup
-	broadcasting *datatype.Queue
-	Control      *control.Manager
+	socket         *zmq.Socket
+	broadcasterW   sync.WaitGroup
+	broadcasting   *datatype.Queue
+	Control        *control.Manager
+	curveSecretKey        string
+	allowedClientPubKeys  []string
 }
 
 // New Publisher returned
@@ -47,6 +49,24 @@ func (c *Publisher) SetLogger(parent *log.Logger) error {
 		return c.Control.SetLogger(nil)
 	}
 	return c.Control.SetLogger(parent.Child(control.ControlCategory))
+}
+
+// Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
+func (c *Publisher) Secure(secretKey string) {
+	c.curveSecretKey = secretKey
+}
+
+// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
+func (c *Publisher) Allow(clientPubKey string) {
+	if clientPubKey == "" {
+		return
+	}
+	for _, key := range c.allowedClientPubKeys {
+		if key == clientPubKey {
+			return
+		}
+	}
+	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
 // Type returns the handler type. If the configuration is not set, returns base.UnknownType.
@@ -126,6 +146,19 @@ func (c *Publisher) startBroadcaster() error {
 		if err != nil {
 			ready <- fmt.Errorf("zmq.NewSocket(PUB): %v", err)
 			return
+		}
+
+		// CURVE applies only when the endpoint is not inproc; inproc endpoints skip it.
+		if c.curveSecretKey != "" && !c.Endpoint().IsInproc() {
+			domain := c.Endpoint().ZapDomain()
+			if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
+				_ = socket.Close()
+				ready <- fmt.Errorf("socket.ServerAuthCurve: %w", err)
+				return
+			}
+			if len(c.allowedClientPubKeys) > 0 {
+				zmq.AuthCurveAdd(domain, c.allowedClientPubKeys...)
+			}
 		}
 
 		pubUrl := c.Endpoint().HandlerUrl()

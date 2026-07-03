@@ -49,3 +49,8 @@ func (c *Client) Packer(packer message.Packer) {
 func (c *Client) Whitelist(cmd string, secrets ...string) error {
 	return c.socket.Whitelist(cmd, secrets...)
 }
+
+func (c *Client) Secure(serverPublicKey string, clientSecretKey ...string) *Client {
+	c.socket.Secure(serverPublicKey, clientSecretKey...)
+	return c
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/noPerfection/log"
 
 	"github.com/noPerfection/protocol/message"
+	zmq "github.com/pebbe/zmq4"
 )
 
 const (
@@ -239,4 +240,14 @@ func AnyRoute(handler *Handler) error {
 		return fmt.Errorf("failed to '%s' route into the handler: %w", Any, err)
 	}
 	return nil
+}
+
+// GenerateCurveKey returns a new Z85 CURVE public/secret keypair.
+func GenerateCurveKey() (pub, secret string, err error) {
+	return zmq.NewCurveKeypair()
+}
+
+// DerivePublicKey returns the Z85 CURVE public key for the given secret key.
+func DerivePublicKey(secretKey string) (pubkey string, err error) {
+	return zmq.AuthCurvePublic(secretKey)
 }

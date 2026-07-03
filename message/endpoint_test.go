@@ -62,3 +62,10 @@ func TestEndpointKinds(t *testing.T) {
 		t.Fatalf("expected localhost remote endpoint, got %+v", localhost)
 	}
 }
+
+func TestEndpointZapDomain(t *testing.T) {
+	endpoint := NewEndpoint("billing", 9000)
+	if got := endpoint.ZapDomain(); got != "billing9000_control" {
+		t.Fatalf("ZapDomain() = %q, want %q", got, "billing9000_control")
+	}
+}

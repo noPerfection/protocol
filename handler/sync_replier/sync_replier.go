@@ -15,9 +15,11 @@ import (
 
 type SyncReplier struct {
 	*base.Handler
-	socket  *zmq.Socket
-	Control *control.Manager
-	workW   sync.WaitGroup
+	socket         *zmq.Socket
+	Control        *control.Manager
+	workW          sync.WaitGroup
+	curveSecretKey       string
+	allowedClientPubKeys []string
 }
 
 var _ base.Interface = (*SyncReplier)(nil)
@@ -44,6 +46,24 @@ func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 		return c.Control.SetLogger(nil)
 	}
 	return c.Control.SetLogger(parent.Child(control.ControlCategory))
+}
+
+// Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
+func (c *SyncReplier) Secure(secretKey string) {
+	c.curveSecretKey = secretKey
+}
+
+// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
+func (c *SyncReplier) Allow(clientPubKey string) {
+	if clientPubKey == "" {
+		return
+	}
+	for _, key := range c.allowedClientPubKeys {
+		if key == clientPubKey {
+			return
+		}
+	}
+	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
 // Type returns the handler type. If the configuration is not set, returns base.UnknownType.
@@ -120,6 +140,18 @@ func (c *SyncReplier) bindExternal() error {
 	socket, err := zmq.NewSocket(zmq.REP)
 	if err != nil {
 		return fmt.Errorf("zmq.NewSocket(REP): %w", err)
+	}
+
+	// CURVE applies only when the endpoint is not inproc; inproc endpoints skip it.
+	if c.curveSecretKey != "" && !c.Endpoint().IsInproc() {
+		domain := c.Endpoint().ZapDomain()
+		if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
+			_ = socket.Close()
+			return fmt.Errorf("socket.ServerAuthCurve: %w", err)
+		}
+		if len(c.allowedClientPubKeys) > 0 {
+			zmq.AuthCurveAdd(domain, c.allowedClientPubKeys...)
+		}
 	}
 
 	externalUrl := c.Endpoint().HandlerUrl()

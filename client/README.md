@@ -130,6 +130,31 @@ When a handler calls another handler internally, sign with the **downstream** ha
 
 See [protocol/test/hmac_test.go](../test/hmac_test.go) for client/handler integration tests.
 
+## CURVE Encryption
+
+When the target handler is secured with CURVE (see [protocol/handler](../handler)), configure the client with the handler's Z85 CURVE server public key using `Secure`. An empty key keeps the client non-secure:
+
+```go
+import "github.com/noPerfection/protocol/handler/base"
+
+serverPublic, serverSecret, _ := base.GenerateCurveKey()
+
+reqSync, _ := sync_replier.NewClient("billing", 6000)
+reqSync.Secure(serverPublic)
+
+// Optional: pass a fixed client secret key instead of generating one per reconnect.
+clientPublic, clientSecret, _ := base.GenerateCurveKey()
+reqSync.Secure(serverPublic, clientSecret)
+```
+
+Behavior:
+
+- CURVE is applied only when the endpoint is not `inproc`; `inproc` endpoints skip it.
+- On secure connections, the client connects with `SetCurveServerkey` using the configured server public key.
+- When a client secret key is provided, its public key is derived with `AuthCurvePublic` and reused on every reconnect.
+- When no client secret key is provided, an ephemeral client keypair is generated on each reconnect.
+- CURVE is independent of HMAC whitelisting; you can use either, both, or neither.
+
 Clients are thread-safe, so one client can be called from multiple goroutines:
 
 ```go

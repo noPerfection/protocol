@@ -3,7 +3,6 @@ package control
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/noPerfection/datatype"
@@ -40,7 +39,7 @@ func New(parent ...*log.Logger) *Manager {
 
 // NewInternalControlEndpoint derives the control endpoint from a handler endpoint.
 func NewInternalControlEndpoint(handlerEndpoint message.Endpoint) message.Endpoint {
-	handlerEndpoint.Id = handlerEndpoint.Id + strconv.FormatUint(handlerEndpoint.Port, 10) + "_control"
+	handlerEndpoint.Id = handlerEndpoint.ZapDomain() + "_control"
 	return handlerEndpoint
 }
 
@@ -48,6 +47,12 @@ func NewInternalControlEndpoint(handlerEndpoint message.Endpoint) message.Endpoi
 func (m *Manager) SetEndpoint(handlerEndpoint message.Endpoint) {
 	m.Handler.SetEndpoint(NewInternalControlEndpoint(handlerEndpoint))
 }
+
+// Secure is a no-op; control sockets are inproc and do not use CURVE.
+func (m *Manager) Secure(_ string) {}
+
+// Allow is a no-op; control sockets are inproc and do not use CURVE client allowlists.
+func (m *Manager) Allow(_ string) {}
 
 func (m *Manager) Status() string {
 	return m.status

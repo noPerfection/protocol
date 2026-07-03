@@ -2,6 +2,7 @@ package message
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -65,4 +66,9 @@ func (endpoint Endpoint) IsLocalhost() bool {
 // IsRemote returns true when the endpoint uses a TCP transport.
 func (endpoint Endpoint) IsRemote() bool {
 	return endpoint.Port != 0
+}
+
+// ZapDomain returns the ZAP domain for CURVE on this handler endpoint.
+func (endpoint Endpoint) ZapDomain() string {
+	return endpoint.Id + strconv.FormatUint(endpoint.Port, 10)
 }

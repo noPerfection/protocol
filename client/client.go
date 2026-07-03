@@ -37,7 +37,9 @@ type Socket struct {
 	messagePacker message.Packer
 	dispatcher    *dispatcher
 	receiver      *receiver
-	whitelists    map[string]string
+	whitelists       map[string]string
+	serverPublicKey  string
+	curveSecretKey   string
 }
 
 // New creates a client for the given handler endpoint. Client type is determined by the target handler.
@@ -93,6 +95,12 @@ func (socket *Socket) reconnect() (err error) {
 
 	if err := socket.zmqSocket.SetLinger(0); err != nil {
 		return fmt.Errorf("zmqSocket.SetLinger(0): %w", err)
+	}
+
+	if err := socket.applyCurveClient(socket.zmqSocket); err != nil {
+		_ = socket.zmqSocket.Close()
+		socket.zmqSocket = nil
+		return err
 	}
 
 	url := socket.endpoint.ClientUrl()

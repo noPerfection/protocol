@@ -53,6 +53,12 @@ type Interface interface {
 	// SetLogger adds an optional logger. Passing nil disables logging.
 	SetLogger(*log.Logger) error
 
+	// Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
+	Secure(secretKey string)
+
+	// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
+	Allow(clientPubKey string)
+
 	// IsRouteExist returns true if the command is registered
 	IsRouteExist(string) bool
 
