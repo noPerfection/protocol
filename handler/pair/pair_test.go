@@ -8,7 +8,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -22,8 +21,8 @@ import (
 type TestPairSuite struct {
 	suite.Suite
 
-	externalConfig *config.Handler
-	pairConfig     *config.Handler
+	externalConfig *base.EndpointConfig
+	pairConfig     *base.EndpointConfig
 	pair           *Pair
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
@@ -38,12 +37,12 @@ func (test *TestPairSuite) SetupTest() {
 	test.logger = logger
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	test.externalConfig = config.New(config.ReplierType, testID, "external_main", 0)
-	test.pairConfig = config.New(config.PairType, testID+"_pair", "external_main_pair", 0)
+	test.externalConfig = base.NewEndpoint(base.ReplierType, testID, "external_main", 0)
+	test.pairConfig = base.NewEndpoint(base.PairType, testID+"_pair", "external_main_pair", 0)
 	test.pair = New()
 
 	s.Require().NoError(test.pair.SetLogger(test.logger))
-	test.pair.SetConfig(test.pairConfig)
+	test.pair.SetEndpoint(test.pairConfig)
 	s.Require().NoError(test.pair.SetLogger(test.logger))
 	s.Require().NoError(test.pair.Route("client-message", func(request message.RequestInterface) message.ReplyInterface {
 		return request.Ok(request.RouteParameters().Set("handled", request.CommandName()))
@@ -51,7 +50,7 @@ func (test *TestPairSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.CreateInternalConfig(test.pairConfig)
+	managerConfig := control.NewInternalControlEndpoint(test.pairConfig)
 	s.Require().NoError(test.managerClient.Connect(managerConfig.ClientUrl()))
 }
 

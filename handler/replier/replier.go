@@ -10,7 +10,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -37,11 +36,10 @@ func New() *Replier {
 	}
 }
 
-// SetConfig adds the parameters of the handler from the config.
-func (c *Replier) SetConfig(handler *config.Handler) {
-	handler.Type = config.ReplierType
-	c.Handler.SetConfig(handler)
-	c.Control.SetConfig(control.CreateInternalConfig(c.Config()))
+// SetEndpoint adds the parameters of the handler from the config.
+func (c *Replier) SetEndpoint(endpoint message.Endpoint) {
+	c.Handler.SetEndpoint(endpoint)
+	c.Control.SetEndpoint(endpoint)
 }
 
 func (c *Replier) SetLogger(parent *log.Logger) error {
@@ -54,18 +52,15 @@ func (c *Replier) SetLogger(parent *log.Logger) error {
 	return c.Control.SetLogger(parent.Child(control.ControlCategory))
 }
 
-// Type returns the handler type. If the configuration is not set, returns config.UnknownType.
-func (c *Replier) Type() config.HandlerType {
-	return config.ReplierType
+// Type returns the handler type. If the configuration is not set, returns base.UnknownType.
+func (c *Replier) Type() base.HandlerType {
+	return base.ReplierType
 }
 
 // Start the handler directly, not by goroutine
 func (c *Replier) Start() error {
-	if c.Config() == nil {
+	if c.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("configuration not set")
-	}
-	if c.Config().Type != config.ReplierType {
-		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.ReplierType)
 	}
 	if c.Control == nil {
 		return fmt.Errorf("control not set")
@@ -103,7 +98,7 @@ func (c *Replier) onControlClose(req message.RequestInterface) message.ReplyInte
 }
 
 func (c *Replier) onControlConfig(req message.RequestInterface) message.ReplyInterface {
-	return req.Ok(datatype.New().Set("config", c.Config()))
+	return req.Ok(datatype.New().Set("config", c.Endpoint()))
 }
 
 func (c *Replier) onControlStart(req message.RequestInterface) message.ReplyInterface {
@@ -125,12 +120,12 @@ func (c *Replier) restartWork() error {
 }
 
 func (c *Replier) bindExternal() error {
-	socket, err := zmq.NewSocket(config.SocketType(c.Type()))
+	socket, err := zmq.NewSocket(zmq.ROUTER)
 	if err != nil {
 		return fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
 	}
 
-	externalUrl := c.Config().HandlerUrl()
+	externalUrl := c.Endpoint().HandlerUrl()
 	if err := socket.Bind(externalUrl); err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("external.Bind('%s'): %w", externalUrl, err)
@@ -203,14 +198,14 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 		return nil
 	}
 
-	handleFunc, err := c.FindRoute(req.CommandName())
+	handleFunc, err := c.GetHandleFunc(req.CommandName())
 	if err != nil {
-		replies <- pendingReply{reply: req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err))}
+		replies <- pendingReply{reply: req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", req.CommandName(), err))}
 		return nil
 	}
 
 	go func() {
-		reply := base.Handle(req, handleFunc)
+		reply := handleFunc(req)
 		replies <- pendingReply{reply: reply}
 	}()
 

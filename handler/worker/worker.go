@@ -9,7 +9,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -32,11 +31,10 @@ func New() *Worker {
 	}
 }
 
-// SetConfig adds the parameters of the handler from the config.
-func (c *Worker) SetConfig(handler *config.Handler) {
-	handler.Type = config.WorkerType
-	c.Handler.SetConfig(handler)
-	c.Control.SetConfig(control.CreateInternalConfig(c.Config()))
+// SetEndpoint adds the parameters of the handler from the config.
+func (c *Worker) SetEndpoint(endpoint message.Endpoint) {
+	c.Handler.SetEndpoint(endpoint)
+	c.Control.SetEndpoint(endpoint)
 }
 
 func (c *Worker) SetLogger(parent *log.Logger) error {
@@ -49,18 +47,15 @@ func (c *Worker) SetLogger(parent *log.Logger) error {
 	return c.Control.SetLogger(parent.Child(control.ControlCategory))
 }
 
-// Type returns the handler type. If the configuration is not set, returns config.UnknownType.
-func (c *Worker) Type() config.HandlerType {
-	return config.WorkerType
+// Type returns the handler type. If the configuration is not set, returns base.UnknownType.
+func (c *Worker) Type() base.HandlerType {
+	return base.WorkerType
 }
 
 // Start the handler directly, not by goroutine.
 func (c *Worker) Start() error {
-	if c.Config() == nil {
+	if c.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("configuration not set")
-	}
-	if c.Config().Type != config.WorkerType {
-		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.WorkerType)
 	}
 	if c.Control == nil {
 		return fmt.Errorf("control not set")
@@ -98,7 +93,7 @@ func (c *Worker) onControlClose(req message.RequestInterface) message.ReplyInter
 }
 
 func (c *Worker) onControlConfig(req message.RequestInterface) message.ReplyInterface {
-	return req.Ok(datatype.New().Set("config", c.Config()))
+	return req.Ok(datatype.New().Set("config", c.Endpoint()))
 }
 
 func (c *Worker) onControlStart(req message.RequestInterface) message.ReplyInterface {
@@ -120,12 +115,12 @@ func (c *Worker) restartWork() error {
 }
 
 func (c *Worker) bindExternal() error {
-	socket, err := zmq.NewSocket(config.SocketType(c.Type()))
+	socket, err := zmq.NewSocket(zmq.PULL)
 	if err != nil {
-		return fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
+		return fmt.Errorf("zmq.NewSocket(PULL): %w", err)
 	}
 
-	externalUrl := c.Config().HandlerUrl()
+	externalUrl := c.Endpoint().HandlerUrl()
 	if err := socket.Bind(externalUrl); err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("external.Bind('%s'): %w", externalUrl, err)
@@ -176,12 +171,12 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("messageOps.DeserializeRequest: %w", err)
 	}
 
-	handleFunc, err := c.FindRoute(req.CommandName())
+	handleFunc, err := c.GetHandleFunc(req.CommandName())
 	if err != nil {
-		return fmt.Errorf("base.FindRoute(%s): %w", req.CommandName(), err)
+		return fmt.Errorf("base.GetHandleFunc(%s): %w", req.CommandName(), err)
 	}
 
-	go base.Handle(req, handleFunc)
+	go handleFunc(req)
 	return nil
 }
 

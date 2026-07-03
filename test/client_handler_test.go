@@ -11,7 +11,7 @@ import (
 	creplier "github.com/noPerfection/protocol/client/replier"
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	cworker "github.com/noPerfection/protocol/client/worker"
-	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/base"
 	hpair "github.com/noPerfection/protocol/handler/pair"
 	hpublisher "github.com/noPerfection/protocol/handler/publisher"
 	hreplier "github.com/noPerfection/protocol/handler/replier"
@@ -32,10 +32,10 @@ func TestClientHandlerPairs(t *testing.T) {
 func testSyncReplierClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "sync")
-	handler := hsyncreplier.New()
-	handler.SetConfig(config.New(config.SyncReplierType, id, "test", 0))
-	req.NoError(handler.Route("echo", echoRoute))
-	req.NoError(handler.Start())
+	svc := hsyncreplier.New()
+	svc.SetEndpoint(base.NewEndpoint(base.SyncReplierType, id, "test", 0))
+	req.NoError(svc.Route("echo", echoRoute))
+	req.NoError(svc.Start())
 
 	control := newSyncControl(t, id)
 	defer closeControl(t, control)
@@ -53,10 +53,10 @@ func testSyncReplierClientHandler(t *testing.T) {
 func testReplierClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "replier")
-	handler := hreplier.New()
-	handler.SetConfig(config.New(config.ReplierType, id, "test", 0))
-	req.NoError(handler.Route("echo", echoRoute))
-	req.NoError(handler.Start())
+	svc := hreplier.New()
+	svc.SetEndpoint(base.NewEndpoint(base.ReplierType, id, "test", 0))
+	req.NoError(svc.Route("echo", echoRoute))
+	req.NoError(svc.Start())
 
 	control := newReplierControl(t, id)
 	defer closeControl(t, control)
@@ -76,16 +76,16 @@ func testWorkerClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "worker")
 	handled := make(chan string, 1)
-	handler := hworker.New()
-	handler.SetConfig(config.New(config.WorkerType, id, "test", 0))
-	req.NoError(handler.Route("work", func(request message.RequestInterface) message.ReplyInterface {
+	svc := hworker.New()
+	svc.SetEndpoint(base.NewEndpoint(base.WorkerType, id, "test", 0))
+	req.NoError(svc.Route("work", func(request message.RequestInterface) message.ReplyInterface {
 		value, err := request.RouteParameters().StringValue("value")
 		if err == nil {
 			handled <- value
 		}
 		return request.Ok(datatype.New())
 	}))
-	req.NoError(handler.Start())
+	req.NoError(svc.Start())
 
 	control := newWorkerControl(t, id)
 	defer closeControl(t, control)
@@ -107,10 +107,10 @@ func testWorkerClientHandler(t *testing.T) {
 func testPairClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "pair")
-	handler := hpair.New()
-	handler.SetConfig(config.New(config.PairType, id, "test", 0))
-	req.NoError(handler.Route("echo", echoRoute))
-	req.NoError(handler.Start())
+	svc := hpair.New()
+	svc.SetEndpoint(base.NewEndpoint(base.PairType, id, "test", 0))
+	req.NoError(svc.Route("echo", echoRoute))
+	req.NoError(svc.Start())
 
 	control := newPairControl(t, id)
 	defer closeControl(t, control)
@@ -130,9 +130,9 @@ func testPairClientHandler(t *testing.T) {
 func testPublisherClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "publisher")
-	handler := hpublisher.New()
-	handler.SetConfig(config.New(config.PublisherType, id, "test", 0))
-	req.NoError(handler.Start())
+	svc := hpublisher.New()
+	svc.SetEndpoint(base.NewEndpoint(base.PublisherType, id, "test", 0))
+	req.NoError(svc.Start())
 
 	control := newPublisherControl(t, id)
 	defer closeControl(t, control)

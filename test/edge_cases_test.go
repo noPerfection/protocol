@@ -9,7 +9,6 @@ import (
 	cpublisher "github.com/noPerfection/protocol/client/publisher"
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	hpair "github.com/noPerfection/protocol/handler/pair"
 	hsyncreplier "github.com/noPerfection/protocol/handler/sync_replier"
 	"github.com/noPerfection/protocol/message"
@@ -28,10 +27,10 @@ func TestProtocolEdgeCases(t *testing.T) {
 func testWrongCommand(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "wrong-command")
-	handler := hsyncreplier.New()
-	handler.SetConfig(config.New(config.SyncReplierType, id, "test", 0))
-	req.NoError(handler.Route("known", echoRoute))
-	req.NoError(handler.Start())
+	svc := hsyncreplier.New()
+	svc.SetEndpoint(base.NewEndpoint(base.SyncReplierType, id, "test", 0))
+	req.NoError(svc.Route("known", echoRoute))
+	req.NoError(svc.Start())
 
 	control := newSyncControl(t, id)
 	defer closeControl(t, control)
@@ -51,16 +50,16 @@ func testWrongCommand(t *testing.T) {
 func testWrongParameters(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "wrong-parameters")
-	handler := hsyncreplier.New()
-	handler.SetConfig(config.New(config.SyncReplierType, id, "test", 0))
-	req.NoError(handler.Route("needs-required", func(request message.RequestInterface) message.ReplyInterface {
+	svc := hsyncreplier.New()
+	svc.SetEndpoint(base.NewEndpoint(base.SyncReplierType, id, "test", 0))
+	req.NoError(svc.Route("needs-required", func(request message.RequestInterface) message.ReplyInterface {
 		value, err := request.RouteParameters().StringValue("required")
 		if err != nil {
 			return request.Fail("required parameter missing")
 		}
 		return request.Ok(datatype.New().Set("required", value))
 	}))
-	req.NoError(handler.Start())
+	req.NoError(svc.Start())
 
 	control := newSyncControl(t, id)
 	defer closeControl(t, control)
@@ -128,10 +127,10 @@ func testReceiveClosesWhenPublisherIdle(t *testing.T) {
 func testSendAfterHandlerStoppedDoesNotDeliver(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stopped-pair")
-	handler := hpair.New()
-	handler.SetConfig(config.New(config.PairType, id, "test", 0))
-	req.NoError(handler.Route("echo", echoRoute))
-	req.NoError(handler.Start())
+	svc := hpair.New()
+	svc.SetEndpoint(base.NewEndpoint(base.PairType, id, "test", 0))
+	req.NoError(svc.Route("echo", echoRoute))
+	req.NoError(svc.Start())
 
 	control := newPairControl(t, id)
 	defer func() { req.NoError(control.Close()) }()

@@ -10,11 +10,11 @@ import (
 
 func TestMisc(t *testing.T) {
 	handler := New()
-	require.Empty(t, handler.RouteCommands())
+	require.Empty(t, handler.Commands())
 	require.IsType(t, &message.MessagePacker{}, handler.Packer())
 
 	require.NoError(t, AnyRoute(handler))
-	require.NotEmpty(t, handler.RouteCommands())
+	require.NotEmpty(t, handler.Commands())
 }
 
 func TestPacker(t *testing.T) {
@@ -26,8 +26,8 @@ func TestPacker(t *testing.T) {
 	require.Same(t, packer, handler.Packer())
 }
 
-func TestFindRoute(t *testing.T) {
-	handlers := datatype.New()
+func TestGetHandleFunc(t *testing.T) {
+	handler := New()
 	handleAny := func(request message.RequestInterface) message.ReplyInterface {
 		return request.Ok(datatype.New())
 	}
@@ -35,29 +35,16 @@ func TestFindRoute(t *testing.T) {
 		return request.Ok(datatype.New())
 	}
 
-	_, err := FindRoute("cmd", handlers)
+	_, err := handler.GetHandleFunc("cmd")
 	require.Error(t, err)
 
-	handlers.Set(Any, handleAny)
-	handle, err := FindRoute("cmd", handlers)
+	require.NoError(t, handler.Route(Any, handleAny))
+	handle, err := handler.GetHandleFunc("cmd")
 	require.NoError(t, err)
 	require.NotNil(t, handle)
 
-	handlers.Set("cmd", handleCmd)
-	handle, err = FindRoute("cmd", handlers)
+	require.NoError(t, handler.Route("cmd", handleCmd))
+	handle, err = handler.GetHandleFunc("cmd")
 	require.NoError(t, err)
 	require.NotNil(t, handle)
-}
-
-func TestHandle(t *testing.T) {
-	req := &message.Request{
-		Command:    "ping",
-		Parameters: datatype.New(),
-	}
-
-	reply := Handle(req, func(request message.RequestInterface) message.ReplyInterface {
-		return request.Ok(datatype.New())
-	})
-
-	require.True(t, reply.IsOK())
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -21,7 +20,7 @@ import (
 type TestWorkerSuite struct {
 	suite.Suite
 	worker         *Worker
-	handlerConfig  *config.Handler
+	handlerConfig  *base.EndpointConfig
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
 	logger         *log.Logger
@@ -68,18 +67,18 @@ func (test *TestWorkerSuite) SetupTest() {
 	s.Require().NoError(err)
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	test.handlerConfig = config.New(config.WorkerType, testID, "test", 0)
+	test.handlerConfig = base.NewEndpoint(base.WorkerType, testID, "test", 0)
 
 	s.Require().NoError(test.worker.SetLogger(test.logger))
 
 	// Setting the configuration
 	// Setting the logger should be successful
-	test.worker.SetConfig(test.handlerConfig)
+	test.worker.SetEndpoint(test.handlerConfig)
 	s.Require().NoError(test.worker.SetLogger(test.logger))
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.CreateInternalConfig(test.handlerConfig)
+	managerConfig := control.NewInternalControlEndpoint(test.handlerConfig)
 	managerUrl := managerConfig.ClientUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)

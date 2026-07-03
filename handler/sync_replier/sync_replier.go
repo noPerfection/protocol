@@ -8,7 +8,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -24,17 +23,16 @@ var _ base.Interface = (*SyncReplier)(nil)
 
 // New SyncReplier returned
 func New() *SyncReplier {
-	handler := base.New()
 	return &SyncReplier{
-		Handler: handler,
+		Handler: base.New(),
 		Control: control.New(),
 	}
 }
 
-// SetConfig adds the parameters of the handler from the config.
-func (c *SyncReplier) SetConfig(handler *config.Handler) {
-	c.Handler.SetConfig(handler)
-	c.Control.SetConfig(control.CreateInternalConfig(c.Config()))
+// SetEndpoint adds the parameters of the handler from the config.
+func (c *SyncReplier) SetEndpoint(endpoint message.Endpoint) {
+	c.Handler.SetEndpoint(endpoint)
+	c.Control.SetEndpoint(endpoint)
 }
 
 func (c *SyncReplier) SetLogger(parent *log.Logger) error {
@@ -47,18 +45,15 @@ func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 	return c.Control.SetLogger(parent.Child(control.ControlCategory))
 }
 
-// Type returns the handler type. If the configuration is not set, returns config.UnknownType.
-func (c *SyncReplier) Type() config.HandlerType {
-	return config.SyncReplierType
+// Type returns the handler type. If the configuration is not set, returns base.UnknownType.
+func (c *SyncReplier) Type() base.HandlerType {
+	return base.SyncReplierType
 }
 
 // Start the handler directly, not by goroutine
 func (c *SyncReplier) Start() error {
-	if c.Config() == nil {
+	if c.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("configuration not set")
-	}
-	if c.Config().Type != config.SyncReplierType {
-		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.SyncReplierType)
 	}
 	if c.Control == nil {
 		return fmt.Errorf("control not set")
@@ -83,9 +78,9 @@ func (c *SyncReplier) Start() error {
 }
 
 func (c *SyncReplier) setControlRoutes() {
-	_ = c.Control.Route(control.HandlerConfig, c.onControlConfig)
-	_ = c.Control.Route(control.HandlerStart, c.onControlStart)
-	_ = c.Control.Route(control.HandlerClose, c.onControlClose)
+	c.Control.Route(control.HandlerConfig, c.onControlConfig)
+	c.Control.Route(control.HandlerStart, c.onControlStart)
+	c.Control.Route(control.HandlerClose, c.onControlClose)
 }
 
 func (c *SyncReplier) onControlClose(req message.RequestInterface) message.ReplyInterface {
@@ -96,7 +91,7 @@ func (c *SyncReplier) onControlClose(req message.RequestInterface) message.Reply
 }
 
 func (c *SyncReplier) onControlConfig(req message.RequestInterface) message.ReplyInterface {
-	return req.Ok(datatype.New().Set("config", c.Config()))
+	return req.Ok(datatype.New().Set("config", c.Endpoint()))
 }
 
 func (c *SyncReplier) onControlStart(req message.RequestInterface) message.ReplyInterface {
@@ -118,12 +113,12 @@ func (c *SyncReplier) restartWork() error {
 }
 
 func (c *SyncReplier) bindExternal() error {
-	socket, err := zmq.NewSocket(config.SocketType(c.Type()))
+	socket, err := zmq.NewSocket(zmq.REP)
 	if err != nil {
-		return fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
+		return fmt.Errorf("zmq.NewSocket(REP): %w", err)
 	}
 
-	externalUrl := c.Config().HandlerUrl()
+	externalUrl := c.Endpoint().HandlerUrl()
 	if err := socket.Bind(externalUrl); err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("external.Bind('%s'): %w", externalUrl, err)
@@ -178,12 +173,12 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 		return c.sendReply(socket, reply)
 	}
 
-	handleFunc, err := c.FindRoute(req.CommandName())
+	handleFunc, err := c.GetHandleFunc(req.CommandName())
 	if err != nil {
-		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err)))
+		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", req.CommandName(), err)))
 	}
 
-	reply := base.Handle(req, handleFunc)
+	reply := handleFunc(req)
 	return c.sendReply(socket, reply)
 }
 

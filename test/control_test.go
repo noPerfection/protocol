@@ -11,7 +11,6 @@ import (
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	cworker "github.com/noPerfection/protocol/client/worker"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	hcontrol "github.com/noPerfection/protocol/handler/control"
 	hpair "github.com/noPerfection/protocol/handler/pair"
 	hpublisher "github.com/noPerfection/protocol/handler/publisher"
@@ -32,63 +31,63 @@ type controlClient interface {
 
 func TestHandlerControls(t *testing.T) {
 	t.Run("sync replier control", func(t *testing.T) {
-		handler := hsyncreplier.New()
-		cfg := config.New(config.SyncReplierType, testID(t, "sync-control"), "test", 0)
-		handler.SetConfig(cfg)
-		require.NoError(t, handler.Route("echo", echoRoute))
-		require.NoError(t, handler.Start())
+		svc := hsyncreplier.New()
+		cfg := base.NewEndpoint(base.SyncReplierType, testID(t, "sync-control"), "test", 0)
+		svc.SetEndpoint(cfg)
+		require.NoError(t, svc.Route("echo", echoRoute))
+		require.NoError(t, svc.Start())
 		control := newSyncControl(t, cfg.Id)
 		defer func() { require.NoError(t, control.Close()) }()
 		assertControlLifecycle(t, control, cfg)
 	})
 
 	t.Run("replier control", func(t *testing.T) {
-		handler := hreplier.New()
-		cfg := config.New(config.ReplierType, testID(t, "replier-control"), "test", 0)
-		handler.SetConfig(cfg)
-		require.NoError(t, handler.Route("echo", echoRoute))
-		require.NoError(t, handler.Start())
+		svc := hreplier.New()
+		cfg := base.NewEndpoint(base.ReplierType, testID(t, "replier-control"), "test", 0)
+		svc.SetEndpoint(cfg)
+		require.NoError(t, svc.Route("echo", echoRoute))
+		require.NoError(t, svc.Start())
 		control := newReplierControl(t, cfg.Id)
 		defer func() { require.NoError(t, control.Close()) }()
 		assertControlLifecycle(t, control, cfg)
 	})
 
 	t.Run("worker control", func(t *testing.T) {
-		handler := hworker.New()
-		cfg := config.New(config.WorkerType, testID(t, "worker-control"), "test", 0)
-		handler.SetConfig(cfg)
-		require.NoError(t, handler.Route("work", func(request message.RequestInterface) message.ReplyInterface {
+		svc := hworker.New()
+		cfg := base.NewEndpoint(base.WorkerType, testID(t, "worker-control"), "test", 0)
+		svc.SetEndpoint(cfg)
+		require.NoError(t, svc.Route("work", func(request message.RequestInterface) message.ReplyInterface {
 			return request.Ok(request.RouteParameters())
 		}))
-		require.NoError(t, handler.Start())
+		require.NoError(t, svc.Start())
 		control := newWorkerControl(t, cfg.Id)
 		defer func() { require.NoError(t, control.Close()) }()
 		assertControlLifecycle(t, control, cfg)
 	})
 
 	t.Run("pair control", func(t *testing.T) {
-		handler := hpair.New()
-		cfg := config.New(config.PairType, testID(t, "pair-control"), "test", 0)
-		handler.SetConfig(cfg)
-		require.NoError(t, handler.Route("echo", echoRoute))
-		require.NoError(t, handler.Start())
+		svc := hpair.New()
+		cfg := base.NewEndpoint(base.PairType, testID(t, "pair-control"), "test", 0)
+		svc.SetEndpoint(cfg)
+		require.NoError(t, svc.Route("echo", echoRoute))
+		require.NoError(t, svc.Start())
 		control := newPairControl(t, cfg.Id)
 		defer func() { require.NoError(t, control.Close()) }()
 		assertControlLifecycle(t, control, cfg)
 	})
 
 	t.Run("publisher control", func(t *testing.T) {
-		handler := hpublisher.New()
-		cfg := config.New(config.PublisherType, testID(t, "publisher-control"), "test", 0)
-		handler.SetConfig(cfg)
-		require.NoError(t, handler.Start())
+		svc := hpublisher.New()
+		cfg := base.NewEndpoint(base.PublisherType, testID(t, "publisher-control"), "test", 0)
+		svc.SetEndpoint(cfg)
+		require.NoError(t, svc.Start())
 		control := newPublisherControl(t, cfg.Id)
 		defer func() { require.NoError(t, control.Close()) }()
 		assertControlLifecycle(t, control, cfg)
 	})
 }
 
-func assertControlLifecycle(t *testing.T, control controlClient, cfg *config.Handler) {
+func assertControlLifecycle(t *testing.T, control controlClient, cfg *base.EndpointConfig) {
 	t.Helper()
 	req := require.New(t)
 

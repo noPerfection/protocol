@@ -15,7 +15,7 @@ import (
 	creplier "github.com/noPerfection/protocol/client/replier"
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	cworker "github.com/noPerfection/protocol/client/worker"
-	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/base"
 	hpair "github.com/noPerfection/protocol/handler/pair"
 	hpublisher "github.com/noPerfection/protocol/handler/publisher"
 	hreplier "github.com/noPerfection/protocol/handler/replier"
@@ -57,16 +57,16 @@ func stressWorkerSends(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-worker-send")
 	handled := make(chan uint64, stressPressureMessages)
-	handler := hworker.New()
-	handler.SetConfig(config.New(config.WorkerType, id, "test", 0))
-	req.NoError(handler.Route("stress", func(request message.RequestInterface) message.ReplyInterface {
+	svc := hworker.New()
+	svc.SetEndpoint(base.NewEndpoint(base.WorkerType, id, "test", 0))
+	req.NoError(svc.Route("stress", func(request message.RequestInterface) message.ReplyInterface {
 		seq, err := request.RouteParameters().Uint64Value("seq")
 		if err == nil {
 			handled <- seq
 		}
 		return request.Ok(datatype.New())
 	}))
-	req.NoError(handler.Start())
+	req.NoError(svc.Start())
 
 	control := newWorkerControl(t, id)
 	defer closeControlBestEffort(t, control)
@@ -87,10 +87,10 @@ func stressWorkerSends(t *testing.T) {
 func stressReplierSends(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-replier-send")
-	handler := hreplier.New()
-	handler.SetConfig(config.New(config.ReplierType, id, "test", 0))
-	req.NoError(handler.Route("stress", seqReplyRoute))
-	req.NoError(handler.Start())
+	svc := hreplier.New()
+	svc.SetEndpoint(base.NewEndpoint(base.ReplierType, id, "test", 0))
+	req.NoError(svc.Route("stress", seqReplyRoute))
+	req.NoError(svc.Start())
 
 	control := newReplierControl(t, id)
 	defer closeControlBestEffort(t, control)
@@ -112,10 +112,10 @@ func stressReplierSends(t *testing.T) {
 func stressPairSends(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-pair-send")
-	handler := hpair.New()
-	handler.SetConfig(config.New(config.PairType, id, "test", 0))
-	req.NoError(handler.Route("stress", seqReplyRoute))
-	req.NoError(handler.Start())
+	svc := hpair.New()
+	svc.SetEndpoint(base.NewEndpoint(base.PairType, id, "test", 0))
+	req.NoError(svc.Route("stress", seqReplyRoute))
+	req.NoError(svc.Start())
 
 	control := newPairControl(t, id)
 	defer closeControlBestEffort(t, control)
@@ -138,10 +138,10 @@ func stressPairSends(t *testing.T) {
 func stressSyncReplierRequests(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-sync-request")
-	handler := hsyncreplier.New()
-	handler.SetConfig(config.New(config.SyncReplierType, id, "test", 0))
-	req.NoError(handler.Route("stress", seqReplyRoute))
-	req.NoError(handler.Start())
+	svc := hsyncreplier.New()
+	svc.SetEndpoint(base.NewEndpoint(base.SyncReplierType, id, "test", 0))
+	req.NoError(svc.Route("stress", seqReplyRoute))
+	req.NoError(svc.Start())
 
 	control := newSyncControl(t, id)
 	defer closeControlBestEffort(t, control)
@@ -167,10 +167,10 @@ func stressSyncReplierRequests(t *testing.T) {
 func stressReplierReceive(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-replier-receive")
-	handler := hreplier.New()
-	handler.SetConfig(config.New(config.ReplierType, id, "test", 0))
-	req.NoError(handler.Route("stress", seqReplyRoute))
-	req.NoError(handler.Start())
+	svc := hreplier.New()
+	svc.SetEndpoint(base.NewEndpoint(base.ReplierType, id, "test", 0))
+	req.NoError(svc.Route("stress", seqReplyRoute))
+	req.NoError(svc.Start())
 
 	control := newReplierControl(t, id)
 	defer closeControlBestEffort(t, control)
@@ -191,10 +191,10 @@ func stressReplierReceive(t *testing.T) {
 func stressPairReceive(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-pair-receive")
-	handler := hpair.New()
-	handler.SetConfig(config.New(config.PairType, id, "test", 0))
-	req.NoError(handler.Route("stress", seqReplyRoute))
-	req.NoError(handler.Start())
+	svc := hpair.New()
+	svc.SetEndpoint(base.NewEndpoint(base.PairType, id, "test", 0))
+	req.NoError(svc.Route("stress", seqReplyRoute))
+	req.NoError(svc.Start())
 
 	control := newPairControl(t, id)
 	defer closeControlBestEffort(t, control)
@@ -216,9 +216,9 @@ func stressPairReceive(t *testing.T) {
 func stressPublisherReceive(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stress-publisher-receive")
-	handler := hpublisher.New()
-	handler.SetConfig(config.New(config.PublisherType, id, "test", 0))
-	req.NoError(handler.Start())
+	svc := hpublisher.New()
+	svc.SetEndpoint(base.NewEndpoint(base.PublisherType, id, "test", 0))
+	req.NoError(svc.Start())
 
 	control := newPublisherControl(t, id)
 	defer closeControlBestEffort(t, control)

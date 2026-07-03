@@ -7,7 +7,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -34,10 +33,10 @@ func New() *Publisher {
 	}
 }
 
-// SetConfig adds the parameters of the handler from the config.
-func (c *Publisher) SetConfig(handler *config.Handler) {
-	c.Handler.SetConfig(handler)
-	c.Control.SetConfig(control.CreateInternalConfig(c.Handler.Config()))
+// SetEndpoint adds the parameters of the handler from the config.
+func (c *Publisher) SetEndpoint(endpoint message.Endpoint) {
+	c.Handler.SetEndpoint(endpoint)
+	c.Control.SetEndpoint(endpoint)
 }
 
 func (c *Publisher) SetLogger(parent *log.Logger) error {
@@ -50,9 +49,9 @@ func (c *Publisher) SetLogger(parent *log.Logger) error {
 	return c.Control.SetLogger(parent.Child(control.ControlCategory))
 }
 
-// Type returns the handler type. If the configuration is not set, returns config.UnknownType.
-func (c *Publisher) Type() config.HandlerType {
-	return config.PublisherType
+// Type returns the handler type. If the configuration is not set, returns base.UnknownType.
+func (c *Publisher) Type() base.HandlerType {
+	return base.PublisherType
 }
 
 // Route adds a route along with its handler to this handler.
@@ -62,11 +61,8 @@ func (c *Publisher) Route(_ string, _ base.HandleFunc) error {
 
 // Start the publisher directly, not by goroutine.
 func (c *Publisher) Start() error {
-	if c.Config() == nil {
+	if c.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("configuration not set")
-	}
-	if c.Config().Type != config.PublisherType {
-		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.PublisherType)
 	}
 	if c.Control == nil {
 		return fmt.Errorf("control not set")
@@ -101,7 +97,7 @@ func (c *Publisher) onControlClose(req message.RequestInterface) message.ReplyIn
 }
 
 func (c *Publisher) onControlConfig(req message.RequestInterface) message.ReplyInterface {
-	return req.Ok(datatype.New().Set("config", c.Config()))
+	return req.Ok(datatype.New().Set("config", c.Endpoint()))
 }
 
 func (c *Publisher) onControlStart(req message.RequestInterface) message.ReplyInterface {
@@ -126,13 +122,13 @@ func (c *Publisher) startBroadcaster() error {
 	go func(ready chan error) {
 		defer c.broadcasterW.Done()
 
-		socket, err := zmq.NewSocket(config.SocketType(c.Type()))
+		socket, err := zmq.NewSocket(zmq.PUB)
 		if err != nil {
-			ready <- fmt.Errorf("new_socket('%s'): %v", c.Type(), err)
+			ready <- fmt.Errorf("zmq.NewSocket(PUB): %v", err)
 			return
 		}
 
-		pubUrl := c.Config().HandlerUrl()
+		pubUrl := c.Endpoint().HandlerUrl()
 		if err := socket.Bind(pubUrl); err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("socket.Bind('%s'): %v", pubUrl, err)

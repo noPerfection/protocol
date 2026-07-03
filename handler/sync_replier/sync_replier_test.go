@@ -8,7 +8,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -21,7 +20,7 @@ import (
 type TestSyncReplierSuite struct {
 	suite.Suite
 	syncReplier    *SyncReplier
-	handlerConfig  *config.Handler
+	handlerConfig  *base.EndpointConfig
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
 	logger         *log.Logger
@@ -56,18 +55,18 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	s.Require().NoError(err)
 
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	test.handlerConfig = config.New(config.SyncReplierType, testID, "test", 0)
+	test.handlerConfig = base.NewEndpoint(base.SyncReplierType, testID, "test", 0)
 
 	s.Require().NoError(test.syncReplier.SetLogger(test.logger))
 
 	// Setting the configuration
 	// Setting the logger should be successful
-	test.syncReplier.SetConfig(test.handlerConfig)
+	test.syncReplier.SetEndpoint(test.handlerConfig)
 	s.Require().NoError(test.syncReplier.SetLogger(test.logger))
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.CreateInternalConfig(test.handlerConfig)
+	managerConfig := control.NewInternalControlEndpoint(test.handlerConfig)
 	managerUrl := managerConfig.ClientUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
@@ -264,20 +263,20 @@ func (test *TestSyncReplierSuite) Test_12_StartWithoutLogger() {
 	s := &test.Suite
 	defer test.cleanOut()
 
-	handler := New()
+	svc := New()
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
-	handlerConfig := config.New(config.SyncReplierType, testID, "test", 0)
-	handler.SetConfig(handlerConfig)
-	s.Require().NoError(handler.Route("command_1", test.routes["command_1"]))
+	handlerConfig := base.NewEndpoint(base.SyncReplierType, testID, "test", 0)
+	svc.SetEndpoint(handlerConfig)
+	s.Require().NoError(svc.Route("command_1", test.routes["command_1"]))
 
-	s.Require().NoError(handler.Start())
-	s.Require().Equal(base.SocketReady, handler.Control.Status())
+	s.Require().NoError(svc.Start())
+	s.Require().Equal(base.SocketReady, svc.Control.Status())
 
 	managerClient, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
 	defer func() { _ = managerClient.Close() }()
 
-	managerConfig := control.CreateInternalConfig(handlerConfig)
+	managerConfig := control.NewInternalControlEndpoint(handlerConfig)
 	s.Require().NoError(managerClient.Connect(managerConfig.ClientUrl()))
 
 	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}

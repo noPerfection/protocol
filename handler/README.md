@@ -127,7 +127,7 @@ clientURL := cfg.ClientUrl()
 
 `port = 0` creates a local endpoint: `inproc://{Id}` by default, or `ipc:///{Id}` when `Id` starts with `tmp`. Non-zero ports use TCP.
 
-Control endpoints are created with `control.CreateInternalConfig(handlerCfg)`. Common manager routes are `status`, `config`, `start`, and `close`.
+Control endpoints are created with `control.CreateInternalControlEndpoint(handlerCfg)`. Common manager routes are `status`, `config`, `start`, and `close`.
 
 ## Limitations
 

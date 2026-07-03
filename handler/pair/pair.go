@@ -9,7 +9,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -38,10 +37,10 @@ func New() *Pair {
 	}
 }
 
-// SetConfig adds the parameters of the handler from the config.
-func (c *Pair) SetConfig(handler *config.Handler) {
-	c.Handler.SetConfig(handler)
-	c.Control.SetConfig(control.CreateInternalConfig(c.Handler.Config()))
+// SetEndpoint adds the parameters of the handler from the config.
+func (c *Pair) SetEndpoint(endpoint message.Endpoint) {
+	c.Handler.SetEndpoint(endpoint)
+	c.Control.SetEndpoint(endpoint)
 }
 
 func (c *Pair) SetLogger(parent *log.Logger) error {
@@ -55,17 +54,14 @@ func (c *Pair) SetLogger(parent *log.Logger) error {
 }
 
 // Type returns the handler type.
-func (c *Pair) Type() config.HandlerType {
-	return config.PairType
+func (c *Pair) Type() base.HandlerType {
+	return base.PairType
 }
 
 // Start the pair directly, not by goroutine.
 func (c *Pair) Start() error {
-	if c.Config() == nil {
+	if c.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("configuration not set")
-	}
-	if c.Config().Type != config.PairType {
-		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", c.Config().Type, config.PairType)
 	}
 	if c.Control == nil {
 		return fmt.Errorf("control not set")
@@ -87,11 +83,11 @@ func (c *Pair) Start() error {
 }
 
 func (c *Pair) setControlRoutes() {
-	_ = c.Control.Route(control.HandlerConfig, c.onControlConfig)
-	_ = c.Control.Route(control.HandlerStart, c.onControlStart)
-	_ = c.Control.Route(control.HandlerClose, c.onControlClose)
-	_ = c.Control.Route(Broadcast, c.onBroadcast)
-	_ = c.Control.Route(MessageAmount, c.onMessageAmount)
+	c.Control.Route(control.HandlerConfig, c.onControlConfig)
+	c.Control.Route(control.HandlerStart, c.onControlStart)
+	c.Control.Route(control.HandlerClose, c.onControlClose)
+	c.Control.Route(Broadcast, c.onBroadcast)
+	c.Control.Route(MessageAmount, c.onMessageAmount)
 }
 
 func (c *Pair) onControlClose(req message.RequestInterface) message.ReplyInterface {
@@ -100,7 +96,7 @@ func (c *Pair) onControlClose(req message.RequestInterface) message.ReplyInterfa
 }
 
 func (c *Pair) onControlConfig(req message.RequestInterface) message.ReplyInterface {
-	return req.Ok(datatype.New().Set("config", c.Config()))
+	return req.Ok(datatype.New().Set("config", c.Endpoint()))
 }
 
 func (c *Pair) onControlStart(req message.RequestInterface) message.ReplyInterface {
@@ -125,13 +121,13 @@ func (c *Pair) startPair() error {
 	go func(ready chan error) {
 		defer c.pairW.Done()
 
-		socket, err := zmq.NewSocket(config.SocketType(c.Type()))
+		socket, err := zmq.NewSocket(zmq.PAIR)
 		if err != nil {
-			ready <- fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
+			ready <- fmt.Errorf("zmq.NewSocket(PAIR): %w", err)
 			return
 		}
 
-		pairUrl := c.Config().HandlerUrl()
+		pairUrl := c.Endpoint().HandlerUrl()
 		if err := socket.Bind(pairUrl); err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("socket.Bind('%s'): %w", pairUrl, err)
@@ -204,12 +200,12 @@ func (c *Pair) handleRequest(socket *zmq.Socket) error {
 		return c.sendReply(socket, reply)
 	}
 
-	handleFunc, err := c.FindRoute(req.CommandName())
+	handleFunc, err := c.GetHandleFunc(req.CommandName())
 	if err != nil {
-		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err)))
+		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", req.CommandName(), err)))
 	}
 
-	reply := base.Handle(req, handleFunc)
+	reply := handleFunc(req)
 	return c.sendReply(socket, reply)
 }
 

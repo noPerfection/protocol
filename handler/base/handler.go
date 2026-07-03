@@ -8,7 +8,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/config"
 
 	"github.com/noPerfection/protocol/message"
 )
@@ -28,7 +27,7 @@ type HandleFunc = func(message.RequestInterface) message.ReplyInterface
 
 // The Handler is the socket wrapper for the zeromq socket.
 type Handler struct {
-	config        *config.Handler
+	endpoint      message.Endpoint
 	logger        *log.Logger
 	messagePacker message.Packer
 	routes        datatype.KeyValue
@@ -54,8 +53,8 @@ func (c *Handler) IsRouteExist(command string) bool {
 	return c.routes.Exist(command)
 }
 
-// RouteCommands returns list of all route commands
-func (c *Handler) RouteCommands() []string {
+// Commands returns list of all route commands.
+func (c *Handler) Commands() []string {
 	commands := make([]string, len(c.routes))
 
 	i := 0
@@ -67,8 +66,8 @@ func (c *Handler) RouteCommands() []string {
 	return commands
 }
 
-func (c *Handler) Config() *config.Handler {
-	return c.config
+func (c *Handler) Endpoint() message.Endpoint {
+	return c.endpoint
 }
 
 func (c *Handler) Packer() message.Packer {
@@ -80,9 +79,9 @@ func (c *Handler) Logger() *log.Logger {
 	return c.logger
 }
 
-// SetConfig adds the parameters of the handler from the config.
-func (c *Handler) SetConfig(handler *config.Handler) {
-	c.config = handler
+// SetEndpoint adds the parameters of the handler from the config.
+func (c *Handler) SetEndpoint(endpoint message.Endpoint) {
+	c.endpoint = endpoint
 }
 
 func (c *Handler) SetPacker(packer message.Packer) {
@@ -95,11 +94,11 @@ func (c *Handler) SetLogger(parent *log.Logger) error {
 		c.logger = nil
 		return nil
 	}
-	if c.config == nil {
+	if c.endpoint == (message.Endpoint{}) {
 		c.logger = parent
 		return nil
 	}
-	c.logger = parent.Child(c.config.Id)
+	c.logger = parent.Child(c.endpoint.Id)
 
 	return nil
 }
@@ -127,37 +126,13 @@ func (c *Handler) Route(cmd string, handle HandleFunc) error {
 	return nil
 }
 
-// SetRoutes registers or overwrites multiple routes.
-func (c *Handler) SetRoutes(routes map[string]HandleFunc) error {
-	for cmd, handle := range routes {
-		if err := c.Route(cmd, handle); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (c *Handler) FindRoute(cmd string) (HandleFunc, error) {
-	return FindRoute(cmd, c.routes)
-}
-
-// Type returns the handler type. If the configuration is not set, returns config.UnknownType.
-func (c *Handler) Type() config.HandlerType {
-	if c.config == nil {
-		return config.UnknownType
-	}
-	return c.config.Type
-}
-
-// FindRoute returns the command handler or the catch-all handler.
-func FindRoute(cmd string, routeFuncs datatype.KeyValue) (HandleFunc, error) {
+func (c *Handler) GetHandleFunc(cmd string) (HandleFunc, error) {
 	var handle any
 
-	if routeFuncs.Exist(cmd) {
-		handle = routeFuncs[cmd]
-	} else if routeFuncs.Exist(Any) {
-		handle = routeFuncs[Any]
+	if c.routes.Exist(cmd) {
+		handle = c.routes[cmd]
+	} else if c.routes.Exist(Any) {
+		handle = c.routes[Any]
 	} else {
 		return nil, fmt.Errorf("the '%s' command handler not found", cmd)
 	}
@@ -170,21 +145,15 @@ func FindRoute(cmd string, routeFuncs datatype.KeyValue) (HandleFunc, error) {
 	return handleFunc, nil
 }
 
-// Handle calls the handle func for the request.
-func Handle(req message.RequestInterface, handle HandleFunc) message.ReplyInterface {
-	return handle(req)
-}
-
-// Does nothing, simply returns the data
-var anyHandler HandleFunc = func(request message.RequestInterface) message.ReplyInterface {
-	replyParameters := datatype.New().Set("route", request.CommandName())
-
-	reply := request.Ok(replyParameters)
-	return reply
+// Type returns the handler type. If the configuration is not set, returns UnknownType.
+func (c *Handler) Type() HandlerType {
+	return UnknownType
 }
 
 func AnyRoute(handler *Handler) error {
-	if err := handler.Route(Any, anyHandler); err != nil {
+	if err := handler.Route(Any, func(request message.RequestInterface) message.ReplyInterface {
+		return request.Ok()
+	}); err != nil {
 		return fmt.Errorf("failed to '%s' route into the handler: %w", Any, err)
 	}
 	return nil

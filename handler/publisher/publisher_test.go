@@ -7,7 +7,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -17,7 +16,7 @@ import (
 type TestPublisherSuite struct {
 	suite.Suite
 	pub           *Publisher
-	config        *config.Handler
+	config        *base.EndpointConfig
 	managerClient *zmq.Socket
 	sub           *zmq.Socket
 	logger        *log.Logger
@@ -35,17 +34,17 @@ func (test *TestPublisherSuite) SetupTest() {
 
 	test.pub = New()
 
-	test.config = config.New(config.PublisherType, "test", "test", 0)
+	test.config = base.NewEndpoint(base.PublisherType, "test", "test", 0)
 
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
-	test.pub.SetConfig(test.config)
-	s.Require().Equal(config.PublisherType, test.pub.Config().Type)
+	test.pub.SetEndpoint(test.config)
+	s.Require().Equal(base.PublisherType, test.pub.Endpoint().Type)
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.CreateInternalConfig(test.config)
+	managerConfig := control.NewInternalControlEndpoint(test.config)
 	s.Require().NoError(test.managerClient.Connect(managerConfig.ClientUrl()))
 
 	go test.subscribe()

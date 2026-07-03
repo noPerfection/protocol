@@ -9,7 +9,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/config"
+	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -36,10 +36,10 @@ func TestStressTest(t *testing.T) {
 	require.NoError(t, err)
 
 	testID := strings.ReplaceAll(t.Name(), "/", "_")
-	handlerConfig := config.New(config.WorkerType, testID, "test", 0)
+	handlerConfig := base.NewEndpoint(base.WorkerType, testID, "test", 0)
 	require.NoError(t, worker.SetLogger(logger))
 
-	worker.SetConfig(handlerConfig)
+	worker.SetEndpoint(handlerConfig)
 	require.NoError(t, worker.SetLogger(logger))
 	require.NoError(t, worker.Start())
 
@@ -47,7 +47,7 @@ func TestStressTest(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = managerClient.Close() }()
 
-	managerConfig := control.CreateInternalConfig(handlerConfig)
+	managerConfig := control.NewInternalControlEndpoint(handlerConfig)
 	require.NoError(t, managerClient.Connect(managerConfig.ClientUrl()))
 
 	clients := make([]*zmq.Socket, clientAmount)

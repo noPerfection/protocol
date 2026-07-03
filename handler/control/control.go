@@ -9,7 +9,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/base"
-	"github.com/noPerfection/protocol/handler/config"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -45,9 +44,10 @@ func ControlEndpointID(id string, port uint64) string {
 	return id + strconv.FormatUint(port, 10) + "_control"
 }
 
-// CreateInternalConfig builds the control handler config for a handler.
-func CreateInternalConfig(handler *config.Handler) *config.Handler {
-	return config.New(config.SyncReplierType, ControlEndpointID(handler.Id, handler.Port), ControlCategory, 0)
+// Converts the handler endpoint into a control endpoint and stores it.
+func (m *Manager) SetEndpoint(handlerEndpoint message.Endpoint) {
+	handlerEndpoint.Id = ControlEndpointID(handlerEndpoint.Id, handlerEndpoint.Port)
+	m.Handler.SetEndpoint(handlerEndpoint)
 }
 
 func (m *Manager) Status() string {
@@ -77,14 +77,8 @@ func (m *Manager) onBuiltinStatus(req message.RequestInterface) message.ReplyInt
 
 // Start binds the control ROUTER socket and serves registered routes.
 func (m *Manager) Start() error {
-	if m.Config() == nil {
+	if m.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("no config")
-	}
-	if m.Config().Category != ControlCategory {
-		return fmt.Errorf("I cant start a handler in a %s category, It must be %s", m.Config().Category, ControlCategory)
-	}
-	if m.Config().Type != config.SyncReplierType {
-		return fmt.Errorf("I cant start a handler in a %s type, It must be %s", m.Config().Type, config.SyncReplierType)
 	}
 
 	m.Route(HandlerStatus, m.onBuiltinStatus)
@@ -92,13 +86,13 @@ func (m *Manager) Start() error {
 	ready := make(chan error)
 
 	go func(ready chan error) {
-		socket, err := zmq.NewSocket(zmq.ROUTER)
+		socket, err := zmq.NewSocket(zmq.REP)
 		if err != nil {
 			ready <- fmt.Errorf("zmq.NewSocket: %w", err)
 			return
 		}
 
-		url := m.Config().HandlerUrl()
+		url := m.Endpoint().HandlerUrl()
 		if err := socket.Bind(url); err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("socket.Bind('%s'): %w", url, err)
@@ -137,13 +131,13 @@ func (m *Manager) Start() error {
 				continue
 			}
 
-			handleFunc, err := m.FindRoute(req.CommandName())
+			handleFunc, err := m.GetHandleFunc(req.CommandName())
 			if err != nil {
-				m.sendReply(socket, req, req.Fail(fmt.Sprintf("base.FindRoute(%s): %v", req.CommandName(), err)))
+				m.sendReply(socket, req, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", req.CommandName(), err)))
 				continue
 			}
 
-			m.sendReply(socket, req, base.Handle(req, handleFunc))
+			m.sendReply(socket, req, handleFunc(req))
 		}
 
 		if err := socket.Close(); err != nil {
