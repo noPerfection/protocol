@@ -18,7 +18,7 @@ const (
 )
 
 // Any route name.
-const Any = "*"
+const Any = "any"
 
 // HandleFunc is the function type that handles a request and returns a reply.
 type HandleFunc = func(message.RequestInterface) message.ReplyInterface
