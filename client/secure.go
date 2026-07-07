@@ -9,7 +9,6 @@ import (
 // Secure stores the CURVE server public key (Z85). An empty key keeps the client non-secure.
 // An optional client secret key may be passed; when set, its public key is derived with AuthCurvePublic.
 // When omitted, an ephemeral client keypair is generated on each reconnect.
-// CURVE is applied only when the endpoint is not inproc; inproc endpoints skip it.
 func (socket *Socket) Secure(serverPublicKey string, clientSecretKey ...string) *Socket {
 	socket.mu.Lock()
 	socket.serverPublicKey = serverPublicKey
@@ -22,7 +21,7 @@ func (socket *Socket) Secure(serverPublicKey string, clientSecretKey ...string) 
 }
 
 func (socket *Socket) applyCurveClient(zmqSocket *zmq.Socket) error {
-	if socket.serverPublicKey == "" || socket.endpoint.IsInproc() {
+	if socket.serverPublicKey == "" {
 		return nil
 	}
 

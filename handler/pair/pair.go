@@ -147,8 +147,7 @@ func (c *Pair) startPair() error {
 			return
 		}
 
-		// CURVE applies only when the endpoint is not inproc; inproc endpoints skip it.
-		if c.curveSecretKey != "" && !c.Endpoint().IsInproc() {
+		if c.curveSecretKey != "" {
 			domain := c.Endpoint().ZapDomain()
 			if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
 				_ = socket.Close()

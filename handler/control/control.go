@@ -38,8 +38,11 @@ func New(parent ...*log.Logger) *Manager {
 }
 
 // NewInternalControlEndpoint derives the control endpoint from a handler endpoint.
+// Control sockets are always in-process, so Port is set to 0 to use the inproc
+// transport regardless of the original handler's transport.
 func NewInternalControlEndpoint(handlerEndpoint message.Endpoint) message.Endpoint {
 	handlerEndpoint.Id = handlerEndpoint.ZapDomain() + "_control"
+	handlerEndpoint.Port = 0
 	return handlerEndpoint
 }
 
