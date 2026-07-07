@@ -29,6 +29,7 @@ type Socket struct {
 	zmqMu         sync.Mutex // serializes all zmq socket and poller access
 	poller        *zmq.Poller
 	zmqSocket     *zmq.Socket
+	monitorSocket *zmq.Socket // PAIR socket connected to zmqSocket's ZMQ monitor (CURVE only)
 	closed        bool
 	timeout       time.Duration
 	attempt       uint8
@@ -82,6 +83,11 @@ func (socket *Socket) Packer(packer message.Packer) *Socket {
 func (socket *Socket) reconnect() (err error) {
 	socketType := targetToClient(socket.handlerType)
 
+	if socket.monitorSocket != nil {
+		_ = socket.monitorSocket.Close()
+		socket.monitorSocket = nil
+	}
+
 	if socket.zmqSocket != nil {
 		if err := socket.zmqSocket.Close(); err != nil {
 			return fmt.Errorf("failed to close zmqSocket in zmq: %w", err)
@@ -103,6 +109,14 @@ func (socket *Socket) reconnect() (err error) {
 		return err
 	}
 
+	// Attach monitor before Connect so handshake events are always captured.
+	// This covers both sides of auth failure: client with wrong/no CURVE key
+	// connecting to a CURVE server, and client with CURVE connecting to a
+	// non-CURVE server.
+	if mon, monErr := attachMonitor(socket.zmqSocket); monErr == nil {
+		socket.monitorSocket = mon
+	}
+
 	url := socket.endpoint.ClientUrl()
 	if err := socket.zmqSocket.Connect(url); err != nil {
 		return fmt.Errorf("zmqSocket.Connect('%s'): %w", url, err)
@@ -111,6 +125,9 @@ func (socket *Socket) reconnect() (err error) {
 	socket.afterReconnect(socketType)
 
 	socket.poller = zmq.NewPoller()
+	if socket.monitorSocket != nil {
+		socket.poller.Add(socket.monitorSocket, zmq.POLLIN)
+	}
 
 	return nil
 }
@@ -147,8 +164,14 @@ func (socket *Socket) Close() error {
 
 	socket.zmqMu.Lock()
 	zmqSocket := socket.zmqSocket
+	monitorSocket := socket.monitorSocket
 	socket.zmqSocket = nil
+	socket.monitorSocket = nil
 	socket.zmqMu.Unlock()
+
+	if monitorSocket != nil {
+		_ = monitorSocket.Close()
+	}
 
 	if zmqSocket == nil {
 		return nil
@@ -233,13 +256,33 @@ func (socket *Socket) attemptRequesting(envelope []string) ([]string, error) {
 			return nil, fmt.Errorf("poll error: %w", err)
 		}
 
-		if len(sockets) > 0 {
-			r, err := socket.zmqSocket.RecvMessage(0)
-			if err != nil {
-				return nil, fmt.Errorf("zmqSocket.RecvMessage: %w", err)
+		// When the poll times out the monitor events have had the full timeout
+		// window to accumulate, so drain now before reconnect destroys the socket.
+		if len(sockets) == 0 {
+			if socket.monitorSocket != nil {
+				if authErr := drainMonitor(socket.monitorSocket); authErr != nil {
+					return nil, authErr
+				}
 			}
+			continue
+		}
 
-			return r, nil
+		for _, s := range sockets {
+			if s.Socket == socket.monitorSocket {
+				if authErr := drainMonitor(socket.monitorSocket); authErr != nil {
+					return nil, authErr
+				}
+			}
+		}
+
+		for _, s := range sockets {
+			if s.Socket == socket.zmqSocket {
+				r, err := socket.zmqSocket.RecvMessage(0)
+				if err != nil {
+					return nil, fmt.Errorf("zmqSocket.RecvMessage: %w", err)
+				}
+				return r, nil
+			}
 		}
 	}
 }
@@ -292,12 +335,21 @@ func (socket *Socket) send(envelope []string) (bool, error) {
 		return false, fmt.Errorf("poll error: %w", err)
 	}
 
-	if len(sockets) > 0 {
-		if _, err := socket.zmqSocket.SendMessage(envelope); err != nil {
-			return false, fmt.Errorf("zmqSocket.SendMessage: %w", err)
+	for _, s := range sockets {
+		if s.Socket == socket.monitorSocket {
+			if authErr := drainMonitor(socket.monitorSocket); authErr != nil {
+				return false, authErr
+			}
 		}
+	}
 
-		return false, nil
+	for _, s := range sockets {
+		if s.Socket == socket.zmqSocket {
+			if _, err := socket.zmqSocket.SendMessage(envelope); err != nil {
+				return false, fmt.Errorf("zmqSocket.SendMessage: %w", err)
+			}
+			return false, nil
+		}
 	}
 
 	return true, nil
