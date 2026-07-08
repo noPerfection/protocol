@@ -7,6 +7,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/autocontext"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
@@ -15,11 +16,12 @@ import (
 
 type SyncReplier struct {
 	*base.Handler
-	socket         *zmq.Socket
-	Control        *control.Manager
-	workW          sync.WaitGroup
+	socket               *zmq.Socket
+	Control              *control.Manager
+	workW                sync.WaitGroup
 	curveSecretKey       string
 	allowedClientPubKeys []string
+	npacSecret           string
 }
 
 var _ base.Interface = (*SyncReplier)(nil)
@@ -27,8 +29,9 @@ var _ base.Interface = (*SyncReplier)(nil)
 // New SyncReplier returned
 func New() *SyncReplier {
 	return &SyncReplier{
-		Handler: base.New(),
-		Control: control.New(),
+		Handler:    base.New(),
+		Control:    control.New(),
+		npacSecret: base.GenerateSecret(),
 	}
 }
 
@@ -110,6 +113,9 @@ func (c *SyncReplier) onControlClose(req message.RequestInterface) message.Reply
 		c.Control.SetSocketNil()
 		c.workW.Wait()
 	}
+	if c.Endpoint().Id != autocontext.NpacEndpointId {
+		_ = autocontext.RemoveHandler(c.Endpoint().HandlerUrl(), c.npacSecret)
+	}
 	return req.Ok(datatype.New())
 }
 
@@ -142,6 +148,7 @@ func (c *SyncReplier) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket(REP): %w", err)
 	}
 
+	pubKey := ""
 	if c.curveSecretKey != "" {
 		domain := c.Endpoint().ZapDomain()
 		if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
@@ -150,6 +157,9 @@ func (c *SyncReplier) bindExternal() error {
 		}
 		if len(c.allowedClientPubKeys) > 0 {
 			zmq.AuthCurveAdd(domain, c.allowedClientPubKeys...)
+		}
+		if derivedKey, deriveErr := zmq.AuthCurvePublic(c.curveSecretKey); deriveErr == nil {
+			pubKey = derivedKey
 		}
 	}
 
@@ -161,6 +171,19 @@ func (c *SyncReplier) bindExternal() error {
 
 	c.socket = socket
 	c.Control.SetSocketReady()
+
+	// Register with npac (best-effort; silently ignored if npac is not running).
+	// Always register so HMAC-whitelisted commands are discoverable by clients
+	// even when no CURVE security is configured.
+	if c.Endpoint().Id != autocontext.NpacEndpointId {
+		_ = autocontext.AddHandler(externalUrl, pubKey, c.npacSecret)
+		for cmd, secrets := range c.WhitelistSnapshot() {
+			for _, secret := range secrets {
+				_ = autocontext.AddRoute(externalUrl, cmd, secret, c.npacSecret)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -222,7 +245,25 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
+	// Register the current route's HMAC secret with npac so clients can look it up.
+	// Skip if this handler IS npac to avoid a self-referential inproc deadlock.
+	handlerUrl := c.Endpoint().HandlerUrl()
+	isNpac := c.Endpoint().Id == autocontext.NpacEndpointId
+	if matchedSecret != "" && !isNpac {
+		if err := autocontext.AddRoute(handlerUrl, cmd, matchedSecret, c.npacSecret); err != nil {
+			c.LogError("autocontext.AddRoute", "error", err)
+		}
+	}
+
 	reply := handleFunc(req)
+
+	// Remove the route registration after handling.
+	if matchedSecret != "" && !isNpac {
+		if err := autocontext.RemoveRoute(handlerUrl, cmd, c.npacSecret); err != nil {
+			c.LogError("autocontext.RemoveRoute", "error", err)
+		}
+	}
+
 	return c.sendReply(socket, reply, cmd, matchedSecret)
 }
 

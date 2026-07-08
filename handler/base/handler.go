@@ -1,6 +1,8 @@
 package base
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/noPerfection/datatype"
@@ -33,6 +35,15 @@ type Handler struct {
 	whitelists map[string]map[string]bool
 }
 
+// GenerateSecret returns a 32-byte cryptographically-random hex string.
+// Each handler type calls this in its own New() to create an unexported
+// npacSecret that is never exposed outside the handler package.
+func GenerateSecret() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 // New creates a handler.
 // Optionally you can set the logger.
 func New(logger ...*log.Logger) *Handler {
@@ -47,6 +58,31 @@ func New(logger ...*log.Logger) *Handler {
 	}
 
 	return h
+}
+
+// WhitelistSnapshot returns a copy of the whitelist as cmd → []secrets.
+// It is used by handler implementations to pre-register known HMAC secrets
+// with npac at startup so clients can discover them automatically.
+func (c *Handler) WhitelistSnapshot() map[string][]string {
+	out := make(map[string][]string, len(c.whitelists))
+	for cmd, secrets := range c.whitelists {
+		s := make([]string, 0, len(secrets))
+		for secret := range secrets {
+			s = append(s, secret)
+		}
+		out[cmd] = s
+	}
+	return out
+}
+
+// UnWhitelist removes a specific secret from the whitelist for cmd.
+func (c *Handler) UnWhitelist(cmd, secret string) {
+	if m, ok := c.whitelists[cmd]; ok {
+		delete(m, secret)
+		if len(m) == 0 {
+			delete(c.whitelists, cmd)
+		}
+	}
 }
 
 // IsRouteExist returns true if the given route exists

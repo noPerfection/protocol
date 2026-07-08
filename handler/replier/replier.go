@@ -9,6 +9,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/autocontext"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
@@ -18,11 +19,12 @@ import (
 // Replier is the socket wrapper for the service.
 type Replier struct {
 	*base.Handler
-	socket         *zmq.Socket
-	Control        *control.Manager
-	workW          sync.WaitGroup
+	socket               *zmq.Socket
+	Control              *control.Manager
+	workW                sync.WaitGroup
 	curveSecretKey       string
 	allowedClientPubKeys []string
+	npacSecret           string
 }
 
 type pendingReply struct {
@@ -36,8 +38,9 @@ var _ base.Interface = (*Replier)(nil)
 // New asynchronous replying handler.
 func New() *Replier {
 	return &Replier{
-		Handler: base.New(),
-		Control: control.New(),
+		Handler:    base.New(),
+		Control:    control.New(),
+		npacSecret: base.GenerateSecret(),
 	}
 }
 
@@ -119,6 +122,7 @@ func (c *Replier) onControlClose(req message.RequestInterface) message.ReplyInte
 		c.Control.SetSocketNil()
 		c.workW.Wait()
 	}
+	_ = autocontext.RemoveHandler(c.Endpoint().HandlerUrl(), c.npacSecret)
 	return req.Ok(datatype.New())
 }
 
@@ -151,6 +155,7 @@ func (c *Replier) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
 	}
 
+	pubKey := ""
 	if c.curveSecretKey != "" {
 		domain := c.Endpoint().ZapDomain()
 		if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
@@ -159,6 +164,9 @@ func (c *Replier) bindExternal() error {
 		}
 		if len(c.allowedClientPubKeys) > 0 {
 			zmq.AuthCurveAdd(domain, c.allowedClientPubKeys...)
+		}
+		if derivedKey, deriveErr := zmq.AuthCurvePublic(c.curveSecretKey); deriveErr == nil {
+			pubKey = derivedKey
 		}
 	}
 
@@ -170,6 +178,14 @@ func (c *Replier) bindExternal() error {
 
 	c.socket = socket
 	c.Control.SetSocketReady()
+
+	_ = autocontext.AddHandler(externalUrl, pubKey, c.npacSecret)
+	for cmd, secrets := range c.WhitelistSnapshot() {
+		for _, secret := range secrets {
+			_ = autocontext.AddRoute(externalUrl, cmd, secret, c.npacSecret)
+		}
+	}
+
 	return nil
 }
 
@@ -250,10 +266,22 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 		return nil
 	}
 
-	go func(cmd, matchedSecret string) {
+	handlerUrl := c.Endpoint().HandlerUrl()
+	if matchedSecret != "" {
+		if err := autocontext.AddRoute(handlerUrl, cmd, matchedSecret, c.npacSecret); err != nil {
+			c.LogError("autocontext.AddRoute", "error", err)
+		}
+	}
+
+	go func(cmd, matchedSecret, handlerUrl string) {
 		reply := handleFunc(req)
+		if matchedSecret != "" {
+			if err := autocontext.RemoveRoute(handlerUrl, cmd, c.npacSecret); err != nil {
+				c.LogError("autocontext.RemoveRoute", "error", err)
+			}
+		}
 		replies <- pendingReply{reply: reply, cmd: cmd, matchedSecret: matchedSecret}
-	}(cmd, matchedSecret)
+	}(cmd, matchedSecret, handlerUrl)
 
 	return nil
 }

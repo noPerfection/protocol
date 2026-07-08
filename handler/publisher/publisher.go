@@ -6,6 +6,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/autocontext"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
@@ -18,12 +19,13 @@ const BroadcastParameter = "reply"
 
 type Publisher struct {
 	*base.Handler
-	socket         *zmq.Socket
-	broadcasterW   sync.WaitGroup
-	broadcasting   *datatype.Queue
-	Control        *control.Manager
-	curveSecretKey        string
-	allowedClientPubKeys  []string
+	socket               *zmq.Socket
+	broadcasterW         sync.WaitGroup
+	broadcasting         *datatype.Queue
+	Control              *control.Manager
+	curveSecretKey       string
+	allowedClientPubKeys []string
+	npacSecret           string
 }
 
 // New Publisher returned
@@ -32,6 +34,7 @@ func New() *Publisher {
 		Handler:      base.New(),
 		broadcasting: datatype.NewQueue(),
 		Control:      control.New(),
+		npacSecret:   base.GenerateSecret(),
 	}
 }
 
@@ -113,6 +116,7 @@ func (c *Publisher) setControlRoutes() {
 
 func (c *Publisher) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	c.stopBroadcaster()
+	_ = autocontext.RemoveHandler(c.Endpoint().HandlerUrl(), c.npacSecret)
 	return req.Ok(datatype.New())
 }
 
@@ -148,6 +152,7 @@ func (c *Publisher) startBroadcaster() error {
 			return
 		}
 
+		pubKey := ""
 		if c.curveSecretKey != "" {
 			domain := c.Endpoint().ZapDomain()
 			if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
@@ -157,6 +162,9 @@ func (c *Publisher) startBroadcaster() error {
 			}
 			if len(c.allowedClientPubKeys) > 0 {
 				zmq.AuthCurveAdd(domain, c.allowedClientPubKeys...)
+			}
+			if derivedKey, deriveErr := zmq.AuthCurvePublic(c.curveSecretKey); deriveErr == nil {
+				pubKey = derivedKey
 			}
 		}
 
@@ -169,6 +177,9 @@ func (c *Publisher) startBroadcaster() error {
 
 		c.socket = socket
 		c.Control.SetSocketReady()
+
+		_ = autocontext.AddHandler(pubUrl, pubKey, c.npacSecret)
+
 		ready <- nil
 
 		for c.Control.Running() {

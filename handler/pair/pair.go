@@ -8,6 +8,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
+	"github.com/noPerfection/protocol/handler/autocontext"
 	"github.com/noPerfection/protocol/handler/base"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
@@ -20,12 +21,13 @@ const BroadcastParameter = "reply"
 
 type Pair struct {
 	*base.Handler
-	socket         *zmq.Socket
-	pairW          sync.WaitGroup
-	broadcasting   *datatype.Queue
-	Control        *control.Manager
+	socket               *zmq.Socket
+	pairW                sync.WaitGroup
+	broadcasting         *datatype.Queue
+	Control              *control.Manager
 	curveSecretKey       string
 	allowedClientPubKeys []string
+	npacSecret           string
 }
 
 var _ base.Interface = (*Pair)(nil)
@@ -36,6 +38,7 @@ func New() *Pair {
 		Handler:      base.New(),
 		broadcasting: datatype.NewQueue(),
 		Control:      control.New(),
+		npacSecret:   base.GenerateSecret(),
 	}
 }
 
@@ -112,6 +115,7 @@ func (c *Pair) setControlRoutes() {
 
 func (c *Pair) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	c.stopPair()
+	_ = autocontext.RemoveHandler(c.Endpoint().HandlerUrl(), c.npacSecret)
 	return req.Ok(datatype.New())
 }
 
@@ -147,6 +151,7 @@ func (c *Pair) startPair() error {
 			return
 		}
 
+		pubKey := ""
 		if c.curveSecretKey != "" {
 			domain := c.Endpoint().ZapDomain()
 			if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
@@ -156,6 +161,9 @@ func (c *Pair) startPair() error {
 			}
 			if len(c.allowedClientPubKeys) > 0 {
 				zmq.AuthCurveAdd(domain, c.allowedClientPubKeys...)
+			}
+			if derivedKey, deriveErr := zmq.AuthCurvePublic(c.curveSecretKey); deriveErr == nil {
+				pubKey = derivedKey
 			}
 		}
 
@@ -168,6 +176,14 @@ func (c *Pair) startPair() error {
 
 		c.socket = socket
 		c.Control.SetSocketReady()
+
+		_ = autocontext.AddHandler(pairUrl, pubKey, c.npacSecret)
+		for cmd, secrets := range c.WhitelistSnapshot() {
+			for _, secret := range secrets {
+				_ = autocontext.AddRoute(pairUrl, cmd, secret, c.npacSecret)
+			}
+		}
+
 		ready <- nil
 
 		poller := zmq.NewPoller()
@@ -247,7 +263,21 @@ func (c *Pair) handleRequest(socket *zmq.Socket) error {
 		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
+	handlerUrl := c.Endpoint().HandlerUrl()
+	if matchedSecret != "" {
+		if err := autocontext.AddRoute(handlerUrl, cmd, matchedSecret, c.npacSecret); err != nil {
+			c.LogError("autocontext.AddRoute", "error", err)
+		}
+	}
+
 	reply := handleFunc(req)
+
+	if matchedSecret != "" {
+		if err := autocontext.RemoveRoute(handlerUrl, cmd, c.npacSecret); err != nil {
+			c.LogError("autocontext.RemoveRoute", "error", err)
+		}
+	}
+
 	return c.sendReply(socket, reply, cmd, matchedSecret)
 }
 

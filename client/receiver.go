@@ -1,9 +1,11 @@
 package client
 
 import (
+	"errors"
 	"sync"
 	"time"
 
+	"github.com/noPerfection/protocol/client/autocontext"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -42,7 +44,20 @@ func (r *receiver) pollOnce() {
 
 	if r.socket.zmqSocket == nil {
 		if err := r.socket.reconnect(); err != nil {
-			return
+			// On ErrNoCurveKey: fetch the server public key from npac and retry once.
+			if errors.Is(err, message.ErrNoCurveKey) {
+				url := r.socket.endpoint.HandlerUrl()
+				if pubKey, lookupErr := autocontext.GetPublicKey(url); lookupErr == nil && pubKey != "" {
+					r.socket.Secure(pubKey)
+					if err = r.socket.reconnect(); err != nil {
+						return
+					}
+				} else {
+					return
+				}
+			} else {
+				return
+			}
 		}
 	}
 

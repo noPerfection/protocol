@@ -2,10 +2,12 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/noPerfection/protocol/client/autocontext"
 	"github.com/noPerfection/protocol/message"
 
 	zmq "github.com/pebbe/zmq4"
@@ -25,22 +27,22 @@ func infiniteAttempts(attempt uint8) bool {
 
 // A Socket is the structure that transmits the data to the handlers.
 type Socket struct {
-	mu            sync.Mutex
-	zmqMu         sync.Mutex // serializes all zmq socket and poller access
-	poller        *zmq.Poller
-	zmqSocket     *zmq.Socket
-	monitorSocket *zmq.Socket // PAIR socket connected to zmqSocket's ZMQ monitor (CURVE only)
-	closed        bool
-	timeout       time.Duration
-	attempt       uint8
-	endpoint      message.Endpoint
-	handlerType   HandlerType
-	messagePacker message.Packer
-	dispatcher    *dispatcher
-	receiver      *receiver
-	whitelists       map[string]string
-	serverPublicKey  string
-	curveSecretKey   string
+	mu              sync.Mutex
+	zmqMu           sync.Mutex // serializes all zmq socket and poller access
+	poller          *zmq.Poller
+	zmqSocket       *zmq.Socket
+	monitorSocket   *zmq.Socket // PAIR socket connected to zmqSocket's ZMQ monitor (CURVE only)
+	closed          bool
+	timeout         time.Duration
+	attempt         uint8
+	endpoint        message.Endpoint
+	handlerType     HandlerType
+	messagePacker   message.Packer
+	dispatcher      *dispatcher
+	receiver        *receiver
+	whitelists      map[string]string
+	serverPublicKey string
+	curveSecretKey  string
 }
 
 // New creates a client for the given handler endpoint. Client type is determined by the target handler.
@@ -379,6 +381,11 @@ func (socket *Socket) omitReplyIfPresent() {
 	_, _ = socket.zmqSocket.RecvMessage(0)
 }
 
+// Send transmits the request to the handler without waiting for a reply.
+//
+// When the connection is rejected due to a missing CURVE key (ErrNoCurveKey),
+// the method looks up the server's public key from the npac autocontext and
+// retries once with the new key.
 func (socket *Socket) Send(req message.RequestInterface) error {
 	packer := socket.packer()
 	reqStr, err := socket.serializeRequest(packer, req)
@@ -386,9 +393,19 @@ func (socket *Socket) Send(req message.RequestInterface) error {
 		return fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
 
-	err = socket.dispatcher.send(reqStr)
-	if err != nil {
-		return fmt.Errorf("socket.send: %w", err)
+	sendErr := socket.dispatcher.send(reqStr)
+
+	// On ErrNoCurveKey: fetch the server public key from npac and retry once.
+	if sendErr != nil && errors.Is(sendErr, message.ErrNoCurveKey) {
+		url := socket.endpoint.HandlerUrl()
+		if pubKey, lookupErr := autocontext.GetPublicKey(url); lookupErr == nil && pubKey != "" {
+			socket.Secure(pubKey)
+			sendErr = socket.dispatcher.send(reqStr)
+		}
+	}
+
+	if sendErr != nil {
+		return fmt.Errorf("socket.send: %w", sendErr)
 	}
 
 	return nil
@@ -396,6 +413,14 @@ func (socket *Socket) Send(req message.RequestInterface) error {
 
 // Request sends the request message to the zmqSocket.
 // Returns the message.Reply.Parameters in case of success.
+//
+// When the connection is rejected due to a missing CURVE key (ErrNoCurveKey),
+// the method looks up the server's public key from the npac autocontext and
+// retries once with the new key.
+//
+// When the handler replies with "access-denied" (HMAC required but not sent),
+// the method looks up the HMAC secret from the npac autocontext, re-signs the
+// request, and retries once.
 func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterface, error) {
 	packer := socket.packer()
 	reqStr, err := socket.serializeRequest(packer, req)
@@ -403,14 +428,42 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 		return nil, fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
 
-	rawReply, err := socket.dispatcher.request(reqStr)
-	if err != nil {
-		return nil, fmt.Errorf("socket.request: %w", err)
+	rawReply, reqErr := socket.dispatcher.request(reqStr)
+
+	// On ErrNoCurveKey: fetch the server public key from npac and retry once.
+	if reqErr != nil && errors.Is(reqErr, message.ErrNoCurveKey) {
+		url := socket.endpoint.HandlerUrl()
+		if pubKey, lookupErr := autocontext.GetPublicKey(url); lookupErr == nil && pubKey != "" {
+			socket.Secure(pubKey)
+			rawReply, reqErr = socket.dispatcher.request(reqStr)
+		}
+	}
+
+	if reqErr != nil {
+		return nil, fmt.Errorf("socket.request: %w", reqErr)
 	}
 
 	reply, replyHmac, err := packer.DeserializeReply(rawReply)
 	if err != nil {
 		return nil, fmt.Errorf("packer.DeserializeReply('%v'): %w", rawReply, err)
+	}
+
+	// On "access-denied" reply body: the handler requires HMAC but the client
+	// did not sign the request. Fetch the secret from npac, re-sign, and retry.
+	if !reply.IsOK() && reply.ErrorMessage() == message.ErrAccessDenied.Error() {
+		cmd := req.CommandName()
+		url := socket.endpoint.HandlerUrl()
+		if secret, lookupErr := autocontext.GetHmacSecret(url, cmd); lookupErr == nil && secret != "" {
+			if wlErr := socket.Whitelist(cmd, secret); wlErr == nil {
+				if signedReqStr, serErr := socket.serializeRequest(packer, req); serErr == nil {
+					if rawReply2, reqErr2 := socket.dispatcher.request(signedReqStr); reqErr2 == nil {
+						if reply2, replyHmac2, deserErr := packer.DeserializeReply(rawReply2); deserErr == nil {
+							reply, replyHmac = reply2, replyHmac2
+						}
+					}
+				}
+			}
+		}
 	}
 
 	if err := socket.validateReply(req.CommandName(), reply, replyHmac); err != nil {
