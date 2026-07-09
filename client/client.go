@@ -253,38 +253,44 @@ func (socket *Socket) attemptRequesting(envelope []string) ([]string, error) {
 
 		socket.updateToPollIn()
 
-		sockets, err := socket.poller.Poll(timeoutDuration)
-		if err != nil {
-			return nil, fmt.Errorf("poll error: %w", err)
-		}
+		// Inner poll loop: keep waiting on the same socket until a reply arrives,
+		// the timeout expires, or an auth error is detected. Non-error monitor
+		// events (e.g. EVENT_CONNECTED) do not consume an attempt or reconnect.
+		for {
+			sockets, err := socket.poller.Poll(timeoutDuration)
+			if err != nil {
+				return nil, fmt.Errorf("poll error: %w", err)
+			}
 
-		// When the poll times out the monitor events have had the full timeout
-		// window to accumulate, so drain now before reconnect destroys the socket.
-		if len(sockets) == 0 {
-			if socket.monitorSocket != nil {
-				if authErr := drainMonitor(socket.monitorSocket); authErr != nil {
-					return nil, authErr
+			// When the poll times out the monitor events have had the full timeout
+			// window to accumulate, so drain now before reconnect destroys the socket.
+			if len(sockets) == 0 {
+				if socket.monitorSocket != nil {
+					if authErr := drainMonitor(socket.monitorSocket); authErr != nil {
+						return nil, authErr
+					}
+				}
+				break // timed out — fall through to outer loop for reconnect + retry
+			}
+
+			for _, s := range sockets {
+				if s.Socket == socket.monitorSocket {
+					if authErr := drainMonitor(socket.monitorSocket); authErr != nil {
+						return nil, authErr
+					}
 				}
 			}
-			continue
-		}
 
-		for _, s := range sockets {
-			if s.Socket == socket.monitorSocket {
-				if authErr := drainMonitor(socket.monitorSocket); authErr != nil {
-					return nil, authErr
+			for _, s := range sockets {
+				if s.Socket == socket.zmqSocket {
+					r, err := socket.zmqSocket.RecvMessage(0)
+					if err != nil {
+						return nil, fmt.Errorf("zmqSocket.RecvMessage: %w", err)
+					}
+					return r, nil
 				}
 			}
-		}
-
-		for _, s := range sockets {
-			if s.Socket == socket.zmqSocket {
-				r, err := socket.zmqSocket.RecvMessage(0)
-				if err != nil {
-					return nil, fmt.Errorf("zmqSocket.RecvMessage: %w", err)
-				}
-				return r, nil
-			}
+			// Monitor fired (non-error) but no reply yet — keep polling the same socket.
 		}
 	}
 }
