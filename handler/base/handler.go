@@ -180,7 +180,7 @@ func (c *Handler) RequiresWhitelist(cmd string) bool {
 	return ok
 }
 
-func (c *Handler) whitelistFor(cmd string) map[string]bool {
+func (c *Handler) getHmacSecrets(cmd string) map[string]bool {
 	if secrets, ok := c.whitelists[cmd]; ok {
 		return secrets
 	}
@@ -195,7 +195,7 @@ func (c *Handler) ValidateRequestHmac(req message.RequestInterface, hash string)
 
 // ValidateReplyHmac reports whether hash is valid for the Any-route whitelist.
 func (c *Handler) ValidateReplyHmac(reply message.ReplyInterface, hash string) bool {
-	secrets := c.whitelistFor(Any)
+	secrets := c.getHmacSecrets(Any)
 	if secrets == nil {
 		return true
 	}
@@ -211,18 +211,9 @@ func (c *Handler) ValidateReplyHmac(reply message.ReplyInterface, hash string) b
 	return false
 }
 
-// SignRequestHmac returns the HMAC hash for a request signed with secret.
-func (c *Handler) SignRequestHmac(req message.RequestInterface, secret string) string {
-	return message.ComputeHMAC(req.String(), secret)
-}
-
-// SignReplyHmac returns the HMAC hash for a reply signed with secret.
-func (c *Handler) SignReplyHmac(reply message.ReplyInterface, secret string) string {
-	return message.ComputeHMAC(reply.String(), secret)
-}
 
 func (c *Handler) MatchRequestSecret(req message.RequestInterface, hash string) (string, bool) {
-	secrets := c.whitelistFor(req.CommandName())
+	secrets := c.getHmacSecrets(req.CommandName())
 	if secrets == nil {
 		return "", true
 	}

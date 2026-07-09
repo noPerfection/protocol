@@ -172,6 +172,20 @@ func (c *SyncReplier) bindExternal() error {
 	c.socket = socket
 	c.Control.SetSocketReady()
 
+	/*
+		ai extension adds its public key and all hmac secrets to npac,
+		now any client can call it.
+
+		then user requests the main handler.
+
+		main handler adds the hello command to npac and removes after handling.
+
+		main handler requests the ai extension.
+		ai extension checks the current app.
+		the client gets the ai extension's public key and hmac secrets from npac.
+
+	*/
+
 	// Register with npac (best-effort; silently ignored if npac is not running).
 	// Always register so HMAC-whitelisted commands are discoverable by clients
 	// even when no CURVE security is configured.
@@ -270,7 +284,7 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 func (c *SyncReplier) sendReply(socket *zmq.Socket, reply message.ReplyInterface, cmd, matchedSecret string) error {
 	var hmac string
 	if c.RequiresWhitelist(cmd) && matchedSecret != "" {
-		hmac = c.SignReplyHmac(reply, matchedSecret)
+		hmac = message.ComputeHMAC(reply.String(), matchedSecret)
 	}
 	envelope, err := c.Packer().SerializeReply(reply, hmac)
 	if err != nil {

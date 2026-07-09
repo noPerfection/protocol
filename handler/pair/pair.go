@@ -284,7 +284,7 @@ func (c *Pair) handleRequest(socket *zmq.Socket) error {
 func (c *Pair) sendReply(socket *zmq.Socket, reply message.ReplyInterface, cmd, matchedSecret string) error {
 	var hmac string
 	if c.RequiresWhitelist(cmd) && matchedSecret != "" {
-		hmac = c.SignReplyHmac(reply, matchedSecret)
+		hmac = message.ComputeHMAC(reply.String(), matchedSecret)
 	}
 	envelope, err := c.Packer().SerializeReply(reply, hmac)
 	if err != nil {

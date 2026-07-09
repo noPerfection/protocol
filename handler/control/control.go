@@ -171,7 +171,7 @@ func (m *Manager) Start() error {
 func (m *Manager) sendReply(socket *zmq.Socket, req message.RequestInterface, reply message.ReplyInterface, cmd, matchedSecret string) {
 	var hmac string
 	if m.RequiresWhitelist(cmd) && matchedSecret != "" {
-		hmac = m.SignReplyHmac(reply, matchedSecret)
+		hmac = message.ComputeHMAC(reply.String(), matchedSecret)
 	}
 	replyStr, err := m.Packer().SerializeReply(reply, hmac)
 	if err != nil {

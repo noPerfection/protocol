@@ -288,7 +288,7 @@ func (test *TestSyncReplierSuite) Test_13_WhitelistHMAC() {
 		Command:    "command_1",
 		Parameters: datatype.New().Set("id", "signed"),
 	}
-	hmacHash := test.syncReplier.SignRequestHmac(&signed, secret)
+	hmacHash := message.ComputeHMAC(signed.String(), secret)
 	signedEnvelope, err := test.syncReplier.Packer().SerializeRequest(&signed, hmacHash)
 	s.Require().NoError(err)
 	_, err = test.externalClient.SendMessage(signedEnvelope)

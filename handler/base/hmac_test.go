@@ -35,10 +35,10 @@ func TestValidateRequestHmac(t *testing.T) {
 		Command:    "secured",
 		Parameters: datatype.New(),
 	}
-	validHash := handler.SignRequestHmac(req, "secret-a")
+	validHash := message.ComputeHMAC(req.String(), "secret-a")
 
 	require.True(t, handler.ValidateRequestHmac(req, validHash))
-	require.True(t, handler.ValidateRequestHmac(req, handler.SignRequestHmac(req, "secret-b")))
+	require.True(t, handler.ValidateRequestHmac(req, message.ComputeHMAC(req.String(), "secret-b")))
 	require.False(t, handler.ValidateRequestHmac(req, ""))
 	require.False(t, handler.ValidateRequestHmac(req, "invalid"))
 
@@ -55,7 +55,7 @@ func TestValidateRequestHmacAnyFallback(t *testing.T) {
 		Command:    "any-cmd",
 		Parameters: datatype.New(),
 	}
-	hash := handler.SignRequestHmac(req, "global-secret")
+	hash := message.ComputeHMAC(req.String(), "global-secret")
 
 	require.True(t, handler.RequiresWhitelist("any-cmd"))
 	require.True(t, handler.ValidateRequestHmac(req, hash))
@@ -67,20 +67,19 @@ func TestValidateReplyHmac(t *testing.T) {
 
 	req := &message.Request{Command: "cmd", Parameters: datatype.New()}
 	reply := req.Ok(datatype.New())
-	hash := handler.SignReplyHmac(reply, "reply-secret")
+	hash := message.ComputeHMAC(reply.String(), "reply-secret")
 
 	require.True(t, handler.ValidateReplyHmac(reply, hash))
 	require.False(t, handler.ValidateReplyHmac(reply, ""))
 }
 
-func TestSignRequestHmac(t *testing.T) {
-	handler := New()
+func TestComputeHMAC(t *testing.T) {
 	req := &message.Request{
 		Command:    "cmd",
 		Parameters: datatype.New().Set("id", "1"),
 	}
 
-	hash := handler.SignRequestHmac(req, "secret")
+	hash := message.ComputeHMAC(req.String(), "secret")
 	require.NotEmpty(t, hash)
 	require.Equal(t, message.ComputeHMAC(req.String(), "secret"), hash)
 }
@@ -104,7 +103,7 @@ func TestWhitelistRouteMessages(t *testing.T) {
 	}
 
 	t.Run("signed with route secret", func(t *testing.T) {
-		reply := dispatchWhitelistedRoute(t, handler, req, handler.SignRequestHmac(req, routeSecret))
+		reply := dispatchWhitelistedRoute(t, handler, req, message.ComputeHMAC(req.String(), routeSecret))
 		require.True(t, reply.IsOK())
 
 		handled, err := reply.ReplyParameters().BoolValue("handled")
@@ -119,7 +118,7 @@ func TestWhitelistRouteMessages(t *testing.T) {
 	})
 
 	t.Run("signed with wrong secret", func(t *testing.T) {
-		reply := dispatchWhitelistedRoute(t, handler, req, handler.SignRequestHmac(req, wrongSecret))
+		reply := dispatchWhitelistedRoute(t, handler, req, message.ComputeHMAC(req.String(), wrongSecret))
 		require.False(t, reply.IsOK())
 		require.Equal(t, message.ErrAccessDenied.Error(), reply.ErrorMessage())
 	})
