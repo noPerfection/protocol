@@ -93,8 +93,9 @@ func isAlreadyRunning() bool {
 	return err == nil && len(sockets) > 0
 }
 
-// Start starts the npac handler. If npac is already running in this process,
-// Start returns nil without starting a second instance, matching the topology.Handler pattern.
+// Start starts the npac handler and the ZAP authentication goroutine.
+// If npac is already running in this process, Start returns nil without
+// starting a second instance, matching the topology.Handler pattern.
 func (h *Npac) Start() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -109,8 +110,23 @@ func (h *Npac) Start() error {
 	if err := h.sr.Start(); err != nil {
 		return fmt.Errorf("npac.Start: %w", err)
 	}
+	if err := zmq.AuthStart(); err != nil {
+		return fmt.Errorf("npac.Start: zmq.AuthStart: %w", err)
+	}
 	h.started = true
 	return nil
+}
+
+// Stop shuts down the ZAP authentication goroutine started by Start.
+// It is safe to call Stop even if Start was not called or returned an error.
+func (h *Npac) Stop() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !h.started {
+		return
+	}
+	zmq.AuthStop()
+	h.started = false
 }
 
 // onGetPublicKey returns the CURVE public key for the given handler URL.
