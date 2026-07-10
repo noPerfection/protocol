@@ -6,7 +6,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -39,7 +39,7 @@ func (test *TestPublisherSuite) SetupTest() {
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
 	test.pub.SetEndpoint(test.config)
-	s.Require().Equal(base.PublisherType, test.pub.Type())
+	s.Require().Equal(handler.PublisherType, test.pub.Type())
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
@@ -206,7 +206,7 @@ func (test *TestPublisherSuite) Test_10_Start() {
 	s.Require().True(statusReply.IsOK())
 	status, err := statusReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, status)
+	s.Require().Equal(handler.SocketReady, status)
 
 	test.sendNumberedBroadcasts(0, 10)
 	test.receiveNumbers(0, 10)

@@ -7,7 +7,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -24,7 +24,7 @@ type TestSyncReplierSuite struct {
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
 	logger         *log.Logger
-	routes         map[string]base.HandleFunc
+	routes         map[string]handler.HandleFunc
 }
 
 // Make sure that Account is set to five
@@ -39,7 +39,7 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	test.syncReplier = New()
 
 	// Socket to talk to clients
-	test.routes = make(map[string]base.HandleFunc, 2)
+	test.routes = make(map[string]handler.HandleFunc, 2)
 	test.routes["command_1"] = func(request message.RequestInterface) message.ReplyInterface {
 		time.Sleep(time.Millisecond * 100)
 		return request.Ok(request.RouteParameters().Set("id", request.CommandName()))
@@ -165,7 +165,7 @@ func (test *TestSyncReplierSuite) Test_10_StartHandlesOneRequestAtATime() {
 	err := test.syncReplier.Start()
 	s.Require().NoError(err)
 
-	s.Require().Equal(base.SocketReady, test.syncReplier.Control.Status())
+	s.Require().Equal(handler.SocketReady, test.syncReplier.Control.Status())
 	s.Require().NotNil(test.syncReplier.socket)
 
 	secondClient, err := test.newExternalClient()
@@ -218,7 +218,7 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 
 	err := test.syncReplier.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, test.handlerStatus())
+	s.Require().Equal(handler.SocketReady, test.handlerStatus())
 
 	req := message.Request{Command: "command_1", Parameters: datatype.New()}
 	reply, err := test.externalReq(test.externalClient, req)
@@ -235,15 +235,15 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	reply, err = test.externalReq(test.externalClient, req)
 	s.Require().Error(err)
 	s.Require().Nil(reply)
-	s.Require().Equal(base.SocketNil, test.handlerStatus())
+	s.Require().Equal(handler.SocketNil, test.handlerStatus())
 
 	controlReq = message.Request{Command: control.HandlerStart, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	status, err := controlReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, status)
-	s.Require().Equal(base.SocketReady, test.handlerStatus())
+	s.Require().Equal(handler.SocketReady, status)
+	s.Require().Equal(handler.SocketReady, test.handlerStatus())
 
 	s.Require().NoError(test.externalClient.Close())
 	test.externalClient, err = test.newExternalClient()
@@ -317,7 +317,7 @@ func (test *TestSyncReplierSuite) Test_12_StartWithoutLogger() {
 	s.Require().NoError(svc.Route("command_1", test.routes["command_1"]))
 
 	s.Require().NoError(svc.Start())
-	s.Require().Equal(base.SocketReady, svc.Control.Status())
+	s.Require().Equal(handler.SocketReady, svc.Control.Status())
 
 	managerClient, err := zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)

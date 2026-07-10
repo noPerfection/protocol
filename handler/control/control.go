@@ -7,7 +7,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -22,18 +22,18 @@ const (
 
 // Manager is the control ROUTER socket for a handler.
 type Manager struct {
-	*base.Handler
+	*handler.Handler
 	socket *zmq.Socket
 	status string
 }
 
-var _ base.Interface = (*Manager)(nil)
+var _ handler.Interface = (*Manager)(nil)
 
 // New creates a control handler.
 func New(parent ...*log.Logger) *Manager {
 	return &Manager{
-		Handler: base.New(parent...),
-		status:  base.SocketNil,
+		Handler: handler.New(parent...),
+		status:  handler.SocketNil,
 	}
 }
 
@@ -63,19 +63,19 @@ func (m *Manager) Status() string {
 
 // Running returns true while the handler socket is ready to serve.
 func (m *Manager) Running() bool {
-	return m.status == base.SocketReady
+	return m.status == handler.SocketReady
 }
 
 func (m *Manager) SetSocketIdle() {
-	m.status = base.SocketIdle
+	m.status = handler.SocketIdle
 }
 
 func (m *Manager) SetSocketReady() {
-	m.status = base.SocketReady
+	m.status = handler.SocketReady
 }
 
 func (m *Manager) SetSocketNil() {
-	m.status = base.SocketNil
+	m.status = handler.SocketNil
 }
 
 func (m *Manager) onBuiltinStatus(req message.RequestInterface) message.ReplyInterface {
@@ -151,7 +151,7 @@ func (m *Manager) Start() error {
 
 			handleFunc, err := m.GetHandleFunc(cmd)
 			if err != nil {
-				m.sendReply(socket, req, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
+				m.sendReply(socket, req, req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 				continue
 			}
 
@@ -162,7 +162,7 @@ func (m *Manager) Start() error {
 			m.LogError("socket.Close", "error", err)
 		}
 		m.socket = nil
-		m.status = base.SocketNil
+		m.status = handler.SocketNil
 	}(ready)
 
 	return <-ready

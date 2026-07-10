@@ -7,7 +7,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -56,7 +56,7 @@ func (test *TestPairSuite) SetupTest() {
 
 func (test *TestPairSuite) TearDownTest() {
 	if test.managerClient != nil {
-		if test.pair != nil && test.pair.Control.Status() == base.SocketReady {
+		if test.pair != nil && test.pair.Control.Status() == handler.SocketReady {
 			reply := test.req(message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
 			test.Require().True(reply.IsOK())
 		}
@@ -212,7 +212,7 @@ func (test *TestPairSuite) Test_10_StartReceivesAndBroadcasts() {
 
 	err := test.pair.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, test.pair.Control.Status())
+	s.Require().Equal(handler.SocketReady, test.pair.Control.Status())
 
 	test.newExternalClient()
 	time.Sleep(time.Millisecond * 50)
@@ -253,19 +253,19 @@ func (test *TestPairSuite) Test_11_ControlLifecycle() {
 
 	err := test.pair.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, test.handlerStatus())
+	s.Require().Equal(handler.SocketReady, test.handlerStatus())
 
 	closeReply := test.req(message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
 	s.Require().True(closeReply.IsOK())
 	time.Sleep(time.Millisecond * 150)
-	s.Require().Equal(base.SocketNil, test.handlerStatus())
+	s.Require().Equal(handler.SocketNil, test.handlerStatus())
 
 	startReply := test.req(message.Request{Command: control.HandlerStart, Parameters: datatype.New()})
 	s.Require().True(startReply.IsOK())
 	status, err := startReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, status)
-	s.Require().Equal(base.SocketReady, test.handlerStatus())
+	s.Require().Equal(handler.SocketReady, status)
+	s.Require().Equal(handler.SocketReady, test.handlerStatus())
 
 	test.newExternalClient()
 	time.Sleep(time.Millisecond * 50)

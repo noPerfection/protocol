@@ -8,14 +8,14 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/autocontext"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
 
 type SyncReplier struct {
-	*base.Handler
+	*handler.Handler
 	socket               *zmq.Socket
 	Control              *control.Manager
 	workW                sync.WaitGroup
@@ -24,14 +24,14 @@ type SyncReplier struct {
 	npacSecret           string
 }
 
-var _ base.Interface = (*SyncReplier)(nil)
+var _ handler.Interface = (*SyncReplier)(nil)
 
 // New SyncReplier returned
 func New() *SyncReplier {
 	return &SyncReplier{
-		Handler:    base.New(),
+		Handler:    handler.New(),
 		Control:    control.New(),
-		npacSecret: base.GenerateSecret(),
+		npacSecret: handler.GenerateSecret(),
 	}
 }
 
@@ -69,9 +69,9 @@ func (c *SyncReplier) Allow(clientPubKey string) {
 	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
-// Type returns the handler type. If the configuration is not set, returns base.UnknownType.
-func (c *SyncReplier) Type() base.HandlerType {
-	return base.SyncReplierType
+// Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
+func (c *SyncReplier) Type() handler.HandlerType {
+	return handler.SyncReplierType
 }
 
 // Start the handler directly, not by goroutine
@@ -85,7 +85,7 @@ func (c *SyncReplier) Start() error {
 
 	c.setControlRoutes()
 
-	if c.Control.Status() != base.SocketReady {
+	if c.Control.Status() != handler.SocketReady {
 		if err := c.Control.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
@@ -124,7 +124,7 @@ func (c *SyncReplier) onControlConfig(req message.RequestInterface) message.Repl
 }
 
 func (c *SyncReplier) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Control.Status() == base.SocketReady {
+	if c.Control.Status() == handler.SocketReady {
 		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
 	}
 	if err := c.restartWork(); err != nil {
@@ -256,7 +256,7 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 
 	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
+		return c.sendReply(socket, req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
 	// Register the current route's HMAC secret with npac so clients can look it up.

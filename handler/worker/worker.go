@@ -10,7 +10,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/autocontext"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -18,7 +18,7 @@ import (
 
 // Worker is the socket wrapper for the service.
 type Worker struct {
-	*base.Handler
+	*handler.Handler
 	socket               *zmq.Socket
 	Control              *control.Manager
 	workW                sync.WaitGroup
@@ -27,14 +27,14 @@ type Worker struct {
 	npacSecret           string
 }
 
-var _ base.Interface = (*Worker)(nil)
+var _ handler.Interface = (*Worker)(nil)
 
 // New asynchronous replying handler.
 func New() *Worker {
 	return &Worker{
-		Handler:    base.New(),
+		Handler:    handler.New(),
 		Control:    control.New(),
-		npacSecret: base.GenerateSecret(),
+		npacSecret: handler.GenerateSecret(),
 	}
 }
 
@@ -72,9 +72,9 @@ func (c *Worker) Allow(clientPubKey string) {
 	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
-// Type returns the handler type. If the configuration is not set, returns base.UnknownType.
-func (c *Worker) Type() base.HandlerType {
-	return base.WorkerType
+// Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
+func (c *Worker) Type() handler.HandlerType {
+	return handler.WorkerType
 }
 
 // Start the handler directly, not by goroutine.
@@ -88,7 +88,7 @@ func (c *Worker) Start() error {
 
 	c.setControlRoutes()
 
-	if c.Control.Status() != base.SocketReady {
+	if c.Control.Status() != handler.SocketReady {
 		if err := c.Control.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
@@ -237,7 +237,7 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 
 	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		return fmt.Errorf("base.GetHandleFunc(%s): %w", cmd, err)
+		return fmt.Errorf("handler.GetHandleFunc(%s): %w", cmd, err)
 	}
 
 	handlerUrl := c.Endpoint().HandlerUrl()

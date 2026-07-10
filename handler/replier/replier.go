@@ -10,7 +10,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/autocontext"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -18,7 +18,7 @@ import (
 
 // Replier is the socket wrapper for the service.
 type Replier struct {
-	*base.Handler
+	*handler.Handler
 	socket               *zmq.Socket
 	Control              *control.Manager
 	workW                sync.WaitGroup
@@ -33,14 +33,14 @@ type pendingReply struct {
 	matchedSecret string
 }
 
-var _ base.Interface = (*Replier)(nil)
+var _ handler.Interface = (*Replier)(nil)
 
 // New asynchronous replying handler.
 func New() *Replier {
 	return &Replier{
-		Handler:    base.New(),
+		Handler:    handler.New(),
 		Control:    control.New(),
-		npacSecret: base.GenerateSecret(),
+		npacSecret: handler.GenerateSecret(),
 	}
 }
 
@@ -78,9 +78,9 @@ func (c *Replier) Allow(clientPubKey string) {
 	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
-// Type returns the handler type. If the configuration is not set, returns base.UnknownType.
-func (c *Replier) Type() base.HandlerType {
-	return base.ReplierType
+// Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
+func (c *Replier) Type() handler.HandlerType {
+	return handler.ReplierType
 }
 
 // Start the handler directly, not by goroutine
@@ -94,7 +94,7 @@ func (c *Replier) Start() error {
 
 	c.setControlRoutes()
 
-	if c.Control.Status() != base.SocketReady {
+	if c.Control.Status() != handler.SocketReady {
 		if err := c.Control.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
@@ -131,7 +131,7 @@ func (c *Replier) onControlConfig(req message.RequestInterface) message.ReplyInt
 }
 
 func (c *Replier) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Control.Status() == base.SocketReady {
+	if c.Control.Status() == handler.SocketReady {
 		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
 	}
 	if err := c.restartWork(); err != nil {
@@ -262,7 +262,7 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 
 	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		replies <- pendingReply{reply: req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", cmd, err))}
+		replies <- pendingReply{reply: req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err))}
 		return nil
 	}
 

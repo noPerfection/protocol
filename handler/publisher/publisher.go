@@ -7,7 +7,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/autocontext"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -18,7 +18,7 @@ const MessageAmount = "message-amount"
 const BroadcastParameter = "reply"
 
 type Publisher struct {
-	*base.Handler
+	*handler.Handler
 	socket               *zmq.Socket
 	broadcasterW         sync.WaitGroup
 	broadcasting         *datatype.Queue
@@ -31,10 +31,10 @@ type Publisher struct {
 // New Publisher returned
 func New() *Publisher {
 	return &Publisher{
-		Handler:      base.New(),
+		Handler:      handler.New(),
 		broadcasting: datatype.NewQueue(),
 		Control:      control.New(),
-		npacSecret:   base.GenerateSecret(),
+		npacSecret:   handler.GenerateSecret(),
 	}
 }
 
@@ -72,13 +72,13 @@ func (c *Publisher) Allow(clientPubKey string) {
 	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
-// Type returns the handler type. If the configuration is not set, returns base.UnknownType.
-func (c *Publisher) Type() base.HandlerType {
-	return base.PublisherType
+// Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
+func (c *Publisher) Type() handler.HandlerType {
+	return handler.PublisherType
 }
 
 // Route adds a route along with its handler to this handler.
-func (c *Publisher) Route(_ string, _ base.HandleFunc) error {
+func (c *Publisher) Route(_ string, _ handler.HandleFunc) error {
 	return fmt.Errorf("publisher doesn't support routing")
 }
 
@@ -93,7 +93,7 @@ func (c *Publisher) Start() error {
 
 	c.setControlRoutes()
 
-	if c.Control.Status() != base.SocketReady {
+	if c.Control.Status() != handler.SocketReady {
 		if err := c.Control.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
@@ -125,7 +125,7 @@ func (c *Publisher) onControlConfig(req message.RequestInterface) message.ReplyI
 }
 
 func (c *Publisher) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Control.Status() == base.SocketReady {
+	if c.Control.Status() == handler.SocketReady {
 		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
 	}
 	if err := c.startBroadcaster(); err != nil {

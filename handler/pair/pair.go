@@ -9,7 +9,7 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/autocontext"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -20,7 +20,7 @@ const MessageAmount = "message-amount"
 const BroadcastParameter = "reply"
 
 type Pair struct {
-	*base.Handler
+	*handler.Handler
 	socket               *zmq.Socket
 	pairW                sync.WaitGroup
 	broadcasting         *datatype.Queue
@@ -30,15 +30,15 @@ type Pair struct {
 	npacSecret           string
 }
 
-var _ base.Interface = (*Pair)(nil)
+var _ handler.Interface = (*Pair)(nil)
 
 // New Pair returned.
 func New() *Pair {
 	return &Pair{
-		Handler:      base.New(),
+		Handler:      handler.New(),
 		broadcasting: datatype.NewQueue(),
 		Control:      control.New(),
-		npacSecret:   base.GenerateSecret(),
+		npacSecret:   handler.GenerateSecret(),
 	}
 }
 
@@ -77,8 +77,8 @@ func (c *Pair) Allow(clientPubKey string) {
 }
 
 // Type returns the handler type.
-func (c *Pair) Type() base.HandlerType {
-	return base.PairType
+func (c *Pair) Type() handler.HandlerType {
+	return handler.PairType
 }
 
 // Start the pair directly, not by goroutine.
@@ -92,7 +92,7 @@ func (c *Pair) Start() error {
 
 	c.setControlRoutes()
 
-	if c.Control.Status() != base.SocketReady {
+	if c.Control.Status() != handler.SocketReady {
 		if err := c.Control.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
@@ -124,7 +124,7 @@ func (c *Pair) onControlConfig(req message.RequestInterface) message.ReplyInterf
 }
 
 func (c *Pair) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Control.Status() == base.SocketReady {
+	if c.Control.Status() == handler.SocketReady {
 		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
 	}
 	if err := c.startPair(); err != nil {
@@ -260,7 +260,7 @@ func (c *Pair) handleRequest(socket *zmq.Socket) error {
 
 	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		return c.sendReply(socket, req.Fail(fmt.Sprintf("base.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
+		return c.sendReply(socket, req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
 	handlerUrl := c.Endpoint().HandlerUrl()

@@ -7,7 +7,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	base "github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -24,7 +24,7 @@ type TestWorkerSuite struct {
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
 	logger         *log.Logger
-	routes         map[string]base.HandleFunc
+	routes         map[string]handler.HandleFunc
 	cmd1Result     string
 	cmd2Result     string
 }
@@ -41,7 +41,7 @@ func (test *TestWorkerSuite) SetupTest() {
 	test.worker = New()
 
 	// Socket to talk to clients
-	test.routes = make(map[string]base.HandleFunc, 2)
+	test.routes = make(map[string]handler.HandleFunc, 2)
 	test.routes["command_1"] = func(request message.RequestInterface) message.ReplyInterface {
 		id, err := request.RouteParameters().StringValue("id")
 		if err != nil {
@@ -163,7 +163,7 @@ func (test *TestWorkerSuite) Test_10_StartHandlesSubmittedMessages() {
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, status)
+	s.Require().Equal(handler.SocketReady, status)
 
 	// Testing the external connection
 	s.Require().Empty(test.cmd1Result)
@@ -195,7 +195,7 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 
 	err := test.worker.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, test.worker.Control.Status())
+	s.Require().Equal(handler.SocketReady, test.worker.Control.Status())
 
 	req := message.Request{
 		Command:    "command_1",
@@ -210,14 +210,14 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 	controlReply := test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	time.Sleep(time.Millisecond * 150)
-	s.Require().Equal(base.SocketNil, test.worker.Control.Status())
+	s.Require().Equal(handler.SocketNil, test.worker.Control.Status())
 
 	controlReq = message.Request{Command: control.HandlerStart, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	status, err := controlReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(base.SocketReady, status)
+	s.Require().Equal(handler.SocketReady, status)
 
 	s.Require().NoError(test.externalClient.Close())
 	test.externalClient, err = test.newExternalClient()
