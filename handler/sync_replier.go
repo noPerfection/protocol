@@ -61,6 +61,9 @@ func (c *SyncReplier) Start() error {
 	if c.Control == nil {
 		return fmt.Errorf("control not set")
 	}
+	if c.mushroomURL == "" {
+		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
+	}
 
 	c.setControlRoutes()
 
@@ -92,9 +95,7 @@ func (c *SyncReplier) onControlClose(req message.RequestInterface) message.Reply
 		c.Control.SetSocketNil()
 		c.workW.Wait()
 	}
-	if c.Endpoint().Id != NpacEndpointId {
-		_ = c.npacRemoveHandler(c.Endpoint().HandlerUrl())
-	}
+	_ = c.npacRemoveHandler()
 	return req.Ok(datatype.New())
 }
 
@@ -142,8 +143,7 @@ func (c *SyncReplier) bindExternal() error {
 	c.socket = socket
 	c.Control.SetSocketReady()
 
-	pubKey := c.publicKey()
-	err = c.npacRegisterHandler(externalUrl, pubKey)
+	err = c.npacRegisterHandler(c.Control.Endpoint())
 	if err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("npacRegisterHandler: %w", err)
@@ -211,10 +211,8 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 
 	// Register the current route's HMAC secret with npac so clients can look it up.
 	// Skip if this handler IS npac to avoid a self-referential inproc deadlock.
-	handlerUrl := c.Endpoint().HandlerUrl()
-	isNpac := c.Endpoint().Id == NpacEndpointId
-	if matchedSecret != "" && !isNpac {
-		if err := c.npacPushHandleContext(handlerUrl, cmd, matchedSecret); err != nil {
+	if matchedSecret != "" {
+		if err := c.npacPushHandleContext(cmd); err != nil {
 			c.LogError("AddRoute", "error", err)
 		}
 	}
@@ -222,8 +220,8 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 	reply := handleFunc(req)
 
 	// Remove the route registration after handling.
-	if matchedSecret != "" && !isNpac {
-		if err := c.popHandleContext(handlerUrl, cmd); err != nil {
+	if matchedSecret != "" {
+		if err := c.popHandleContext(cmd); err != nil {
 			c.LogError("RemoveRoute", "error", err)
 		}
 	}

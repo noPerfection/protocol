@@ -26,8 +26,8 @@ func NewClient(id string, port uint64) (*Client, error) {
 	return &Client{socket: socket}, nil
 }
 
-func (c *Client) Request(req message.RequestInterface) (message.ReplyInterface, error) {
-	return c.socket.Request(req)
+func (c *Client) Request(req message.RequestInterface, hmac ...string) (message.ReplyInterface, error) {
+	return c.socket.Request(req, hmac...)
 }
 
 func (c *Client) Close() error {

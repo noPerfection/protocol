@@ -71,6 +71,10 @@ func (c *Replier) Start() error {
 		return fmt.Errorf("control not set")
 	}
 
+	if c.mushroomURL == "" {
+		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
+	}
+
 	c.setControlRoutes()
 
 	if c.Control.Status() != SocketReady {
@@ -101,7 +105,7 @@ func (c *Replier) onControlClose(req message.RequestInterface) message.ReplyInte
 		c.Control.SetSocketNil()
 		c.workW.Wait()
 	}
-	_ = c.npacRemoveHandler(c.Endpoint().HandlerUrl())
+	_ = c.npacRemoveHandler()
 	return req.Ok(datatype.New())
 }
 
@@ -149,8 +153,7 @@ func (c *Replier) bindExternal() error {
 	c.socket = socket
 	c.Control.SetSocketReady()
 
-	pubKey := c.publicKey()
-	_ = c.npacRegisterHandler(externalUrl, pubKey)
+	_ = c.npacRegisterHandler(c.Control.Endpoint())
 
 	return nil
 }
@@ -232,22 +235,17 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 		return nil
 	}
 
-	handlerUrl := c.Endpoint().HandlerUrl()
-	if matchedSecret != "" {
-		if err := c.npacPushHandleContext(handlerUrl, cmd, matchedSecret); err != nil {
+	go func(cmd, matchedSecret string) {
+		if err := c.npacPushHandleContext(cmd); err != nil {
 			c.LogError("AddRoute", "error", err)
 		}
-	}
 
-	go func(cmd, matchedSecret, handlerUrl string) {
 		reply := handleFunc(req)
-		if matchedSecret != "" {
-			if err := c.popHandleContext(handlerUrl, cmd); err != nil {
-				c.LogError("RemoveRoute", "error", err)
-			}
+		if err := c.popHandleContext(cmd); err != nil {
+			c.LogError("RemoveRoute", "error", err)
 		}
 		replies <- pendingReply{reply: reply, cmd: cmd, matchedSecret: matchedSecret}
-	}(cmd, matchedSecret, handlerUrl)
+	}(cmd, matchedSecret)
 
 	return nil
 }

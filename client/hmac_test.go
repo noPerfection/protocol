@@ -25,10 +25,10 @@ func TestSocketSerializeRequestWithWhitelist(t *testing.T) {
 		Parameters: datatype.New(),
 	}
 
-	envelope, err := socket.serializeRequest(socket.packer(), req)
+	envelope, err := socket.serializeRequest(req)
 	require.NoError(t, err)
 
-	_, hmacHash, err := socket.packer().DeserializeRequest(envelope)
+	_, hmacHash, err := socket.messagePacker.DeserializeRequest(envelope)
 	require.NoError(t, err)
 	require.NotEmpty(t, hmacHash)
 	require.True(t, message.VerifyHMAC(req.String(), "route-secret", hmacHash))
@@ -43,10 +43,10 @@ func TestSocketSerializeRequestWithoutWhitelist(t *testing.T) {
 		Parameters: datatype.New(),
 	}
 
-	envelope, err := socket.serializeRequest(socket.packer(), req)
+	envelope, err := socket.serializeRequest(req)
 	require.NoError(t, err)
 
-	_, hmacHash, err := socket.packer().DeserializeRequest(envelope)
+	_, hmacHash, err := socket.messagePacker.DeserializeRequest(envelope)
 	require.NoError(t, err)
 	require.Empty(t, hmacHash)
 }
@@ -78,7 +78,7 @@ func TestSocketValidateReplySkipsWhenNotWhitelisted(t *testing.T) {
 func TestSocketValidateReplyAny(t *testing.T) {
 	socket, err := New("test", 0, ReplierType)
 	require.NoError(t, err)
-	require.NoError(t, socket.Whitelist(Any, "broadcast-secret"))
+	require.NoError(t, socket.Whitelist(message.Any, "broadcast-secret"))
 
 	req := &message.Request{Command: "ignored", Parameters: datatype.New()}
 	reply := req.Ok(datatype.New())
@@ -91,17 +91,17 @@ func TestSocketValidateReplyAny(t *testing.T) {
 func TestSocketWhitelistAnyFallback(t *testing.T) {
 	socket, err := New("test", 0, WorkerType)
 	require.NoError(t, err)
-	require.NoError(t, socket.Whitelist(Any, "global-secret"))
+	require.NoError(t, socket.Whitelist(message.Any, "global-secret"))
 
 	req := &message.Request{
 		Command:    "any-cmd",
 		Parameters: datatype.New(),
 	}
 
-	envelope, err := socket.serializeRequest(socket.packer(), req)
+	envelope, err := socket.serializeRequest(req)
 	require.NoError(t, err)
 
-	_, hmacHash, err := socket.packer().DeserializeRequest(envelope)
+	_, hmacHash, err := socket.messagePacker.DeserializeRequest(envelope)
 	require.NoError(t, err)
 	require.True(t, message.VerifyHMAC(req.String(), "global-secret", hmacHash))
 }

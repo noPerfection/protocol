@@ -32,7 +32,7 @@ func newTestActor(t *testing.T) *testActor {
 	}
 	c.Timeout(100 * time.Millisecond)
 	c.Attempt(1)
-	_ = c.Whitelist(npac.AddHandlerCmd, secret)
+	_ = c.Whitelist(npac.RegisterHandler, secret)
 	_ = c.Whitelist(npac.RemoveHandlerCmd, secret)
 	_ = c.Whitelist(npac.SecureEdgeCaseCmd, secret)
 	_ = c.Whitelist(npac.PushHandlerContextCmd, secret)
@@ -47,7 +47,7 @@ func (a *testActor) addHandler(mushroomURL string, controlEndpoint message.Endpo
 		return fmt.Errorf("addHandler: NewFromInterface: %w", err)
 	}
 	reply, err := a.c.Request(&message.Request{
-		Command: npac.AddHandlerCmd,
+		Command: npac.RegisterHandler,
 		Parameters: datatype.New().
 			Set("mushroom-url", mushroomURL).
 			Set("npac-secret", a.secret).
@@ -68,7 +68,7 @@ func (a *testActor) addOutbound(endpoint message.Endpoint, mushroomURL, publicKe
 		return fmt.Errorf("addOutbound: NewFromInterface: %w", err)
 	}
 	reply, err := a.c.Request(&message.Request{
-		Command: npac.AddOutboundCmd,
+		Command: npac.RegisterOutbound,
 		Parameters: datatype.New().
 			Set("endpoint", endpointKV).
 			Set("mushroom-url", mushroomURL).
@@ -203,14 +203,14 @@ func (s *TestNpacSuite) TestAddHandlerWithWrongHMAC() {
 	s.Require().NoError(err)
 	c.Timeout(100 * time.Millisecond)
 	c.Attempt(1)
-	_ = c.Whitelist(npac.AddHandlerCmd, signingSecret) // signs with signingSecret
+	_ = c.Whitelist(npac.RegisterHandler, signingSecret) // signs with signingSecret
 	defer func() { _ = c.Close() }()
 
 	controlKV, err := datatype.NewFromInterface(controlEndpoint)
 	s.Require().NoError(err)
 
 	reply, err := c.Request(&message.Request{
-		Command: npac.AddHandlerCmd,
+		Command: npac.RegisterHandler,
 		Parameters: datatype.New().
 			Set("mushroom-url", mushroomURL).
 			Set("npac-secret", declaredSecret). // HMAC will be verified against this
@@ -327,16 +327,16 @@ func (s *TestNpacSuite) TestPushPopHandlerContext() {
 // command, pushes the caller as the active context, and then queries npac via
 // HandlerContextCmd covering every branch of onHandlerContext.
 func (s *TestNpacSuite) TestHandlerContext() {
-	const pubKey    = "test-pubkey-hc"
+	const pubKey = "test-pubkey-hc"
 	const targetCmd = "hc-target-cmd"
 
-	outboundURL      := s.uniqueMushroomURL("hc-outbound")
-	callerURL        := s.uniqueMushroomURL("hc-caller")
+	outboundURL := s.uniqueMushroomURL("hc-outbound")
+	callerURL := s.uniqueMushroomURL("hc-caller")
 	outboundRouteURL := outboundURL + "?command=" + targetCmd
-	callerRouteURL   := callerURL + "?command=some-route"
+	callerRouteURL := callerURL + "?command=some-route"
 
 	outboundEndpoint := message.NewEndpoint("npac-hc-outbound", 0)
-	controlEndpoint  := message.NewEndpoint("npac-hc-control", 0)
+	controlEndpoint := message.NewEndpoint("npac-hc-control", 0)
 
 	actor := newTestActor(s.T())
 	s.Require().NoError(actor.addOutbound(outboundEndpoint, outboundURL, pubKey))
@@ -371,9 +371,9 @@ func (s *TestNpacSuite) TestHandlerContext() {
 
 	s.Run("cross-access-denied", func() {
 		// Register a handler that is NOT whitelisted on the outbound.
-		deniedURL      := s.uniqueMushroomURL("hc-denied")
+		deniedURL := s.uniqueMushroomURL("hc-denied")
 		deniedRouteURL := deniedURL + "?command=some-route"
-		deniedActor    := newTestActor(s.T())
+		deniedActor := newTestActor(s.T())
 		s.Require().NoError(deniedActor.addHandler(deniedURL, message.NewEndpoint("npac-hc-denied-ctl", 0)))
 		s.Require().NoError(deniedActor.pushHandlerContext(deniedRouteURL))
 		defer func() { _ = deniedActor.popHandlerContext(deniedRouteURL) }()
@@ -408,12 +408,12 @@ func (s *TestNpacSuite) TestHandlerContext() {
 	})
 
 	s.Run("success via any whitelist", func() {
-		anyCallerURL        := s.uniqueMushroomURL("hc-any-caller")
-		anyCallerRouteURL   := anyCallerURL + "?command=some-route"
-		anyOutboundURL      := s.uniqueMushroomURL("hc-any-outbound")
+		anyCallerURL := s.uniqueMushroomURL("hc-any-caller")
+		anyCallerRouteURL := anyCallerURL + "?command=some-route"
+		anyOutboundURL := s.uniqueMushroomURL("hc-any-outbound")
 		anyOutboundEndpoint := message.NewEndpoint("npac-hc-any-ob", 0)
-		anyControlEndpoint  := message.NewEndpoint("npac-hc-any-ctl", 0)
-		const anyTestCmd    = "hc-any-cmd"
+		anyControlEndpoint := message.NewEndpoint("npac-hc-any-ctl", 0)
+		const anyTestCmd = "hc-any-cmd"
 
 		anyActor := newTestActor(s.T())
 		s.Require().NoError(anyActor.addOutbound(anyOutboundEndpoint, anyOutboundURL, pubKey))

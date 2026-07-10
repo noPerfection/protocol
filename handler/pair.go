@@ -65,6 +65,10 @@ func (pair *Pair) Start() error {
 		return fmt.Errorf("control not set")
 	}
 
+	if pair.mushroomURL == "" {
+		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
+	}
+
 	pair.setControlRoutes()
 
 	if pair.Control.Status() != SocketReady {
@@ -90,7 +94,7 @@ func (pair *Pair) setControlRoutes() {
 
 func (pair *Pair) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	pair.stopPair()
-	_ = pair.npacRemoveHandler(pair.Endpoint().HandlerUrl())
+	_ = pair.npacRemoveHandler()
 	return req.Ok(datatype.New())
 }
 
@@ -143,8 +147,7 @@ func (pair *Pair) startPair() error {
 		pair.socket = socket
 		pair.Control.SetSocketReady()
 
-		pubKey := pair.publicKey()
-		err = pair.npacRegisterHandler(pairUrl, pubKey)
+		err = pair.npacRegisterHandler(pair.Control.Endpoint())
 		if err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("npacRegisterHandler: %w", err)
@@ -218,8 +221,7 @@ func (pair *Pair) handleRequest(socket *zmq.Socket) error {
 	cmd := req.CommandName()
 	matchedSecret := ""
 	if pair.IsWhitelistExist(cmd) {
-		var ok bool
-		matchedSecret, ok = pair.getRequestSecret(req, hmacHash)
+		ok := pair.ValidateRequestHmac(req, hmacHash)
 		if !ok {
 			return pair.sendReply(socket, pair.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
 		}
@@ -230,19 +232,14 @@ func (pair *Pair) handleRequest(socket *zmq.Socket) error {
 		return pair.sendReply(socket, req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
-	handlerUrl := pair.Endpoint().HandlerUrl()
-	if matchedSecret != "" {
-		if err := pair.npacPushHandleContext(handlerUrl, cmd, matchedSecret); err != nil {
-			pair.LogError("AddRoute", "error", err)
-		}
+	if err := pair.npacPushHandleContext(cmd); err != nil {
+		pair.LogError("AddRoute", "error", err)
 	}
 
 	reply := handleFunc(req)
 
-	if matchedSecret != "" {
-		if err := pair.popHandleContext(handlerUrl, cmd); err != nil {
-			pair.LogError("RemoveRoute", "error", err)
-		}
+	if err := pair.popHandleContext(cmd); err != nil {
+		pair.LogError("RemoveRoute", "error", err)
 	}
 
 	return pair.sendReply(socket, reply, cmd, matchedSecret)

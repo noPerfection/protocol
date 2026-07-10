@@ -19,10 +19,10 @@ import (
 
 const (
 	// Route command constants.
-	AddHandlerCmd    = "add-handler"
-	RemoveHandlerCmd = "remove-handler"
-	AddOutboundCmd   = "add-outbound"
-	RemOutboundCmd        = "remove-outbound"
+	RegisterHandler       = "add-handler"
+	RemoveHandlerCmd      = "remove-handler"
+	RegisterOutbound      = "add-outbound"
+	RemoveOutbound        = "remove-outbound"
 	SecureEdgeCaseCmd     = "secure-edge-case"
 	PushHandlerContextCmd = "push-handler-context"
 	PopHandlerContextCmd  = "pop-handler-context"
@@ -51,11 +51,11 @@ type outbound struct {
 // Npac is a minimal inproc REP socket with a route table.
 // Use New() to construct.
 type Npac struct {
-	socket *zmq.Socket
-	routes map[string]message.HandleFunc
-	started  bool
-	mu       sync.Mutex
-	wg       sync.WaitGroup
+	socket  *zmq.Socket
+	routes  map[string]message.HandleFunc
+	started bool
+	mu      sync.Mutex
+	wg      sync.WaitGroup
 	// handlers maps each mushroom URL to its registered handler entry.
 	handlers map[string]*handlerEntry
 	// outbounds maps each handler URL to its resolved outbound identity.
@@ -80,20 +80,19 @@ func (h *Npac) getHandleFunc(cmd string) (message.HandleFunc, error) {
 	return nil, fmt.Errorf("the '%s' command handler not found", cmd)
 }
 
-
 // New creates a ready-to-start Npac handler bound to the default inproc endpoint.
 func New() *Npac {
 	h := &Npac{
-		routes: make(map[string]message.HandleFunc),
+		routes:                 make(map[string]message.HandleFunc),
 		handlers:               make(map[string]*handlerEntry),
 		outbounds:              make(map[string]*outbound),
 		mushroomUrlToOutbounds: make(map[string]string),
 		contexts:               []string{},
 	}
 
-	h.routes[AddOutboundCmd] = h.onAddOutbound
-	h.routes[RemOutboundCmd] = h.onRemoveOutbound
-	h.routes[AddHandlerCmd] = h.onAddHandler                 // HMAC protected
+	h.routes[RegisterOutbound] = h.onRegisterOutbound
+	h.routes[RemoveOutbound] = h.onRemoveOutbound
+	h.routes[RegisterHandler] = h.onRegisterHandler          // HMAC protected
 	h.routes[RemoveHandlerCmd] = h.onRemoveHandler           // HMAC protected
 	h.routes[SecureEdgeCaseCmd] = h.onSecureEdgeCase         // HMAC protected
 	h.routes[PushHandlerContextCmd] = h.onPushHandlerContext // HMAC protected
@@ -232,7 +231,7 @@ func (h *Npac) verifyHMAC(req message.RequestInterface, hash string) error {
 	var secret string
 
 	switch req.CommandName() {
-	case AddHandlerCmd:
+	case RegisterHandler:
 		s, err := req.RouteParameters().StringValue("npac-secret")
 		if err != nil {
 			return fmt.Errorf("npac-secret param: %w", err)
@@ -289,8 +288,8 @@ func routeURLToHandlerURL(routeURL string) (handlerURL, command string, err erro
 	return hypha.AsLink().String(), command, nil
 }
 
-// onAddHandler registers a handler by its mushroom URL, npac secret, and control endpoint.
-func (h *Npac) onAddHandler(req message.RequestInterface) message.ReplyInterface {
+// onRegisterHandler registers a handler by its mushroom URL, npac secret, and control endpoint.
+func (h *Npac) onRegisterHandler(req message.RequestInterface) message.ReplyInterface {
 	mushroomURL, err := req.RouteParameters().StringValue("mushroom-url")
 	if err != nil {
 		return req.Fail(fmt.Sprintf("mushroom-url param: %v", err))
@@ -342,12 +341,12 @@ func (h *Npac) onRemoveHandler(req message.RequestInterface) message.ReplyInterf
 	return req.Ok(datatype.New())
 }
 
-// onAddOutbound registers an outbound handler entry keyed by its handler URL.
+// onRegisterOutbound registers an outbound handler entry keyed by its handler URL.
 // Parameters: endpoint (nested {id, port}), mushroom-url (pkg: URL), public-key (string).
 // The handler URL is derived from the endpoint via HandlerUrl().
 // mushroom-url must be a valid pkg: URL; plain strings are rejected.
 // Registering the same endpoint twice is an error.
-func (h *Npac) onAddOutbound(req message.RequestInterface) message.ReplyInterface {
+func (h *Npac) onRegisterOutbound(req message.RequestInterface) message.ReplyInterface {
 	endpointKV, err := req.RouteParameters().NestedValue("endpoint")
 	if err != nil {
 		return req.Fail(fmt.Sprintf("endpoint param: %v", err))

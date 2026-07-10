@@ -139,10 +139,8 @@ func (m *Control) Start() error {
 			cmd := req.CommandName()
 			matchedSecret := ""
 			if m.IsWhitelistExist(cmd) {
-				var ok bool
-				matchedSecret, ok = m.getRequestSecret(req, hmacHash)
-				if !ok {
-					m.sendControlReply(socket, req, m.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
+				if !m.ValidateRequestHmac(req, hmacHash) {
+					m.sendControlReply(socket, req, m.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, "")
 					continue
 				}
 			}

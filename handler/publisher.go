@@ -70,6 +70,10 @@ func (c *Publisher) Start() error {
 		return fmt.Errorf("control not set")
 	}
 
+	if c.mushroomURL == "" {
+		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
+	}
+
 	c.setControlRoutes()
 
 	if c.Control.Status() != SocketReady {
@@ -95,7 +99,7 @@ func (c *Publisher) setControlRoutes() {
 
 func (c *Publisher) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	c.stopBroadcaster()
-	_ = c.npacRemoveHandler(c.Endpoint().HandlerUrl())
+	_ = c.npacRemoveHandler()
 	return req.Ok(datatype.New())
 }
 
@@ -148,8 +152,7 @@ func (c *Publisher) startBroadcaster() error {
 		c.socket = socket
 		c.Control.SetSocketReady()
 
-		pubKey := c.publicKey()
-		_ = c.npacRegisterHandler(pubUrl, pubKey)
+		_ = c.npacRegisterHandler(c.Control.Endpoint())
 
 		ready <- nil
 

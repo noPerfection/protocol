@@ -6,11 +6,8 @@ import (
 	"github.com/noPerfection/protocol/message"
 )
 
-// Any applies a whitelist to all commands when no command-specific entry exists.
-const Any = "*"
-
 // Whitelist registers a shared secret for a command on the target handler.
-// Use Any for a route-wide signing policy.
+// Use message.Any for a route-wide signing policy.
 // When set, outbound requests are signed and inbound replies with an HMAC tail are verified.
 func (socket *Socket) Whitelist(cmd string, secrets ...string) error {
 	if len(secrets) == 0 {
@@ -35,21 +32,24 @@ func (socket *Socket) secretFor(cmd string) (string, bool) {
 	if secret, ok := socket.whitelists[cmd]; ok {
 		return secret, true
 	}
-	secret, ok := socket.whitelists[Any]
+	secret, ok := socket.whitelists[message.Any]
 	return secret, ok
 }
 
-func (socket *Socket) serializeRequest(packer message.Packer, req message.RequestInterface) ([]string, error) {
+func (socket *Socket) serializeRequest(req message.RequestInterface, hmac ...string) ([]string, error) {
+	if len(hmac) > 0 {
+		return socket.messagePacker.SerializeRequest(req, hmac[0])
+	}
+
 	socket.mu.Lock()
 	secret, sign := socket.secretFor(req.CommandName())
 	socket.mu.Unlock()
 
 	if !sign {
-		return packer.SerializeRequest(req)
+		return socket.messagePacker.SerializeRequest(req)
 	}
 
-	hmac := message.ComputeHMAC(req.String(), secret)
-	return packer.SerializeRequest(req, hmac)
+	return socket.messagePacker.SerializeRequest(req, message.ComputeHMAC(req.String(), secret))
 }
 
 func (socket *Socket) validateReply(cmd string, reply message.ReplyInterface, replyHmac string) error {
@@ -73,5 +73,5 @@ func (socket *Socket) validateReply(cmd string, reply message.ReplyInterface, re
 }
 
 func (socket *Socket) validateReplyAny(reply message.ReplyInterface, replyHmac string) error {
-	return socket.validateReply(Any, reply, replyHmac)
+	return socket.validateReply(message.Any, reply, replyHmac)
 }

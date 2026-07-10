@@ -13,6 +13,8 @@ import (
 	zmq "github.com/pebbe/zmq4"
 )
 
+const Any = message.Any
+
 const (
 	minTimeout     = time.Millisecond * 2
 	DefaultTimeout = time.Second * 100
@@ -392,9 +394,8 @@ func (socket *Socket) omitReplyIfPresent() {
 // When the connection is rejected due to a missing CURVE key (ErrNoCurveKey),
 // the method looks up the server's public key from the npac autocontext and
 // retries once with the new key.
-func (socket *Socket) Send(req message.RequestInterface) error {
-	packer := socket.packer()
-	reqStr, err := socket.serializeRequest(packer, req)
+func (socket *Socket) Send(req message.RequestInterface, hmac ...string) error {
+	reqStr, err := socket.serializeRequest(req, hmac...)
 	if err != nil {
 		return fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
@@ -427,9 +428,8 @@ func (socket *Socket) Send(req message.RequestInterface) error {
 // When the handler replies with "access-denied" (HMAC required but not sent),
 // the method looks up the HMAC secret from the npac autocontext, re-signs the
 // request, and retries once.
-func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterface, error) {
-	packer := socket.packer()
-	reqStr, err := socket.serializeRequest(packer, req)
+func (socket *Socket) Request(req message.RequestInterface, hmac ...string) (message.ReplyInterface, error) {
+	reqStr, err := socket.serializeRequest(req, hmac...)
 	if err != nil {
 		return nil, fmt.Errorf("packer.SerializeRequest: %w", err)
 	}
@@ -449,7 +449,7 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 		return nil, fmt.Errorf("socket.request: %w", reqErr)
 	}
 
-	reply, replyHmac, err := packer.DeserializeReply(rawReply)
+	reply, replyHmac, err := socket.messagePacker.DeserializeReply(rawReply)
 	if err != nil {
 		return nil, fmt.Errorf("packer.DeserializeReply('%v'): %w", rawReply, err)
 	}
@@ -461,9 +461,9 @@ func (socket *Socket) Request(req message.RequestInterface) (message.ReplyInterf
 		url := socket.endpoint.HandlerUrl()
 		if secret, lookupErr := autocontext.GetHmacSecret(url, cmd); lookupErr == nil && secret != "" {
 			if wlErr := socket.Whitelist(cmd, secret); wlErr == nil {
-				if signedReqStr, serErr := socket.serializeRequest(packer, req); serErr == nil {
+				if signedReqStr, serErr := socket.serializeRequest(req); serErr == nil {
 					if rawReply2, reqErr2 := socket.dispatcher.request(signedReqStr); reqErr2 == nil {
-						if reply2, replyHmac2, deserErr := packer.DeserializeReply(rawReply2); deserErr == nil {
+						if reply2, replyHmac2, deserErr := socket.messagePacker.DeserializeReply(rawReply2); deserErr == nil {
 							reply, replyHmac = reply2, replyHmac2
 						}
 					}

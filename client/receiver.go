@@ -80,8 +80,7 @@ func (r *receiver) pollOnce() {
 		return
 	}
 
-	packer := r.socket.packer()
-	reply, replyHmac, err := packer.DeserializeReply(raw)
+	reply, replyHmac, err := r.socket.messagePacker.DeserializeReply(raw)
 	if err != nil {
 		r.markIdle()
 		return
@@ -167,12 +166,6 @@ func (socket *Socket) Receive() <-chan message.ReplyInterface {
 	return socket.receiver.replies
 }
 
-func (socket *Socket) packer() message.Packer {
-	socket.mu.Lock()
-	defer socket.mu.Unlock()
-
-	return socket.messagePacker
-}
 
 func (socket *Socket) afterReconnect(socketType zmq.Type) {
 	if socketType == zmq.SUB && socket.receiver != nil {

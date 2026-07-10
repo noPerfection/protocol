@@ -65,6 +65,10 @@ func (c *Worker) Start() error {
 		return fmt.Errorf("control not set")
 	}
 
+	if c.mushroomURL == "" {
+		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
+	}
+
 	c.setControlRoutes()
 
 	if c.Control.Status() != SocketReady {
@@ -95,7 +99,7 @@ func (c *Worker) onControlClose(req message.RequestInterface) message.ReplyInter
 		c.Control.SetSocketNil()
 		c.workW.Wait()
 	}
-	_ = c.npacRemoveHandler(c.Endpoint().HandlerUrl())
+	_ = c.npacRemoveHandler()
 	return req.Ok(datatype.New())
 }
 
@@ -143,8 +147,7 @@ func (c *Worker) bindExternal() error {
 	c.socket = socket
 	c.Control.SetSocketReady()
 
-	pubKey := c.publicKey()
-	err = c.npacRegisterHandler(externalUrl, pubKey)
+	err = c.npacRegisterHandler(c.Control.Endpoint())
 	if err != nil {
 		return fmt.Errorf("npacRegisterHandler: %w", err)
 	}
@@ -194,10 +197,8 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 	}
 
 	cmd := req.CommandName()
-	matchedSecret := ""
 	if c.IsWhitelistExist(cmd) {
-		var ok bool
-		matchedSecret, ok = c.getRequestSecret(req, hmacHash)
+		_, ok := c.getRequestSecret(req, hmacHash)
 		if !ok {
 			return fmt.Errorf("%w", message.ErrAccessDenied)
 		}
@@ -208,21 +209,15 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 		return fmt.Errorf("handler.GetHandleFunc(%s): %w", cmd, err)
 	}
 
-	handlerUrl := c.Endpoint().HandlerUrl()
-	if matchedSecret != "" {
-		if err := c.npacPushHandleContext(handlerUrl, cmd, matchedSecret); err != nil {
+	go func() {
+		if err := c.npacPushHandleContext(cmd); err != nil {
 			c.LogError("AddRoute", "error", err)
 		}
-	}
-
-	go func(matchedSecret, handlerUrl, cmd string) {
 		handleFunc(req)
-		if matchedSecret != "" {
-			if err := c.popHandleContext(handlerUrl, cmd); err != nil {
-				c.LogError("RemoveRoute", "error", err)
-			}
+		if err := c.popHandleContext(cmd); err != nil {
+			c.LogError("RemoveRoute", "error", err)
 		}
-	}(matchedSecret, handlerUrl, cmd)
+	}()
 
 	return nil
 }

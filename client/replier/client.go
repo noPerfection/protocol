@@ -27,8 +27,8 @@ func NewClient(id string, port uint64) (*Client, error) {
 	return &Client{socket: socket}, nil
 }
 
-func (c *Client) Send(req message.RequestInterface) error {
-	return c.socket.Send(req)
+func (c *Client) Send(req message.RequestInterface, hmac ...string) error {
+	return c.socket.Send(req, hmac...)
 }
 
 func (c *Client) Receive() <-chan message.ReplyInterface {
