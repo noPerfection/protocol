@@ -23,7 +23,7 @@ go get github.com/noPerfection/protocol/handler@latest
 | [`worker`](worker) | `Worker` | Consume fire-and-forget messages without replying to the caller |
 | [`pair`](pair) | `Pair` | Bridge another protocol or in-process component through a PAIR socket |
 
-All handlers implement [`base.Interface`](base/interface.go): `SetEndpoint`, `SetLogger`, `Route`, `Start`, and related lifecycle methods.
+All handlers implement [`handler.Interface`](handler/interface.go): `SetEndpoint`, `SetLogger`, `Route`, `Start`, and related lifecycle methods.
 
 ## Quick Start
 
@@ -101,7 +101,7 @@ myHandler.SetEndpoint(myEndpoint) -> myHandler.SetLogger(...) -> myHandler.Route
 
 `SetLogger` is optional. Pass a logger from [noPerfection/log](https://github.com/noPerfection/log) when you want internal logs; if you skip it, the handler simply omits log messages.
 
-`Route` registers command handlers. A route maps a command string of your choice to a `base.HandleFunc`, which receives a request and returns a reply. `Publisher` is the exception: it broadcasts data and does not dispatch client commands through routes.
+`Route` registers command handlers. A route maps a command string of your choice to a `handler.HandleFunc`, which receives a request and returns a reply. `Publisher` is the exception: it broadcasts data and does not dispatch client commands through routes.
 
 `Start` binds the handler socket, starts its controller, and begins routing incoming messages to the registered functions.
 
@@ -141,10 +141,10 @@ handler.Whitelist("charge", "billing-secret")
 handler.Whitelist("admin", "ops-secret", "backup-secret")
 
 // Apply to every command when no command-specific whitelist exists:
-handler.Whitelist(base.Any, "global-secret")
+handler.Whitelist(handler.Any, "global-secret")
 ```
 
-Lookup order mirrors routing: the handler checks `whitelists[cmd]` first, then `whitelists[base.Any]` (`"*"`).
+Lookup order mirrors routing: the handler checks `whitelists[cmd]` first, then `whitelists[handler.Any]` (`"*"`).
 
 When a route requires a whitelist:
 
@@ -161,9 +161,9 @@ Use the matching [protocol/client](../client) `Whitelist` on the client when cal
 Handlers can optionally encrypt their transport with ZeroMQ CURVE using `Secure`. An empty key keeps the handler non-secure:
 
 ```go
-import "github.com/noPerfection/protocol/handler/base"
+import "github.com/noPerfection/protocol/handler/handler"
 
-_, serverSecret, _ := base.GenerateCurveKey()
+_, serverSecret, _ := handler.GenerateCurveKey()
 
 handler.Secure(serverSecret)
 ```
@@ -179,7 +179,7 @@ Clients must connect with the matching CURVE configuration; see [protocol/client
 Along with `Secure`, you can maintain an allowlist of client public keys permitted to connect. Register each allowed client before `Start`:
 
 ```go
-clientPublic, _, _ := base.GenerateCurveKey()
+clientPublic, _, _ := handler.GenerateCurveKey()
 
 handler.Allow(clientPublic)
 ```

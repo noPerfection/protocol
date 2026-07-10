@@ -7,7 +7,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/base"
+	base "github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
