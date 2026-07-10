@@ -1,15 +1,12 @@
 package handler
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 
 	"github.com/noPerfection/protocol/message"
-	zmq "github.com/pebbe/zmq4"
 )
 
 const (
@@ -34,15 +31,6 @@ type Handler struct {
 	whitelists map[string]map[string]bool
 }
 
-// GenerateSecret returns a 32-byte cryptographically-random hex string.
-// Each handler type calls this in its own New() to create an unexported
-// npacSecret that is never exposed outside the handler package.
-func GenerateSecret() string {
-	b := make([]byte, 32)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
 // New creates a handler.
 // Optionally you can set the logger.
 func New(logger ...*log.Logger) *Handler {
@@ -57,31 +45,6 @@ func New(logger ...*log.Logger) *Handler {
 	}
 
 	return h
-}
-
-// WhitelistSnapshot returns a copy of the whitelist as cmd → []secrets.
-// It is used by handler implementations to pre-register known HMAC secrets
-// with npac at startup so clients can discover them automatically.
-func (c *Handler) WhitelistSnapshot() map[string][]string {
-	out := make(map[string][]string, len(c.whitelists))
-	for cmd, secrets := range c.whitelists {
-		s := make([]string, 0, len(secrets))
-		for secret := range secrets {
-			s = append(s, secret)
-		}
-		out[cmd] = s
-	}
-	return out
-}
-
-// UnWhitelist removes a specific secret from the whitelist for cmd.
-func (c *Handler) UnWhitelist(cmd, secret string) {
-	if m, ok := c.whitelists[cmd]; ok {
-		delete(m, secret)
-		if len(m) == 0 {
-			delete(c.whitelists, cmd)
-		}
-	}
 }
 
 // IsRouteExist returns true if the given route exists
@@ -170,8 +133,8 @@ func (c *Handler) Whitelist(cmd string, secrets ...string) error {
 	return nil
 }
 
-// RequiresWhitelist reports whether the given command requires HMAC validation.
-func (c *Handler) RequiresWhitelist(cmd string) bool {
+// IsWhitelistExist reports whether the given command requires HMAC validation.
+func (c *Handler) IsWhitelistExist(cmd string) bool {
 	if _, ok := c.whitelists[cmd]; ok {
 		return true
 	}
@@ -188,7 +151,7 @@ func (c *Handler) getHmacSecrets(cmd string) map[string]bool {
 
 // ValidateRequestHmac reports whether hash is valid for the request command whitelist.
 func (c *Handler) ValidateRequestHmac(req message.RequestInterface, hash string) bool {
-	_, ok := c.MatchRequestSecret(req, hash)
+	_, ok := c.getRequestSecret(req, hash)
 	return ok
 }
 
@@ -210,7 +173,7 @@ func (c *Handler) ValidateReplyHmac(reply message.ReplyInterface, hash string) b
 	return false
 }
 
-func (c *Handler) MatchRequestSecret(req message.RequestInterface, hash string) (string, bool) {
+func (c *Handler) getRequestSecret(req message.RequestInterface, hash string) (string, bool) {
 	secrets := c.getHmacSecrets(req.CommandName())
 	if secrets == nil {
 		return "", true
@@ -265,14 +228,4 @@ func AnyRoute(handler *Handler) error {
 		return fmt.Errorf("failed to '%s' route into the handler: %w", Any, err)
 	}
 	return nil
-}
-
-// GenerateCurveKey returns a new Z85 CURVE public/secret keypair.
-func GenerateCurveKey() (pub, secret string, err error) {
-	return zmq.NewCurveKeypair()
-}
-
-// DerivePublicKey returns the Z85 CURVE public key for the given secret key.
-func DerivePublicKey(secretKey string) (pubkey string, err error) {
-	return zmq.AuthCurvePublic(secretKey)
 }

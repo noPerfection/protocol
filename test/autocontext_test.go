@@ -6,7 +6,7 @@ import (
 
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	"github.com/noPerfection/protocol/handler/npac"
-	hsyncreplier "github.com/noPerfection/protocol/handler/sync_replier"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +42,7 @@ func TestAutocontextHmacRetry(t *testing.T) {
 	// Start the handler with two routes.
 	const handlerID = "autocontext-hmac-test"
 
-	svc := hsyncreplier.New()
+	svc := handler.NewSyncReplier()
 	svc.SetEndpoint(message.NewEndpoint(handlerID, 0))
 
 	req.NoError(svc.Whitelist("hello", helloSecret))

@@ -1,4 +1,4 @@
-package worker
+package handler
 
 import (
 	"strings"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -23,7 +22,7 @@ type TestWorkerSuite struct {
 	managerClient  *zmq.Socket
 	externalClient *zmq.Socket
 	logger         *log.Logger
-	routes         map[string]handler.HandleFunc
+	routes         map[string]HandleFunc
 	cmd1Result     string
 	cmd2Result     string
 }
@@ -37,10 +36,10 @@ func (test *TestWorkerSuite) SetupTest() {
 	test.Suite.Require().NoError(err, "failed to create logger")
 	test.logger = logger
 
-	test.worker = New()
+	test.worker = NewWorker()
 
 	// Socket to talk to clients
-	test.routes = make(map[string]handler.HandleFunc, 2)
+	test.routes = make(map[string]HandleFunc, 2)
 	test.routes["command_1"] = func(request message.RequestInterface) message.ReplyInterface {
 		id, err := request.RouteParameters().StringValue("id")
 		if err != nil {
@@ -77,7 +76,7 @@ func (test *TestWorkerSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := handler.NewInternalControlEndpoint(test.handlerConfig)
+	managerConfig := NewInternalControlEndpoint(test.handlerConfig)
 	managerUrl := managerConfig.ClientUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
@@ -156,13 +155,13 @@ func (test *TestWorkerSuite) Test_10_StartHandlesSubmittedMessages() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything works
-	req := message.Request{Command: handler.HandlerStatus, Parameters: datatype.New()}
+	req := message.Request{Command: HandlerStatus, Parameters: datatype.New()}
 	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
 	status, err := reply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(handler.SocketReady, status)
+	s.Require().Equal(SocketReady, status)
 
 	// Testing the external connection
 	s.Require().Empty(test.cmd1Result)
@@ -178,7 +177,7 @@ func (test *TestWorkerSuite) Test_10_StartHandlesSubmittedMessages() {
 	s.Require().Equal(cmd1Id, test.cmd1Result)
 
 	// Close the handler
-	req.Command = handler.HandlerClose
+	req.Command = HandlerClose
 	reply = test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -194,7 +193,7 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 
 	err := test.worker.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(handler.SocketReady, test.worker.Control.Status())
+	s.Require().Equal(SocketReady, test.worker.Control.Status())
 
 	req := message.Request{
 		Command:    "command_1",
@@ -205,18 +204,18 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(cmd1Id, test.cmd1Result)
 
-	controlReq := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
+	controlReq := message.Request{Command: HandlerClose, Parameters: datatype.New()}
 	controlReply := test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	time.Sleep(time.Millisecond * 150)
-	s.Require().Equal(handler.SocketNil, test.worker.Control.Status())
+	s.Require().Equal(SocketNil, test.worker.Control.Status())
 
-	controlReq = message.Request{Command: handler.HandlerStart, Parameters: datatype.New()}
+	controlReq = message.Request{Command: HandlerStart, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	status, err := controlReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(handler.SocketReady, status)
+	s.Require().Equal(SocketReady, status)
 
 	s.Require().NoError(test.externalClient.Close())
 	test.externalClient, err = test.newExternalClient()
@@ -231,7 +230,7 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(cmd2Id, test.cmd2Result)
 
-	controlReq = message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
+	controlReq = message.Request{Command: HandlerClose, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 

@@ -1,4 +1,4 @@
-package worker
+package handler
 
 // Asynchronous worker
 
@@ -9,31 +9,29 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/autocontext"
-	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
 
 // Worker is the socket wrapper for the service.
 type Worker struct {
-	*handler.Handler
+	*Handler
+	*Autocontext
 	socket               *zmq.Socket
-	Control              *handler.Control
+	Control              *Control
 	workW                sync.WaitGroup
 	curveSecretKey       string
 	allowedClientPubKeys []string
-	npacSecret           string
 }
 
-var _ handler.Interface = (*Worker)(nil)
+var _ Interface = (*Worker)(nil)
 
-// New asynchronous replying handler.
-func New() *Worker {
+// NewWorker asynchronous replying handler.
+func NewWorker() *Worker {
 	return &Worker{
-		Handler:    handler.New(),
-		Control:    handler.NewControl(),
-		npacSecret: handler.GenerateSecret(),
+		Handler:     New(),
+		Control:     NewControl(),
+		Autocontext: NewAutocontext(),
 	}
 }
 
@@ -50,7 +48,7 @@ func (c *Worker) SetLogger(parent *log.Logger) error {
 	if parent == nil {
 		return c.Control.SetLogger(nil)
 	}
-	return c.Control.SetLogger(parent.Child(handler.ControlCategory))
+	return c.Control.SetLogger(parent.Child(ControlCategory))
 }
 
 // Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
@@ -72,8 +70,8 @@ func (c *Worker) Allow(clientPubKey string) {
 }
 
 // Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
-func (c *Worker) Type() handler.HandlerType {
-	return handler.WorkerType
+func (c *Worker) Type() HandlerType {
+	return WorkerType
 }
 
 // Start the handler directly, not by goroutine.
@@ -87,7 +85,7 @@ func (c *Worker) Start() error {
 
 	c.setControlRoutes()
 
-	if c.Control.Status() != handler.SocketReady {
+	if c.Control.Status() != SocketReady {
 		if err := c.Control.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
@@ -105,9 +103,9 @@ func (c *Worker) Start() error {
 }
 
 func (c *Worker) setControlRoutes() {
-	c.Control.Route(handler.HandlerConfig, c.onControlConfig)
-	c.Control.Route(handler.HandlerStart, c.onControlStart)
-	c.Control.Route(handler.HandlerClose, c.onControlClose)
+	c.Control.Route(HandlerConfig, c.onControlConfig)
+	c.Control.Route(HandlerStart, c.onControlStart)
+	c.Control.Route(HandlerClose, c.onControlClose)
 }
 
 func (c *Worker) onControlClose(req message.RequestInterface) message.ReplyInterface {
@@ -115,7 +113,7 @@ func (c *Worker) onControlClose(req message.RequestInterface) message.ReplyInter
 		c.Control.SetSocketNil()
 		c.workW.Wait()
 	}
-	_ = autocontext.RemoveHandler(c.Endpoint().HandlerUrl(), c.npacSecret)
+	_ = c.npacRemoveHandler(c.Endpoint().HandlerUrl())
 	return req.Ok(datatype.New())
 }
 
@@ -172,13 +170,10 @@ func (c *Worker) bindExternal() error {
 	c.socket = socket
 	c.Control.SetSocketReady()
 
-	_ = autocontext.AddHandler(externalUrl, pubKey, c.npacSecret)
-	for cmd, secrets := range c.WhitelistSnapshot() {
-		for _, secret := range secrets {
-			_ = autocontext.AddRoute(externalUrl, cmd, secret, c.npacSecret)
-		}
+	err = c.npacRegisterHandler(externalUrl, pubKey)
+	if err != nil {
+		return fmt.Errorf("npacRegisterHandler: %w", err)
 	}
-
 	return nil
 }
 
@@ -226,9 +221,9 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 
 	cmd := req.CommandName()
 	matchedSecret := ""
-	if c.RequiresWhitelist(cmd) {
+	if c.IsWhitelistExist(cmd) {
 		var ok bool
-		matchedSecret, ok = c.MatchRequestSecret(req, hmacHash)
+		matchedSecret, ok = c.getRequestSecret(req, hmacHash)
 		if !ok {
 			return fmt.Errorf("%w", message.ErrAccessDenied)
 		}
@@ -241,16 +236,16 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 
 	handlerUrl := c.Endpoint().HandlerUrl()
 	if matchedSecret != "" {
-		if err := autocontext.AddRoute(handlerUrl, cmd, matchedSecret, c.npacSecret); err != nil {
-			c.LogError("autocontext.AddRoute", "error", err)
+		if err := c.npacPushHandleContext(handlerUrl, cmd, matchedSecret); err != nil {
+			c.LogError("AddRoute", "error", err)
 		}
 	}
 
 	go func(matchedSecret, handlerUrl, cmd string) {
 		handleFunc(req)
 		if matchedSecret != "" {
-			if err := autocontext.RemoveRoute(handlerUrl, cmd, c.npacSecret); err != nil {
-				c.LogError("autocontext.RemoveRoute", "error", err)
+			if err := c.popHandleContext(handlerUrl, cmd); err != nil {
+				c.LogError("RemoveRoute", "error", err)
 			}
 		}
 	}(matchedSecret, handlerUrl, cmd)

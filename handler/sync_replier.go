@@ -1,4 +1,4 @@
-package sync_replier
+package handler
 
 import (
 	"fmt"
@@ -7,30 +7,28 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/autocontext"
-	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
 
 type SyncReplier struct {
-	*handler.Handler
+	*Handler
+	*Autocontext
 	socket               *zmq.Socket
-	Control              *handler.Control
+	Control              *Control
 	workW                sync.WaitGroup
 	curveSecretKey       string
 	allowedClientPubKeys []string
-	npacSecret           string
 }
 
-var _ handler.Interface = (*SyncReplier)(nil)
+var _ Interface = (*SyncReplier)(nil)
 
-// New SyncReplier returned
-func New() *SyncReplier {
+// NewSyncReplier returns a new SyncReplier.
+func NewSyncReplier() *SyncReplier {
 	return &SyncReplier{
-		Handler:    handler.New(),
-		Control:    handler.NewControl(),
-		npacSecret: handler.GenerateSecret(),
+		Handler:     New(),
+		Control:     NewControl(),
+		Autocontext: NewAutocontext(),
 	}
 }
 
@@ -47,7 +45,7 @@ func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 	if parent == nil {
 		return c.Control.SetLogger(nil)
 	}
-	return c.Control.SetLogger(parent.Child(handler.ControlCategory))
+	return c.Control.SetLogger(parent.Child(ControlCategory))
 }
 
 // Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
@@ -68,12 +66,12 @@ func (c *SyncReplier) Allow(clientPubKey string) {
 	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
-// Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
-func (c *SyncReplier) Type() handler.HandlerType {
-	return handler.SyncReplierType
+// Type returns the handler type.
+func (c *SyncReplier) Type() HandlerType {
+	return SyncReplierType
 }
 
-// Start the handler directly, not by goroutine
+// Start the handler directly, not by goroutine.
 func (c *SyncReplier) Start() error {
 	if c.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("configuration not set")
@@ -84,7 +82,7 @@ func (c *SyncReplier) Start() error {
 
 	c.setControlRoutes()
 
-	if c.Control.Status() != handler.SocketReady {
+	if c.Control.Status() != SocketReady {
 		if err := c.Control.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
@@ -102,9 +100,9 @@ func (c *SyncReplier) Start() error {
 }
 
 func (c *SyncReplier) setControlRoutes() {
-	c.Control.Route(handler.HandlerConfig, c.onControlConfig)
-	c.Control.Route(handler.HandlerStart, c.onControlStart)
-	c.Control.Route(handler.HandlerClose, c.onControlClose)
+	c.Control.Route(HandlerConfig, c.onControlConfig)
+	c.Control.Route(HandlerStart, c.onControlStart)
+	c.Control.Route(HandlerClose, c.onControlClose)
 }
 
 func (c *SyncReplier) onControlClose(req message.RequestInterface) message.ReplyInterface {
@@ -112,8 +110,8 @@ func (c *SyncReplier) onControlClose(req message.RequestInterface) message.Reply
 		c.Control.SetSocketNil()
 		c.workW.Wait()
 	}
-	if c.Endpoint().Id != autocontext.NpacEndpointId {
-		_ = autocontext.RemoveHandler(c.Endpoint().HandlerUrl(), c.npacSecret)
+	if c.Endpoint().Id != NpacEndpointId {
+		_ = c.npacRemoveHandler(c.Endpoint().HandlerUrl())
 	}
 	return req.Ok(datatype.New())
 }
@@ -123,7 +121,7 @@ func (c *SyncReplier) onControlConfig(req message.RequestInterface) message.Repl
 }
 
 func (c *SyncReplier) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Control.Status() == handler.SocketReady {
+	if c.Control.Status() == SocketReady {
 		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
 	}
 	if err := c.restartWork(); err != nil {
@@ -171,32 +169,11 @@ func (c *SyncReplier) bindExternal() error {
 	c.socket = socket
 	c.Control.SetSocketReady()
 
-	/*
-		ai extension adds its public key and all hmac secrets to npac,
-		now any client can call it.
-
-		then user requests the main handler.
-
-		main handler adds the hello command to npac and removes after handling.
-
-		main handler requests the ai extension.
-		ai extension checks the current app.
-		the client gets the ai extension's public key and hmac secrets from npac.
-
-	*/
-
-	// Register with npac (best-effort; silently ignored if npac is not running).
-	// Always register so HMAC-whitelisted commands are discoverable by clients
-	// even when no CURVE security is configured.
-	if c.Endpoint().Id != autocontext.NpacEndpointId {
-		_ = autocontext.AddHandler(externalUrl, pubKey, c.npacSecret)
-		for cmd, secrets := range c.WhitelistSnapshot() {
-			for _, secret := range secrets {
-				_ = autocontext.AddRoute(externalUrl, cmd, secret, c.npacSecret)
-			}
-		}
+	err = c.npacRegisterHandler(externalUrl, pubKey)
+	if err != nil {
+		_ = socket.Close()
+		return fmt.Errorf("npacRegisterHandler: %w", err)
 	}
-
 	return nil
 }
 
@@ -240,31 +217,31 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 	req, hmacHash, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
 		reply := c.Packer().EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
-		return c.sendReply(socket, reply, "", "")
+		return c.sendSyncReply(socket, reply, "", "")
 	}
 
 	cmd := req.CommandName()
 	matchedSecret := ""
-	if c.RequiresWhitelist(cmd) {
+	if c.IsWhitelistExist(cmd) {
 		var ok bool
-		matchedSecret, ok = c.MatchRequestSecret(req, hmacHash)
+		matchedSecret, ok = c.getRequestSecret(req, hmacHash)
 		if !ok {
-			return c.sendReply(socket, c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
+			return c.sendSyncReply(socket, c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
 		}
 	}
 
 	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		return c.sendReply(socket, req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
+		return c.sendSyncReply(socket, req.Fail(fmt.Sprintf("GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
 	// Register the current route's HMAC secret with npac so clients can look it up.
 	// Skip if this handler IS npac to avoid a self-referential inproc deadlock.
 	handlerUrl := c.Endpoint().HandlerUrl()
-	isNpac := c.Endpoint().Id == autocontext.NpacEndpointId
+	isNpac := c.Endpoint().Id == NpacEndpointId
 	if matchedSecret != "" && !isNpac {
-		if err := autocontext.AddRoute(handlerUrl, cmd, matchedSecret, c.npacSecret); err != nil {
-			c.LogError("autocontext.AddRoute", "error", err)
+		if err := c.npacPushHandleContext(handlerUrl, cmd, matchedSecret); err != nil {
+			c.LogError("AddRoute", "error", err)
 		}
 	}
 
@@ -272,17 +249,17 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 
 	// Remove the route registration after handling.
 	if matchedSecret != "" && !isNpac {
-		if err := autocontext.RemoveRoute(handlerUrl, cmd, c.npacSecret); err != nil {
-			c.LogError("autocontext.RemoveRoute", "error", err)
+		if err := c.popHandleContext(handlerUrl, cmd); err != nil {
+			c.LogError("RemoveRoute", "error", err)
 		}
 	}
 
-	return c.sendReply(socket, reply, cmd, matchedSecret)
+	return c.sendSyncReply(socket, reply, cmd, matchedSecret)
 }
 
-func (c *SyncReplier) sendReply(socket *zmq.Socket, reply message.ReplyInterface, cmd, matchedSecret string) error {
+func (c *SyncReplier) sendSyncReply(socket *zmq.Socket, reply message.ReplyInterface, cmd, matchedSecret string) error {
 	var hmac string
-	if c.RequiresWhitelist(cmd) && matchedSecret != "" {
+	if c.IsWhitelistExist(cmd) && matchedSecret != "" {
 		hmac = message.ComputeHMAC(reply.String(), matchedSecret)
 	}
 	envelope, err := c.Packer().SerializeReply(reply, hmac)

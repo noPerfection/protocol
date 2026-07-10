@@ -10,16 +10,16 @@ import (
 
 func TestRequiresWhitelist(t *testing.T) {
 	handler := New()
-	require.False(t, handler.RequiresWhitelist("cmd"))
+	require.False(t, handler.IsWhitelistExist("cmd"))
 
 	require.NoError(t, handler.Whitelist("cmd", "secret-a"))
-	require.True(t, handler.RequiresWhitelist("cmd"))
-	require.False(t, handler.RequiresWhitelist("other"))
+	require.True(t, handler.IsWhitelistExist("cmd"))
+	require.False(t, handler.IsWhitelistExist("other"))
 
 	require.NoError(t, handler.Whitelist(Any, "global-secret"))
 	handler2 := New()
 	require.NoError(t, handler2.Whitelist(Any, "global-secret"))
-	require.True(t, handler2.RequiresWhitelist("unknown-cmd"))
+	require.True(t, handler2.IsWhitelistExist("unknown-cmd"))
 }
 
 func TestWhitelistRequiresSecret(t *testing.T) {
@@ -42,7 +42,7 @@ func TestValidateRequestHmac(t *testing.T) {
 	require.False(t, handler.ValidateRequestHmac(req, ""))
 	require.False(t, handler.ValidateRequestHmac(req, "invalid"))
 
-	matched, ok := handler.MatchRequestSecret(req, validHash)
+	matched, ok := handler.getRequestSecret(req, validHash)
 	require.True(t, ok)
 	require.Equal(t, "secret-a", matched)
 }
@@ -57,7 +57,7 @@ func TestValidateRequestHmacAnyFallback(t *testing.T) {
 	}
 	hash := message.ComputeHMAC(req.String(), "global-secret")
 
-	require.True(t, handler.RequiresWhitelist("any-cmd"))
+	require.True(t, handler.IsWhitelistExist("any-cmd"))
 	require.True(t, handler.ValidateRequestHmac(req, hash))
 }
 
@@ -137,8 +137,8 @@ func dispatchWhitelistedRoute(t *testing.T, handler *Handler, req *message.Reque
 	require.Equal(t, hmacHash, receivedHmac)
 
 	cmd := received.CommandName()
-	if handler.RequiresWhitelist(cmd) {
-		if _, ok := handler.MatchRequestSecret(received, receivedHmac); !ok {
+	if handler.IsWhitelistExist(cmd) {
+		if _, ok := handler.getRequestSecret(received, receivedHmac); !ok {
 			return packer.EmptyRequest().Fail(message.ErrAccessDenied.Error())
 		}
 	}

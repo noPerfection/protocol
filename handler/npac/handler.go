@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/noPerfection/datatype"
-	"github.com/noPerfection/protocol/handler/sync_replier"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -38,7 +38,7 @@ type handlerEntry struct {
 // Npac wraps a SyncReplier and maintains a datatype.List of handler registrations.
 // Use New() to construct; the inner replier is not accessible from outside the package.
 type Npac struct {
-	sr      *sync_replier.SyncReplier
+	sr      *handler.SyncReplier
 	list    *datatype.List
 	started bool
 	mu      sync.Mutex
@@ -47,7 +47,7 @@ type Npac struct {
 // New creates a ready-to-start Npac handler bound to the default inproc endpoint.
 func New() *Npac {
 	h := &Npac{
-		sr:   sync_replier.New(),
+		sr:   handler.NewSyncReplier(),
 		list: datatype.NewList(),
 	}
 	h.sr.SetEndpoint(Endpoint)
@@ -288,22 +288,7 @@ func (h *Npac) onRemoveHandler(req message.RequestInterface) message.ReplyInterf
 		return req.Ok(datatype.New())
 	}
 
-	val, getErr := h.list.Get(url)
-	if getErr != nil {
-		return req.Fail(fmt.Sprintf("list.Get: %v", getErr))
-	}
-	entry, ok := val.(*handlerEntry)
-	if !ok {
-		return req.Fail("invalid entry type")
-	}
-	secret := entry.Secret
-
 	_, _ = h.list.Take(url)
-
-	// Remove the handler's secret from all write-command whitelists.
-	h.sr.UnWhitelist(AddRouteCmd, secret)
-	h.sr.UnWhitelist(RemoveRouteCmd, secret)
-	h.sr.UnWhitelist(RemoveHandlerCmd, secret)
 
 	return req.Ok(datatype.New())
 }

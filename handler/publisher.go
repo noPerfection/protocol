@@ -1,4 +1,4 @@
-package publisher
+package handler
 
 import (
 	"fmt"
@@ -6,8 +6,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/autocontext"
-	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -17,23 +15,23 @@ const MessageAmount = "message-amount"
 const BroadcastParameter = "reply"
 
 type Publisher struct {
-	*handler.Handler
+	*Handler
+	*Autocontext
 	socket               *zmq.Socket
 	broadcasterW         sync.WaitGroup
 	broadcasting         *datatype.Queue
-	Control              *handler.Control
+	Control              *Control
 	curveSecretKey       string
 	allowedClientPubKeys []string
-	npacSecret           string
 }
 
-// New Publisher returned
-func New() *Publisher {
+// NewPublisher Publisher returned
+func NewPublisher() *Publisher {
 	return &Publisher{
-		Handler:      handler.New(),
+		Handler:      New(),
 		broadcasting: datatype.NewQueue(),
-		Control:      handler.NewControl(),
-		npacSecret:   handler.GenerateSecret(),
+		Control:      NewControl(),
+		Autocontext:  NewAutocontext(),
 	}
 }
 
@@ -50,7 +48,7 @@ func (c *Publisher) SetLogger(parent *log.Logger) error {
 	if parent == nil {
 		return c.Control.SetLogger(nil)
 	}
-	return c.Control.SetLogger(parent.Child(handler.ControlCategory))
+	return c.Control.SetLogger(parent.Child(ControlCategory))
 }
 
 // Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
@@ -72,12 +70,12 @@ func (c *Publisher) Allow(clientPubKey string) {
 }
 
 // Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
-func (c *Publisher) Type() handler.HandlerType {
-	return handler.PublisherType
+func (c *Publisher) Type() HandlerType {
+	return PublisherType
 }
 
 // Route adds a route along with its handler to this handler.
-func (c *Publisher) Route(_ string, _ handler.HandleFunc) error {
+func (c *Publisher) Route(_ string, _ HandleFunc) error {
 	return fmt.Errorf("publisher doesn't support routing")
 }
 
@@ -92,7 +90,7 @@ func (c *Publisher) Start() error {
 
 	c.setControlRoutes()
 
-	if c.Control.Status() != handler.SocketReady {
+	if c.Control.Status() != SocketReady {
 		if err := c.Control.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
@@ -106,16 +104,16 @@ func (c *Publisher) Start() error {
 }
 
 func (c *Publisher) setControlRoutes() {
-	c.Control.Route(handler.HandlerConfig, c.onControlConfig)
-	c.Control.Route(handler.HandlerStart, c.onControlStart)
-	c.Control.Route(handler.HandlerClose, c.onControlClose)
+	c.Control.Route(HandlerConfig, c.onControlConfig)
+	c.Control.Route(HandlerStart, c.onControlStart)
+	c.Control.Route(HandlerClose, c.onControlClose)
 	c.Control.Route(Broadcast, c.onBroadcast)
 	c.Control.Route(MessageAmount, c.onMessageAmount)
 }
 
 func (c *Publisher) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	c.stopBroadcaster()
-	_ = autocontext.RemoveHandler(c.Endpoint().HandlerUrl(), c.npacSecret)
+	_ = c.npacRemoveHandler(c.Endpoint().HandlerUrl())
 	return req.Ok(datatype.New())
 }
 
@@ -124,7 +122,7 @@ func (c *Publisher) onControlConfig(req message.RequestInterface) message.ReplyI
 }
 
 func (c *Publisher) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Control.Status() == handler.SocketReady {
+	if c.Control.Status() == SocketReady {
 		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
 	}
 	if err := c.startBroadcaster(); err != nil {
@@ -177,7 +175,7 @@ func (c *Publisher) startBroadcaster() error {
 		c.socket = socket
 		c.Control.SetSocketReady()
 
-		_ = autocontext.AddHandler(pubUrl, pubKey, c.npacSecret)
+		_ = c.npacRegisterHandler(pubUrl, pubKey)
 
 		ready <- nil
 

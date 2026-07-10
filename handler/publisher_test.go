@@ -1,4 +1,4 @@
-package publisher
+package handler
 
 import (
 	"testing"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -31,19 +30,19 @@ func (test *TestPublisherSuite) SetupTest() {
 	test.Suite.Require().NoError(err, "failed to create logger")
 	test.logger = logger
 
-	test.pub = New()
+	test.pub = NewPublisher()
 
 	test.config = message.NewEndpoint("test", 0)
 
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
 	test.pub.SetEndpoint(test.config)
-	s.Require().Equal(handler.PublisherType, test.pub.Type())
+	s.Require().Equal(PublisherType, test.pub.Type())
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := handler.NewInternalControlEndpoint(test.config)
+	managerConfig := NewInternalControlEndpoint(test.config)
 	s.Require().NoError(test.managerClient.Connect(managerConfig.ClientUrl()))
 
 	go test.subscribe()
@@ -201,17 +200,17 @@ func (test *TestPublisherSuite) Test_10_Start() {
 
 	time.Sleep(time.Millisecond * 100)
 
-	statusReply := test.req(message.Request{Command: handler.HandlerStatus, Parameters: datatype.New()})
+	statusReply := test.req(message.Request{Command: HandlerStatus, Parameters: datatype.New()})
 	s.Require().True(statusReply.IsOK())
 	status, err := statusReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(handler.SocketReady, status)
+	s.Require().Equal(SocketReady, status)
 
 	test.sendNumberedBroadcasts(0, 10)
 	test.receiveNumbers(0, 10)
 	test.requireMessageAmount(0)
 
-	closeReply := test.req(message.Request{Command: handler.HandlerClose, Parameters: datatype.New()})
+	closeReply := test.req(message.Request{Command: HandlerClose, Parameters: datatype.New()})
 	s.Require().True(closeReply.IsOK())
 
 	test.sendNumberedBroadcasts(10, 10)
@@ -219,13 +218,13 @@ func (test *TestPublisherSuite) Test_10_Start() {
 
 	test.restartSubscriber()
 
-	startReply := test.req(message.Request{Command: handler.HandlerStart, Parameters: datatype.New()})
+	startReply := test.req(message.Request{Command: HandlerStart, Parameters: datatype.New()})
 	s.Require().True(startReply.IsOK())
 
 	test.receiveNumbers(10, 10)
 	test.requireMessageAmount(0)
 
-	closeReply = test.req(message.Request{Command: handler.HandlerClose, Parameters: datatype.New()})
+	closeReply = test.req(message.Request{Command: HandlerClose, Parameters: datatype.New()})
 	s.Require().True(closeReply.IsOK())
 }
 

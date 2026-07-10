@@ -11,11 +11,7 @@ import (
 	creplier "github.com/noPerfection/protocol/client/replier"
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	cworker "github.com/noPerfection/protocol/client/worker"
-	hpair "github.com/noPerfection/protocol/handler/pair"
-	hpublisher "github.com/noPerfection/protocol/handler/publisher"
-	hreplier "github.com/noPerfection/protocol/handler/replier"
-	hsyncreplier "github.com/noPerfection/protocol/handler/sync_replier"
-	hworker "github.com/noPerfection/protocol/handler/worker"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +27,7 @@ func TestClientHandlerPairs(t *testing.T) {
 func testSyncReplierClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "sync")
-	svc := hsyncreplier.New()
+	svc := handler.NewSyncReplier()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
@@ -52,7 +48,7 @@ func testSyncReplierClientHandler(t *testing.T) {
 func testReplierClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "replier")
-	svc := hreplier.New()
+	svc := handler.NewReplier()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
@@ -75,7 +71,7 @@ func testWorkerClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "worker")
 	handled := make(chan string, 1)
-	svc := hworker.New()
+	svc := handler.NewWorker()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("work", func(request message.RequestInterface) message.ReplyInterface {
 		value, err := request.RouteParameters().StringValue("value")
@@ -106,7 +102,7 @@ func testWorkerClientHandler(t *testing.T) {
 func testPairClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "pair")
-	svc := hpair.New()
+	svc := handler.NewPair()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
@@ -129,7 +125,7 @@ func testPairClientHandler(t *testing.T) {
 func testPublisherClientHandler(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "publisher")
-	svc := hpublisher.New()
+	svc := handler.NewPublisher()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Start())
 

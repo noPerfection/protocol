@@ -1,4 +1,4 @@
-package worker
+package handler
 
 import (
 	"fmt"
@@ -9,18 +9,17 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/require"
 )
 
-func TestStressTest(t *testing.T) {
+func TestWorkerStressTest(t *testing.T) {
 	const clientAmount = 1000
 
 	processed := make(chan string, clientAmount)
 
-	worker := New()
+	worker := NewWorker()
 	err := worker.Route("db_request", func(request message.RequestInterface) message.ReplyInterface {
 		time.Sleep(time.Millisecond * time.Duration(50+rand.Intn(51)))
 		clientID, err := request.RouteParameters().StringValue("client_id")
@@ -46,7 +45,7 @@ func TestStressTest(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = managerClient.Close() }()
 
-	managerConfig := handler.NewInternalControlEndpoint(handlerConfig)
+	managerConfig := NewInternalControlEndpoint(handlerConfig)
 	require.NoError(t, managerClient.Connect(managerConfig.ClientUrl()))
 
 	clients := make([]*zmq.Socket, clientAmount)
@@ -107,7 +106,7 @@ func TestStressTest(t *testing.T) {
 	require.Len(t, seen, clientAmount)
 	require.Less(t, time.Since(startedAt), 3*time.Second)
 
-	controlReq := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
+	controlReq := message.Request{Command: HandlerClose, Parameters: datatype.New()}
 	packger := &message.MessagePacker{}
 	envelope, err := packger.SerializeRequest(&controlReq)
 	require.NoError(t, err)

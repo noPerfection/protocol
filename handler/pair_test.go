@@ -1,4 +1,4 @@
-package pair
+package handler
 
 import (
 	"strings"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 
@@ -38,7 +37,7 @@ func (test *TestPairSuite) SetupTest() {
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
 	test.externalConfig = message.NewEndpoint(testID, 0)
 	test.pairConfig = message.NewEndpoint(testID+"_pair", 0)
-	test.pair = New()
+	test.pair = NewPair()
 
 	s.Require().NoError(test.pair.SetLogger(test.logger))
 	test.pair.SetEndpoint(test.pairConfig)
@@ -49,14 +48,14 @@ func (test *TestPairSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := handler.NewInternalControlEndpoint(test.pairConfig)
+	managerConfig := NewInternalControlEndpoint(test.pairConfig)
 	s.Require().NoError(test.managerClient.Connect(managerConfig.ClientUrl()))
 }
 
 func (test *TestPairSuite) TearDownTest() {
 	if test.managerClient != nil {
-		if test.pair != nil && test.pair.Control.Status() == handler.SocketReady {
-			reply := test.req(message.Request{Command: handler.HandlerClose, Parameters: datatype.New()})
+		if test.pair != nil && test.pair.Control.Status() == SocketReady {
+			reply := test.req(message.Request{Command: HandlerClose, Parameters: datatype.New()})
 			test.Require().True(reply.IsOK())
 		}
 		test.Require().NoError(test.managerClient.Close())
@@ -134,7 +133,7 @@ func (test *TestPairSuite) requireMessageAmount(expected uint64) {
 func (test *TestPairSuite) handlerStatus() string {
 	s := &test.Suite
 
-	reply := test.req(message.Request{Command: handler.HandlerStatus, Parameters: datatype.New()})
+	reply := test.req(message.Request{Command: HandlerStatus, Parameters: datatype.New()})
 	s.Require().True(reply.IsOK())
 
 	status, err := reply.ReplyParameters().StringValue("status")
@@ -211,7 +210,7 @@ func (test *TestPairSuite) Test_10_StartReceivesAndBroadcasts() {
 
 	err := test.pair.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(handler.SocketReady, test.pair.Control.Status())
+	s.Require().Equal(SocketReady, test.pair.Control.Status())
 
 	test.newExternalClient()
 	time.Sleep(time.Millisecond * 50)
@@ -252,19 +251,19 @@ func (test *TestPairSuite) Test_11_ControlLifecycle() {
 
 	err := test.pair.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(handler.SocketReady, test.handlerStatus())
+	s.Require().Equal(SocketReady, test.handlerStatus())
 
-	closeReply := test.req(message.Request{Command: handler.HandlerClose, Parameters: datatype.New()})
+	closeReply := test.req(message.Request{Command: HandlerClose, Parameters: datatype.New()})
 	s.Require().True(closeReply.IsOK())
 	time.Sleep(time.Millisecond * 150)
-	s.Require().Equal(handler.SocketNil, test.handlerStatus())
+	s.Require().Equal(SocketNil, test.handlerStatus())
 
-	startReply := test.req(message.Request{Command: handler.HandlerStart, Parameters: datatype.New()})
+	startReply := test.req(message.Request{Command: HandlerStart, Parameters: datatype.New()})
 	s.Require().True(startReply.IsOK())
 	status, err := startReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
-	s.Require().Equal(handler.SocketReady, status)
-	s.Require().Equal(handler.SocketReady, test.handlerStatus())
+	s.Require().Equal(SocketReady, status)
+	s.Require().Equal(SocketReady, test.handlerStatus())
 
 	test.newExternalClient()
 	time.Sleep(time.Millisecond * 50)

@@ -8,9 +8,7 @@ import (
 	cpair "github.com/noPerfection/protocol/client/pair"
 	cpublisher "github.com/noPerfection/protocol/client/publisher"
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
-	"github.com/noPerfection/protocol/handler/base"
-	hpair "github.com/noPerfection/protocol/handler/pair"
-	hsyncreplier "github.com/noPerfection/protocol/handler/sync_replier"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +25,7 @@ func TestProtocolEdgeCases(t *testing.T) {
 func testWrongCommand(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "wrong-command")
-	svc := hsyncreplier.New()
+	svc := handler.NewSyncReplier()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("known", echoRoute))
 	req.NoError(svc.Start())
@@ -50,7 +48,7 @@ func testWrongCommand(t *testing.T) {
 func testWrongParameters(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "wrong-parameters")
-	svc := hsyncreplier.New()
+	svc := handler.NewSyncReplier()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("needs-required", func(request message.RequestInterface) message.ReplyInterface {
 		value, err := request.RouteParameters().StringValue("required")
@@ -127,7 +125,7 @@ func testReceiveClosesWhenPublisherIdle(t *testing.T) {
 func testSendAfterHandlerStoppedDoesNotDeliver(t *testing.T) {
 	req := require.New(t)
 	id := testID(t, "stopped-pair")
-	svc := hpair.New()
+	svc := handler.NewPair()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
@@ -143,7 +141,7 @@ func testSendAfterHandlerStoppedDoesNotDeliver(t *testing.T) {
 	replies := client.Receive()
 
 	req.NoError(control.HandlerClose())
-	waitForStatus(t, control, base.SocketNil)
+	waitForStatus(t, control, handler.SocketNil)
 
 	_ = client.Send(newRequest("echo", "value"))
 	select {

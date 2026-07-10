@@ -11,11 +11,6 @@ import (
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	cworker "github.com/noPerfection/protocol/client/worker"
 	"github.com/noPerfection/protocol/handler"
-	hpair "github.com/noPerfection/protocol/handler/pair"
-	hpublisher "github.com/noPerfection/protocol/handler/publisher"
-	hreplier "github.com/noPerfection/protocol/handler/replier"
-	hsyncreplier "github.com/noPerfection/protocol/handler/sync_replier"
-	hworker "github.com/noPerfection/protocol/handler/worker"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +25,7 @@ type controlClient interface {
 
 func TestHandlerControls(t *testing.T) {
 	t.Run("sync replier control", func(t *testing.T) {
-		svc := hsyncreplier.New()
+		svc := handler.NewSyncReplier()
 		endpoint := message.NewEndpoint(testID(t, "sync-control"), 0)
 		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Route("echo", echoRoute))
@@ -41,7 +36,7 @@ func TestHandlerControls(t *testing.T) {
 	})
 
 	t.Run("replier control", func(t *testing.T) {
-		svc := hreplier.New()
+		svc := handler.NewReplier()
 		endpoint := message.NewEndpoint(testID(t, "replier-control"), 0)
 		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Route("echo", echoRoute))
@@ -52,7 +47,7 @@ func TestHandlerControls(t *testing.T) {
 	})
 
 	t.Run("worker control", func(t *testing.T) {
-		svc := hworker.New()
+		svc := handler.NewWorker()
 		endpoint := message.NewEndpoint(testID(t, "worker-control"), 0)
 		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Route("work", func(request message.RequestInterface) message.ReplyInterface {
@@ -65,7 +60,7 @@ func TestHandlerControls(t *testing.T) {
 	})
 
 	t.Run("pair control", func(t *testing.T) {
-		svc := hpair.New()
+		svc := handler.NewPair()
 		endpoint := message.NewEndpoint(testID(t, "pair-control"), 0)
 		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Route("echo", echoRoute))
@@ -76,7 +71,7 @@ func TestHandlerControls(t *testing.T) {
 	})
 
 	t.Run("publisher control", func(t *testing.T) {
-		svc := hpublisher.New()
+		svc := handler.NewPublisher()
 		endpoint := message.NewEndpoint(testID(t, "publisher-control"), 0)
 		svc.SetEndpoint(endpoint)
 		require.NoError(t, svc.Start())

@@ -1,9 +1,4 @@
-// Package autocontext is the handler-side half of the noPerfection AutoContext (npac).
-// Handlers call these functions to register their CURVE public key and HMAC secrets
-// with the in-process npac handler so that clients can discover them automatically.
-//
-// All functions silently succeed (return nil) if npac is not running.
-package autocontext
+package handler
 
 import (
 	"fmt"
@@ -21,11 +16,21 @@ const (
 	NpacTimeout = 50 * time.Millisecond
 )
 
-// rawRequest sends a single request to npac using a fresh REQ socket and returns
+type Autocontext struct {
+	npacSecret string
+}
+
+func NewAutocontext() *Autocontext {
+	return &Autocontext{
+		npacSecret: GenerateSecret(),
+	}
+}
+
+// npacRawRequest sends a single request to npac using a fresh REQ socket and returns
 // the raw reply. Transport or serialisation errors are returned directly; the
 // caller is responsible for checking reply.IsOK().
 // An optional HMAC signature may be appended to the envelope.
-func rawRequest(req message.RequestInterface, hmac ...string) (message.ReplyInterface, error) {
+func npacRawRequest(req message.RequestInterface, hmac ...string) (message.ReplyInterface, error) {
 	sock, err := zmq.NewSocket(zmq.REQ)
 	if err != nil {
 		return nil, fmt.Errorf("autocontext: zmq.NewSocket: %w", err)
@@ -70,17 +75,17 @@ func rawRequest(req message.RequestInterface, hmac ...string) (message.ReplyInte
 	return reply, nil
 }
 
-// AddHandler registers a handler's URL and CURVE public key with npac.
+// npacRegisterHandler registers a handler's URL and CURVE public key with npac.
 // The handler's npacSecret is passed as a plain parameter; npac stores it and
 // uses it to authenticate future add-route / remove-route calls from this handler.
 // If the URL is already registered with a different secret, npac rejects the call.
-func AddHandler(url, pubKey, npacSecret string) error {
-	reply, err := rawRequest(&message.Request{
+func (c *Autocontext) npacRegisterHandler(url, pubKey string) error {
+	reply, err := npacRawRequest(&message.Request{
 		Command: "add-handler",
 		Parameters: datatype.New().
 			Set("url", url).
 			Set("public-key", pubKey).
-			Set("secret", npacSecret),
+			Set("secret", c.npacSecret),
 	})
 	if err != nil {
 		return err
@@ -91,9 +96,9 @@ func AddHandler(url, pubKey, npacSecret string) error {
 	return nil
 }
 
-// AddRoute registers an HMAC secret for a handler URL and command with npac.
+// npacPushHandleContext registers an HMAC secret for a handler URL and command with npac.
 // The request is HMAC-signed with npacSecret so npac can authenticate it.
-func AddRoute(url, cmd, routeSecret, npacSecret string) error {
+func (c *Autocontext) npacPushHandleContext(url, cmd, routeSecret string) error {
 	req := &message.Request{
 		Command: "add-route",
 		Parameters: datatype.New().
@@ -101,8 +106,8 @@ func AddRoute(url, cmd, routeSecret, npacSecret string) error {
 			Set("command", cmd).
 			Set("secret", routeSecret),
 	}
-	hmac := message.ComputeHMAC(req.String(), npacSecret)
-	reply, err := rawRequest(req, hmac)
+	hmac := message.ComputeHMAC(req.String(), c.npacSecret)
+	reply, err := npacRawRequest(req, hmac)
 	if err != nil {
 		return err
 	}
@@ -112,15 +117,15 @@ func AddRoute(url, cmd, routeSecret, npacSecret string) error {
 	return nil
 }
 
-// RemoveHandler removes a handler's registration from npac.
+// npacRemoveHandler removes a handler's registration from npac.
 // The request is HMAC-signed with npacSecret so npac can authenticate it.
-func RemoveHandler(url, npacSecret string) error {
+func (c *Autocontext) npacRemoveHandler(url string) error {
 	req := &message.Request{
 		Command:    "remove-handler",
 		Parameters: datatype.New().Set("url", url),
 	}
-	hmac := message.ComputeHMAC(req.String(), npacSecret)
-	reply, err := rawRequest(req, hmac)
+	hmac := message.ComputeHMAC(req.String(), c.npacSecret)
+	reply, err := npacRawRequest(req, hmac)
 	if err != nil {
 		return err
 	}
@@ -130,17 +135,17 @@ func RemoveHandler(url, npacSecret string) error {
 	return nil
 }
 
-// RemoveRoute removes an HMAC secret registration for a handler URL and command.
+// popHandleContext removes an HMAC secret registration for a handler URL and command.
 // The request is HMAC-signed with npacSecret so npac can authenticate it.
-func RemoveRoute(url, cmd, npacSecret string) error {
+func (c *Autocontext) popHandleContext(url, cmd string) error {
 	req := &message.Request{
 		Command: "remove-route",
 		Parameters: datatype.New().
 			Set("url", url).
 			Set("command", cmd),
 	}
-	hmac := message.ComputeHMAC(req.String(), npacSecret)
-	reply, err := rawRequest(req, hmac)
+	hmac := message.ComputeHMAC(req.String(), c.npacSecret)
+	reply, err := npacRawRequest(req, hmac)
 	if err != nil {
 		return err
 	}

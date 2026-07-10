@@ -6,7 +6,7 @@ import (
 
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	"github.com/noPerfection/protocol/handler/npac"
-	hsyncreplier "github.com/noPerfection/protocol/handler/sync_replier"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/require"
 )
@@ -96,12 +96,12 @@ func testHMACMatchingSecretSucceeds(t *testing.T) {
 	assertEchoReply(t, reply, cmd, "signed-value")
 }
 
-func startWhitelistedSyncReplier(t *testing.T, cmd, secret string) (string, *hsyncreplier.SyncReplier, *csyncreplier.Control) {
+func startWhitelistedSyncReplier(t *testing.T, cmd, secret string) (string, *handler.SyncReplier, *csyncreplier.Control) {
 	t.Helper()
 	req := require.New(t)
 
 	id := testID(t, "hmac")
-	svc := hsyncreplier.New()
+	svc := handler.NewSyncReplier()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
 	req.NoError(svc.Whitelist(cmd, secret))
 	req.NoError(svc.Route(cmd, echoRoute))

@@ -138,9 +138,9 @@ func (m *Control) Start() error {
 
 			cmd := req.CommandName()
 			matchedSecret := ""
-			if m.RequiresWhitelist(cmd) {
+			if m.IsWhitelistExist(cmd) {
 				var ok bool
-				matchedSecret, ok = m.MatchRequestSecret(req, hmacHash)
+				matchedSecret, ok = m.getRequestSecret(req, hmacHash)
 				if !ok {
 					m.sendControlReply(socket, req, m.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
 					continue
@@ -168,7 +168,7 @@ func (m *Control) Start() error {
 
 func (m *Control) sendControlReply(socket *zmq.Socket, req message.RequestInterface, reply message.ReplyInterface, cmd, matchedSecret string) {
 	var hmac string
-	if m.RequiresWhitelist(cmd) && matchedSecret != "" {
+	if m.IsWhitelistExist(cmd) && matchedSecret != "" {
 		hmac = message.ComputeHMAC(reply.String(), matchedSecret)
 	}
 	replyStr, err := m.Packer().SerializeReply(reply, hmac)
