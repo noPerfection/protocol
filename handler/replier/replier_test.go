@@ -8,7 +8,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler"
-	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -63,7 +62,7 @@ func (test *TestReplierSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.NewInternalControlEndpoint(test.handlerConfig)
+	managerConfig := handler.NewInternalControlEndpoint(test.handlerConfig)
 	managerUrl := managerConfig.ClientUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
@@ -129,7 +128,7 @@ func (test *TestReplierSuite) externalReq(client *zmq.Socket, request message.Re
 func (test *TestReplierSuite) handlerStatus() string {
 	s := &test.Suite
 
-	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
+	req := message.Request{Command: handler.HandlerStatus, Parameters: datatype.New()}
 	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -172,7 +171,7 @@ func (test *TestReplierSuite) Test_10_StartHandlesRequests() {
 	s.Require().Equal("command_1", id)
 
 	// Close the handler
-	req.Command = control.HandlerClose
+	req.Command = handler.HandlerClose
 	reply = test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -191,7 +190,7 @@ func (test *TestReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().NoError(err)
 	s.Require().True(reply.IsOK())
 
-	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	controlReply := test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	time.Sleep(time.Millisecond * 150) // run loop processes close asynchronously
@@ -203,7 +202,7 @@ func (test *TestReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().Nil(reply)
 	s.Require().Equal(handler.SocketNil, test.handlerStatus())
 
-	controlReq = message.Request{Command: control.HandlerStart, Parameters: datatype.New()}
+	controlReq = message.Request{Command: handler.HandlerStart, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	status, err := controlReply.ReplyParameters().StringValue("status")
@@ -219,7 +218,7 @@ func (test *TestReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().NoError(err)
 	s.Require().True(reply.IsOK())
 
-	controlReq = message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq = message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 
@@ -265,7 +264,7 @@ func (test *TestReplierSuite) Test_12_HandlesMultipleRouterClients() {
 		s.Require().Equal(result.command, id)
 	}
 
-	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	controlReply := test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 

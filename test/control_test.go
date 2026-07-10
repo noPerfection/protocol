@@ -10,8 +10,7 @@ import (
 	creplier "github.com/noPerfection/protocol/client/replier"
 	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
 	cworker "github.com/noPerfection/protocol/client/worker"
-	"github.com/noPerfection/protocol/handler/base"
-	hcontrol "github.com/noPerfection/protocol/handler/control"
+	"github.com/noPerfection/protocol/handler"
 	hpair "github.com/noPerfection/protocol/handler/pair"
 	hpublisher "github.com/noPerfection/protocol/handler/publisher"
 	hreplier "github.com/noPerfection/protocol/handler/replier"
@@ -93,7 +92,7 @@ func assertControlLifecycle(t *testing.T, control controlClient, endpoint messag
 
 	status, err := control.HandlerStatus()
 	req.NoError(err)
-	req.Equal(base.SocketReady, status)
+	req.Equal(handler.SocketReady, status)
 
 	handlerConfig, err := control.HandlerConfig()
 	req.NoError(err)
@@ -101,15 +100,15 @@ func assertControlLifecycle(t *testing.T, control controlClient, endpoint messag
 	req.Equal(endpoint.Port, handlerConfig.Port)
 
 	req.NoError(control.HandlerClose())
-	waitForStatus(t, control, base.SocketNil)
+	waitForStatus(t, control, handler.SocketNil)
 
 	status, err = control.StartHandler()
 	req.NoError(err)
-	req.Equal(base.SocketReady, status)
-	waitForStatus(t, control, base.SocketReady)
+	req.Equal(handler.SocketReady, status)
+	waitForStatus(t, control, handler.SocketReady)
 
 	req.NoError(control.HandlerClose())
-	waitForStatus(t, control, base.SocketNil)
+	waitForStatus(t, control, handler.SocketNil)
 }
 
 func waitForStatus(t *testing.T, control controlClient, expected string) {
@@ -177,5 +176,5 @@ func newPublisherControl(t *testing.T, id string) *cpublisher.Control {
 }
 
 func controlID(id string, port uint64) string {
-	return hcontrol.NewInternalControlEndpoint(message.NewEndpoint(id, port)).Id
+	return handler.NewInternalControlEndpoint(message.NewEndpoint(id, port)).Id
 }

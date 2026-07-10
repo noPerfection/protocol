@@ -7,7 +7,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler"
-	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -44,7 +43,7 @@ func (test *TestPublisherSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.NewInternalControlEndpoint(test.config)
+	managerConfig := handler.NewInternalControlEndpoint(test.config)
 	s.Require().NoError(test.managerClient.Connect(managerConfig.ClientUrl()))
 
 	go test.subscribe()
@@ -202,7 +201,7 @@ func (test *TestPublisherSuite) Test_10_Start() {
 
 	time.Sleep(time.Millisecond * 100)
 
-	statusReply := test.req(message.Request{Command: control.HandlerStatus, Parameters: datatype.New()})
+	statusReply := test.req(message.Request{Command: handler.HandlerStatus, Parameters: datatype.New()})
 	s.Require().True(statusReply.IsOK())
 	status, err := statusReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)
@@ -212,7 +211,7 @@ func (test *TestPublisherSuite) Test_10_Start() {
 	test.receiveNumbers(0, 10)
 	test.requireMessageAmount(0)
 
-	closeReply := test.req(message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
+	closeReply := test.req(message.Request{Command: handler.HandlerClose, Parameters: datatype.New()})
 	s.Require().True(closeReply.IsOK())
 
 	test.sendNumberedBroadcasts(10, 10)
@@ -220,13 +219,13 @@ func (test *TestPublisherSuite) Test_10_Start() {
 
 	test.restartSubscriber()
 
-	startReply := test.req(message.Request{Command: control.HandlerStart, Parameters: datatype.New()})
+	startReply := test.req(message.Request{Command: handler.HandlerStart, Parameters: datatype.New()})
 	s.Require().True(startReply.IsOK())
 
 	test.receiveNumbers(10, 10)
 	test.requireMessageAmount(0)
 
-	closeReply = test.req(message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
+	closeReply = test.req(message.Request{Command: handler.HandlerClose, Parameters: datatype.New()})
 	s.Require().True(closeReply.IsOK())
 }
 

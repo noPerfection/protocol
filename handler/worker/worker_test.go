@@ -8,7 +8,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler"
-	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -78,7 +77,7 @@ func (test *TestWorkerSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.NewInternalControlEndpoint(test.handlerConfig)
+	managerConfig := handler.NewInternalControlEndpoint(test.handlerConfig)
 	managerUrl := managerConfig.ClientUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
@@ -157,7 +156,7 @@ func (test *TestWorkerSuite) Test_10_StartHandlesSubmittedMessages() {
 	time.Sleep(time.Millisecond * 100)
 
 	// Make sure that everything works
-	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
+	req := message.Request{Command: handler.HandlerStatus, Parameters: datatype.New()}
 	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -179,7 +178,7 @@ func (test *TestWorkerSuite) Test_10_StartHandlesSubmittedMessages() {
 	s.Require().Equal(cmd1Id, test.cmd1Result)
 
 	// Close the handler
-	req.Command = control.HandlerClose
+	req.Command = handler.HandlerClose
 	reply = test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -206,13 +205,13 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(cmd1Id, test.cmd1Result)
 
-	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	controlReply := test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	time.Sleep(time.Millisecond * 150)
 	s.Require().Equal(handler.SocketNil, test.worker.Control.Status())
 
-	controlReq = message.Request{Command: control.HandlerStart, Parameters: datatype.New()}
+	controlReq = message.Request{Command: handler.HandlerStart, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	status, err := controlReply.ReplyParameters().StringValue("status")
@@ -232,7 +231,7 @@ func (test *TestWorkerSuite) Test_11_ControlLifecycle() {
 	time.Sleep(time.Millisecond * 100)
 	s.Require().Equal(cmd2Id, test.cmd2Result)
 
-	controlReq = message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq = message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 

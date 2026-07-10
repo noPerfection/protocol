@@ -8,7 +8,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler"
-	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/suite"
@@ -66,7 +65,7 @@ func (test *TestSyncReplierSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.NewInternalControlEndpoint(test.handlerConfig)
+	managerConfig := handler.NewInternalControlEndpoint(test.handlerConfig)
 	managerUrl := managerConfig.ClientUrl()
 	err = test.managerClient.Connect(managerUrl)
 	s.Require().NoError(err)
@@ -135,7 +134,7 @@ func (test *TestSyncReplierSuite) externalReq(client *zmq.Socket, request messag
 func (test *TestSyncReplierSuite) handlerStatus() string {
 	s := &test.Suite
 
-	req := message.Request{Command: control.HandlerStatus, Parameters: datatype.New()}
+	req := message.Request{Command: handler.HandlerStatus, Parameters: datatype.New()}
 	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -205,7 +204,7 @@ func (test *TestSyncReplierSuite) Test_10_StartHandlesOneRequestAtATime() {
 	s.Require().GreaterOrEqual(time.Since(startedAt), time.Millisecond*280)
 
 	// Close the handler
-	req := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	req := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	reply := test.req(test.managerClient, req)
 	s.Require().True(reply.IsOK())
 
@@ -225,7 +224,7 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().NoError(err)
 	s.Require().True(reply.IsOK())
 
-	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	controlReply := test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	time.Sleep(time.Millisecond * 150) // run loop processes close asynchronously
@@ -237,7 +236,7 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().Nil(reply)
 	s.Require().Equal(handler.SocketNil, test.handlerStatus())
 
-	controlReq = message.Request{Command: control.HandlerStart, Parameters: datatype.New()}
+	controlReq = message.Request{Command: handler.HandlerStart, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 	status, err := controlReply.ReplyParameters().StringValue("status")
@@ -253,7 +252,7 @@ func (test *TestSyncReplierSuite) Test_11_ControlLifecycle() {
 	s.Require().NoError(err)
 	s.Require().True(reply.IsOK())
 
-	controlReq = message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq = message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	controlReply = test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 
@@ -301,7 +300,7 @@ func (test *TestSyncReplierSuite) Test_13_WhitelistHMAC() {
 	s.Require().NotEmpty(replyHmac)
 	s.Require().True(message.VerifyHMAC(signedReply.String(), secret, replyHmac))
 
-	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	controlReply := test.req(test.managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 }
@@ -323,10 +322,10 @@ func (test *TestSyncReplierSuite) Test_12_StartWithoutLogger() {
 	s.Require().NoError(err)
 	defer func() { _ = managerClient.Close() }()
 
-	managerConfig := control.NewInternalControlEndpoint(handlerConfig)
+	managerConfig := handler.NewInternalControlEndpoint(handlerConfig)
 	s.Require().NoError(managerClient.Connect(managerConfig.ClientUrl()))
 
-	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	controlReply := test.req(managerClient, controlReq)
 	s.Require().True(controlReply.IsOK())
 }

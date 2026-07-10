@@ -1,5 +1,4 @@
-// Package control creates a socket that controls the handler.
-package control
+package handler
 
 import (
 	"fmt"
@@ -7,7 +6,6 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -20,20 +18,20 @@ const (
 	ControlCategory = "control"
 )
 
-// Manager is the control ROUTER socket for a handler.
-type Manager struct {
-	*handler.Handler
+// Control is the control REP socket for a handler.
+type Control struct {
+	*Handler
 	socket *zmq.Socket
 	status string
 }
 
-var _ handler.Interface = (*Manager)(nil)
+var _ Interface = (*Control)(nil)
 
-// New creates a control handler.
-func New(parent ...*log.Logger) *Manager {
-	return &Manager{
-		Handler: handler.New(parent...),
-		status:  handler.SocketNil,
+// NewControl creates a control handler.
+func NewControl(parent ...*log.Logger) *Control {
+	return &Control{
+		Handler: New(parent...),
+		status:  SocketNil,
 	}
 }
 
@@ -46,44 +44,44 @@ func NewInternalControlEndpoint(handlerEndpoint message.Endpoint) message.Endpoi
 	return handlerEndpoint
 }
 
-// Converts the handler endpoint into a control endpoint and stores it.
-func (m *Manager) SetEndpoint(handlerEndpoint message.Endpoint) {
+// SetEndpoint converts the handler endpoint into a control endpoint and stores it.
+func (m *Control) SetEndpoint(handlerEndpoint message.Endpoint) {
 	m.Handler.SetEndpoint(NewInternalControlEndpoint(handlerEndpoint))
 }
 
 // Secure is a no-op; control sockets are inproc and do not use CURVE.
-func (m *Manager) Secure(_ string) {}
+func (m *Control) Secure(_ string) {}
 
 // Allow is a no-op; control sockets are inproc and do not use CURVE client allowlists.
-func (m *Manager) Allow(_ string) {}
+func (m *Control) Allow(_ string) {}
 
-func (m *Manager) Status() string {
+func (m *Control) Status() string {
 	return m.status
 }
 
 // Running returns true while the handler socket is ready to serve.
-func (m *Manager) Running() bool {
-	return m.status == handler.SocketReady
+func (m *Control) Running() bool {
+	return m.status == SocketReady
 }
 
-func (m *Manager) SetSocketIdle() {
-	m.status = handler.SocketIdle
+func (m *Control) SetSocketIdle() {
+	m.status = SocketIdle
 }
 
-func (m *Manager) SetSocketReady() {
-	m.status = handler.SocketReady
+func (m *Control) SetSocketReady() {
+	m.status = SocketReady
 }
 
-func (m *Manager) SetSocketNil() {
-	m.status = handler.SocketNil
+func (m *Control) SetSocketNil() {
+	m.status = SocketNil
 }
 
-func (m *Manager) onBuiltinStatus(req message.RequestInterface) message.ReplyInterface {
+func (m *Control) onBuiltinStatus(req message.RequestInterface) message.ReplyInterface {
 	return req.Ok(datatype.New().Set("status", m.Status()))
 }
 
-// Start binds the control ROUTER socket and serves registered routes.
-func (m *Manager) Start() error {
+// Start binds the control REP socket and serves registered routes.
+func (m *Control) Start() error {
 	if m.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("no config")
 	}
@@ -144,31 +142,31 @@ func (m *Manager) Start() error {
 				var ok bool
 				matchedSecret, ok = m.MatchRequestSecret(req, hmacHash)
 				if !ok {
-					m.sendReply(socket, req, m.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
+					m.sendControlReply(socket, req, m.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
 					continue
 				}
 			}
 
 			handleFunc, err := m.GetHandleFunc(cmd)
 			if err != nil {
-				m.sendReply(socket, req, req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
+				m.sendControlReply(socket, req, req.Fail(fmt.Sprintf("GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 				continue
 			}
 
-			m.sendReply(socket, req, handleFunc(req), cmd, matchedSecret)
+			m.sendControlReply(socket, req, handleFunc(req), cmd, matchedSecret)
 		}
 
 		if err := socket.Close(); err != nil {
 			m.LogError("socket.Close", "error", err)
 		}
 		m.socket = nil
-		m.status = handler.SocketNil
+		m.status = SocketNil
 	}(ready)
 
 	return <-ready
 }
 
-func (m *Manager) sendReply(socket *zmq.Socket, req message.RequestInterface, reply message.ReplyInterface, cmd, matchedSecret string) {
+func (m *Control) sendControlReply(socket *zmq.Socket, req message.RequestInterface, reply message.ReplyInterface, cmd, matchedSecret string) {
 	var hmac string
 	if m.RequiresWhitelist(cmd) && matchedSecret != "" {
 		hmac = message.ComputeHMAC(reply.String(), matchedSecret)

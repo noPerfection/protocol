@@ -8,7 +8,6 @@ import (
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler"
-	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 
@@ -50,14 +49,14 @@ func (test *TestPairSuite) SetupTest() {
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
 	s.Require().NoError(err)
-	managerConfig := control.NewInternalControlEndpoint(test.pairConfig)
+	managerConfig := handler.NewInternalControlEndpoint(test.pairConfig)
 	s.Require().NoError(test.managerClient.Connect(managerConfig.ClientUrl()))
 }
 
 func (test *TestPairSuite) TearDownTest() {
 	if test.managerClient != nil {
 		if test.pair != nil && test.pair.Control.Status() == handler.SocketReady {
-			reply := test.req(message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
+			reply := test.req(message.Request{Command: handler.HandlerClose, Parameters: datatype.New()})
 			test.Require().True(reply.IsOK())
 		}
 		test.Require().NoError(test.managerClient.Close())
@@ -135,7 +134,7 @@ func (test *TestPairSuite) requireMessageAmount(expected uint64) {
 func (test *TestPairSuite) handlerStatus() string {
 	s := &test.Suite
 
-	reply := test.req(message.Request{Command: control.HandlerStatus, Parameters: datatype.New()})
+	reply := test.req(message.Request{Command: handler.HandlerStatus, Parameters: datatype.New()})
 	s.Require().True(reply.IsOK())
 
 	status, err := reply.ReplyParameters().StringValue("status")
@@ -255,12 +254,12 @@ func (test *TestPairSuite) Test_11_ControlLifecycle() {
 	s.Require().NoError(err)
 	s.Require().Equal(handler.SocketReady, test.handlerStatus())
 
-	closeReply := test.req(message.Request{Command: control.HandlerClose, Parameters: datatype.New()})
+	closeReply := test.req(message.Request{Command: handler.HandlerClose, Parameters: datatype.New()})
 	s.Require().True(closeReply.IsOK())
 	time.Sleep(time.Millisecond * 150)
 	s.Require().Equal(handler.SocketNil, test.handlerStatus())
 
-	startReply := test.req(message.Request{Command: control.HandlerStart, Parameters: datatype.New()})
+	startReply := test.req(message.Request{Command: handler.HandlerStart, Parameters: datatype.New()})
 	s.Require().True(startReply.IsOK())
 	status, err := startReply.ReplyParameters().StringValue("status")
 	s.Require().NoError(err)

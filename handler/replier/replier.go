@@ -11,7 +11,6 @@ import (
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/handler/autocontext"
 	"github.com/noPerfection/protocol/handler"
-	"github.com/noPerfection/protocol/handler/control"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -20,7 +19,7 @@ import (
 type Replier struct {
 	*handler.Handler
 	socket               *zmq.Socket
-	Control              *control.Manager
+	Control              *handler.Control
 	workW                sync.WaitGroup
 	curveSecretKey       string
 	allowedClientPubKeys []string
@@ -39,7 +38,7 @@ var _ handler.Interface = (*Replier)(nil)
 func New() *Replier {
 	return &Replier{
 		Handler:    handler.New(),
-		Control:    control.New(),
+		Control:    handler.NewControl(),
 		npacSecret: handler.GenerateSecret(),
 	}
 }
@@ -57,7 +56,7 @@ func (c *Replier) SetLogger(parent *log.Logger) error {
 	if parent == nil {
 		return c.Control.SetLogger(nil)
 	}
-	return c.Control.SetLogger(parent.Child(control.ControlCategory))
+	return c.Control.SetLogger(parent.Child(handler.ControlCategory))
 }
 
 // Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
@@ -112,9 +111,9 @@ func (c *Replier) Start() error {
 }
 
 func (c *Replier) setControlRoutes() {
-	c.Control.Route(control.HandlerConfig, c.onControlConfig)
-	c.Control.Route(control.HandlerStart, c.onControlStart)
-	c.Control.Route(control.HandlerClose, c.onControlClose)
+	c.Control.Route(handler.HandlerConfig, c.onControlConfig)
+	c.Control.Route(handler.HandlerStart, c.onControlStart)
+	c.Control.Route(handler.HandlerClose, c.onControlClose)
 }
 
 func (c *Replier) onControlClose(req message.RequestInterface) message.ReplyInterface {

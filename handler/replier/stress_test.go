@@ -12,7 +12,7 @@ import (
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
-	"github.com/noPerfection/protocol/handler/control"
+	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/stretchr/testify/require"
@@ -141,7 +141,7 @@ func runStressTest(t *testing.T, clientAmount int, requestsPerClient int) {
 	managerClient, err := zmq.NewSocket(zmq.REQ)
 	require.NoError(t, err)
 
-	managerConfig := control.NewInternalControlEndpoint(handlerConfig)
+	managerConfig := handler.NewInternalControlEndpoint(handlerConfig)
 	require.NoError(t, managerClient.Connect(managerConfig.ClientUrl()))
 
 	t.Cleanup(func() {
@@ -353,7 +353,7 @@ func closeReplierStress(managerClient *zmq.Socket) {
 		return
 	}
 
-	controlReq := message.Request{Command: control.HandlerClose, Parameters: datatype.New()}
+	controlReq := message.Request{Command: handler.HandlerClose, Parameters: datatype.New()}
 	packger := &message.MessagePacker{}
 	envelope, err := packger.SerializeRequest(&controlReq)
 	if err == nil {
