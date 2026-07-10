@@ -2,6 +2,9 @@ package message
 
 import "fmt"
 
+// Any is the catch-all route name used when no command-specific route or whitelist exists.
+const Any = "any"
+
 func ValidEnvelope(messages []string) error {
 	if len(messages) == 0 {
 		return fmt.Errorf("empty envelope, msg len is 0")

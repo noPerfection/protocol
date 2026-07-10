@@ -38,7 +38,7 @@ func TestGetHandleFunc(t *testing.T) {
 	_, err := handler.GetHandleFunc("cmd")
 	require.Error(t, err)
 
-	require.NoError(t, handler.Route(Any, handleAny))
+	require.NoError(t, handler.Route(message.Any, handleAny))
 	handle, err := handler.GetHandleFunc("cmd")
 	require.NoError(t, err)
 	require.NotNil(t, handle)

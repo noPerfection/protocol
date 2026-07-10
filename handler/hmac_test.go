@@ -16,9 +16,9 @@ func TestRequiresWhitelist(t *testing.T) {
 	require.True(t, handler.IsWhitelistExist("cmd"))
 	require.False(t, handler.IsWhitelistExist("other"))
 
-	require.NoError(t, handler.Whitelist(Any, "global-secret"))
+	require.NoError(t, handler.Whitelist(message.Any, "global-secret"))
 	handler2 := New()
-	require.NoError(t, handler2.Whitelist(Any, "global-secret"))
+	require.NoError(t, handler2.Whitelist(message.Any, "global-secret"))
 	require.True(t, handler2.IsWhitelistExist("unknown-cmd"))
 }
 
@@ -49,7 +49,7 @@ func TestValidateRequestHmac(t *testing.T) {
 
 func TestValidateRequestHmacAnyFallback(t *testing.T) {
 	handler := New()
-	require.NoError(t, handler.Whitelist(Any, "global-secret"))
+	require.NoError(t, handler.Whitelist(message.Any, "global-secret"))
 
 	req := &message.Request{
 		Command:    "any-cmd",
@@ -63,7 +63,7 @@ func TestValidateRequestHmacAnyFallback(t *testing.T) {
 
 func TestValidateReplyHmac(t *testing.T) {
 	handler := New()
-	require.NoError(t, handler.Whitelist(Any, "reply-secret"))
+	require.NoError(t, handler.Whitelist(message.Any, "reply-secret"))
 
 	req := &message.Request{Command: "cmd", Parameters: datatype.New()}
 	reply := req.Ok(datatype.New())

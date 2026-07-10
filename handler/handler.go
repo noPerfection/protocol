@@ -15,9 +15,6 @@ const (
 	SocketNil   = "nil"   // Socket is removed and all clean
 )
 
-// Any route name.
-const Any = "any"
-
 // HandleFunc is the function type that handles a request and returns a reply.
 type HandleFunc = func(message.RequestInterface) message.ReplyInterface
 
@@ -119,7 +116,7 @@ func (c *Handler) LogWarn(msg string, args ...interface{}) {
 }
 
 // Whitelist registers one or more shared secrets for a command.
-// Use Any for a route-wide policy that applies when no command-specific whitelist exists.
+// Use message.Any for a route-wide policy that applies when no command-specific whitelist exists.
 func (c *Handler) Whitelist(cmd string, secrets ...string) error {
 	if len(secrets) == 0 {
 		return fmt.Errorf("at least one secret is required for whitelist on '%s'", cmd)
@@ -138,7 +135,7 @@ func (c *Handler) IsWhitelistExist(cmd string) bool {
 	if _, ok := c.whitelists[cmd]; ok {
 		return true
 	}
-	_, ok := c.whitelists[Any]
+	_, ok := c.whitelists[message.Any]
 	return ok
 }
 
@@ -146,7 +143,7 @@ func (c *Handler) getHmacSecrets(cmd string) map[string]bool {
 	if secrets, ok := c.whitelists[cmd]; ok {
 		return secrets
 	}
-	return c.whitelists[Any]
+	return c.whitelists[message.Any]
 }
 
 // ValidateRequestHmac reports whether hash is valid for the request command whitelist.
@@ -155,9 +152,9 @@ func (c *Handler) ValidateRequestHmac(req message.RequestInterface, hash string)
 	return ok
 }
 
-// ValidateReplyHmac reports whether hash is valid for the Any-route whitelist.
+// ValidateReplyHmac reports whether hash is valid for the message.Any-route whitelist.
 func (c *Handler) ValidateReplyHmac(reply message.ReplyInterface, hash string) bool {
-	secrets := c.getHmacSecrets(Any)
+	secrets := c.getHmacSecrets(message.Any)
 	if secrets == nil {
 		return true
 	}
@@ -202,8 +199,8 @@ func (c *Handler) GetHandleFunc(cmd string) (HandleFunc, error) {
 
 	if c.routes.Exist(cmd) {
 		handle = c.routes[cmd]
-	} else if c.routes.Exist(Any) {
-		handle = c.routes[Any]
+	} else if c.routes.Exist(message.Any) {
+		handle = c.routes[message.Any]
 	} else {
 		return nil, fmt.Errorf("the '%s' command handler not found", cmd)
 	}
@@ -222,10 +219,10 @@ func (c *Handler) Type() HandlerType {
 }
 
 func AnyRoute(handler *Handler) error {
-	if err := handler.Route(Any, func(request message.RequestInterface) message.ReplyInterface {
+	if err := handler.Route(message.Any, func(request message.RequestInterface) message.ReplyInterface {
 		return request.Ok()
 	}); err != nil {
-		return fmt.Errorf("failed to '%s' route into the handler: %w", Any, err)
+		return fmt.Errorf("failed to '%s' route into the handler: %w", message.Any, err)
 	}
 	return nil
 }
