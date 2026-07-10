@@ -13,7 +13,6 @@ import (
 
 	"github.com/ahmetson/mushroom"
 	"github.com/noPerfection/datatype"
-	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -52,11 +51,11 @@ type outbound struct {
 // Npac is a minimal inproc REP socket with a route table.
 // Use New() to construct.
 type Npac struct {
-	*handler.Handler
-	socket  *zmq.Socket
-	started bool
-	mu      sync.Mutex
-	wg      sync.WaitGroup
+	socket *zmq.Socket
+	routes map[string]message.HandleFunc
+	started  bool
+	mu       sync.Mutex
+	wg       sync.WaitGroup
 	// handlers maps each mushroom URL to its registered handler entry.
 	handlers map[string]*handlerEntry
 	// outbounds maps each handler URL to its resolved outbound identity.
@@ -70,25 +69,36 @@ type Npac struct {
 	contexts []string
 }
 
+// getHandleFunc retrieves the handler for cmd, falling back to message.Any.
+func (h *Npac) getHandleFunc(cmd string) (message.HandleFunc, error) {
+	if fn, ok := h.routes[cmd]; ok {
+		return fn, nil
+	}
+	if fn, ok := h.routes[message.Any]; ok {
+		return fn, nil
+	}
+	return nil, fmt.Errorf("the '%s' command handler not found", cmd)
+}
+
+
 // New creates a ready-to-start Npac handler bound to the default inproc endpoint.
 func New() *Npac {
 	h := &Npac{
-		Handler:                handler.New(),
+		routes: make(map[string]message.HandleFunc),
 		handlers:               make(map[string]*handlerEntry),
 		outbounds:              make(map[string]*outbound),
 		mushroomUrlToOutbounds: make(map[string]string),
 		contexts:               []string{},
 	}
-	h.SetEndpoint(Endpoint)
 
-	_ = h.Route(AddOutboundCmd, h.onAddOutbound)
-	_ = h.Route(RemOutboundCmd, h.onRemoveOutbound)
-	_ = h.Route(AddHandlerCmd, h.onAddHandler)                 // HMAC protected
-	_ = h.Route(RemoveHandlerCmd, h.onRemoveHandler)           // HMAC protected
-	_ = h.Route(SecureEdgeCaseCmd, h.onSecureEdgeCase)         // HMAC protected
-	_ = h.Route(PushHandlerContextCmd, h.onPushHandlerContext) // HMAC protected
-	_ = h.Route(PopHandlerContextCmd, h.onPopHandlerContext)   // HMAC protected
-	_ = h.Route(HandlerContextCmd, h.onHandlerContext)
+	h.routes[AddOutboundCmd] = h.onAddOutbound
+	h.routes[RemOutboundCmd] = h.onRemoveOutbound
+	h.routes[AddHandlerCmd] = h.onAddHandler                 // HMAC protected
+	h.routes[RemoveHandlerCmd] = h.onRemoveHandler           // HMAC protected
+	h.routes[SecureEdgeCaseCmd] = h.onSecureEdgeCase         // HMAC protected
+	h.routes[PushHandlerContextCmd] = h.onPushHandlerContext // HMAC protected
+	h.routes[PopHandlerContextCmd] = h.onPopHandlerContext   // HMAC protected
+	h.routes[HandlerContextCmd] = h.onHandlerContext
 
 	return h
 }
@@ -176,7 +186,7 @@ func (h *Npac) Stop() {
 func (h *Npac) run() {
 	defer h.wg.Done()
 
-	packer := h.Packer()
+	packer := &message.MessagePacker{}
 
 	for {
 		raw, err := h.socket.RecvMessage(0)
@@ -196,7 +206,7 @@ func (h *Npac) run() {
 		if err := h.verifyHMAC(req, hash); err != nil {
 			reply = req.Fail(err.Error())
 		} else {
-			handleFunc, err := h.GetHandleFunc(req.CommandName())
+			handleFunc, err := h.getHandleFunc(req.CommandName())
 			if err != nil {
 				reply = req.Fail(fmt.Sprintf("unknown command %q", req.CommandName()))
 			} else {

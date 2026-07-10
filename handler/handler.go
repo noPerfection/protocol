@@ -15,8 +15,8 @@ const (
 	SocketNil   = "nil"   // Socket is removed and all clean
 )
 
-// HandleFunc is the function type that handles a request and returns a reply.
-type HandleFunc = func(message.RequestInterface) message.ReplyInterface
+// HandleFunc is re-exported from message so callers can use either package name.
+type HandleFunc = message.HandleFunc
 
 // The Handler is the socket wrapper for the zeromq socket.
 type Handler struct {
