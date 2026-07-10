@@ -14,11 +14,10 @@ import (
 type SyncReplier struct {
 	*Handler
 	*Autocontext
-	socket               *zmq.Socket
-	Control              *Control
-	workW                sync.WaitGroup
-	curveSecretKey       string
-	allowedClientPubKeys []string
+	*Security
+	socket  *zmq.Socket
+	Control *Control
+	workW   sync.WaitGroup
 }
 
 var _ Interface = (*SyncReplier)(nil)
@@ -29,6 +28,7 @@ func NewSyncReplier() *SyncReplier {
 		Handler:     New(),
 		Control:     NewControl(),
 		Autocontext: NewAutocontext(),
+		Security:    NewSecurity(),
 	}
 }
 
@@ -46,24 +46,6 @@ func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 		return c.Control.SetLogger(nil)
 	}
 	return c.Control.SetLogger(parent.Child(ControlCategory))
-}
-
-// Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
-func (c *SyncReplier) Secure(secretKey string) {
-	c.curveSecretKey = secretKey
-}
-
-// Allow registers a client CURVE public key permitted to access this handler (zmq.AuthStart).
-func (c *SyncReplier) Allow(clientPubKey string) {
-	if clientPubKey == "" {
-		return
-	}
-	for _, key := range c.allowedClientPubKeys {
-		if key == clientPubKey {
-			return
-		}
-	}
-	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
 // Type returns the handler type.
@@ -145,19 +127,10 @@ func (c *SyncReplier) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket(REP): %w", err)
 	}
 
-	pubKey := ""
-	if c.curveSecretKey != "" {
-		domain := c.Endpoint().ZapDomain()
-		if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
-			_ = socket.Close()
-			return fmt.Errorf("socket.ServerAuthCurve: %w", err)
-		}
-		if len(c.allowedClientPubKeys) > 0 {
-			zmq.AuthCurveAdd(domain, c.allowedClientPubKeys...)
-		}
-		if derivedKey, deriveErr := zmq.AuthCurvePublic(c.curveSecretKey); deriveErr == nil {
-			pubKey = derivedKey
-		}
+	err = c.register(socket, c.Endpoint())
+	if err != nil {
+		_ = socket.Close()
+		return fmt.Errorf("register: %w", err)
 	}
 
 	externalUrl := c.Endpoint().HandlerUrl()
@@ -169,6 +142,7 @@ func (c *SyncReplier) bindExternal() error {
 	c.socket = socket
 	c.Control.SetSocketReady()
 
+	pubKey := c.publicKey()
 	err = c.npacRegisterHandler(externalUrl, pubKey)
 	if err != nil {
 		_ = socket.Close()

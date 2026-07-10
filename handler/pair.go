@@ -15,12 +15,11 @@ import (
 type Pair struct {
 	*Handler
 	*Autocontext
-	socket               *zmq.Socket
-	pairW                sync.WaitGroup
-	broadcasting         *datatype.Queue
-	Control              *Control
-	curveSecretKey       string
-	allowedClientPubKeys []string
+	*Security
+	socket       *zmq.Socket
+	pairW        sync.WaitGroup
+	broadcasting *datatype.Queue
+	Control      *Control
 }
 
 var _ Interface = (*Pair)(nil)
@@ -32,6 +31,7 @@ func NewPair() *Pair {
 		broadcasting: datatype.NewQueue(),
 		Control:      NewControl(),
 		Autocontext:  NewAutocontext(),
+		Security:     NewSecurity(),
 	}
 }
 
@@ -49,24 +49,6 @@ func (pair *Pair) SetLogger(parent *log.Logger) error {
 		return pair.Control.SetLogger(nil)
 	}
 	return pair.Control.SetLogger(parent.Child(ControlCategory))
-}
-
-// Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
-func (pair *Pair) Secure(secretKey string) {
-	pair.curveSecretKey = secretKey
-}
-
-// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
-func (pair *Pair) Allow(clientPubKey string) {
-	if clientPubKey == "" {
-		return
-	}
-	for _, key := range pair.allowedClientPubKeys {
-		if key == clientPubKey {
-			return
-		}
-	}
-	pair.allowedClientPubKeys = append(pair.allowedClientPubKeys, clientPubKey)
 }
 
 // Type returns the handler type.
@@ -144,20 +126,11 @@ func (pair *Pair) startPair() error {
 			return
 		}
 
-		pubKey := ""
-		if pair.curveSecretKey != "" {
-			domain := pair.Endpoint().ZapDomain()
-			if err := socket.ServerAuthCurve(domain, pair.curveSecretKey); err != nil {
-				_ = socket.Close()
-				ready <- fmt.Errorf("socket.ServerAuthCurve: %w", err)
-				return
-			}
-			if len(pair.allowedClientPubKeys) > 0 {
-				zmq.AuthCurveAdd(domain, pair.allowedClientPubKeys...)
-			}
-			if derivedKey, deriveErr := zmq.AuthCurvePublic(pair.curveSecretKey); deriveErr == nil {
-				pubKey = derivedKey
-			}
+		err = pair.register(socket, pair.Endpoint())
+		if err != nil {
+			_ = socket.Close()
+			ready <- fmt.Errorf("register: %w", err)
+			return
 		}
 
 		pairUrl := pair.Endpoint().HandlerUrl()
@@ -170,6 +143,7 @@ func (pair *Pair) startPair() error {
 		pair.socket = socket
 		pair.Control.SetSocketReady()
 
+		pubKey := pair.publicKey()
 		err = pair.npacRegisterHandler(pairUrl, pubKey)
 		if err != nil {
 			_ = socket.Close()

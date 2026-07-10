@@ -17,11 +17,10 @@ import (
 type Worker struct {
 	*Handler
 	*Autocontext
-	socket               *zmq.Socket
-	Control              *Control
-	workW                sync.WaitGroup
-	curveSecretKey       string
-	allowedClientPubKeys []string
+	*Security
+	socket  *zmq.Socket
+	Control *Control
+	workW   sync.WaitGroup
 }
 
 var _ Interface = (*Worker)(nil)
@@ -32,6 +31,7 @@ func NewWorker() *Worker {
 		Handler:     New(),
 		Control:     NewControl(),
 		Autocontext: NewAutocontext(),
+		Security:    NewSecurity(),
 	}
 }
 
@@ -49,24 +49,6 @@ func (c *Worker) SetLogger(parent *log.Logger) error {
 		return c.Control.SetLogger(nil)
 	}
 	return c.Control.SetLogger(parent.Child(ControlCategory))
-}
-
-// Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
-func (c *Worker) Secure(secretKey string) {
-	c.curveSecretKey = secretKey
-}
-
-// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
-func (c *Worker) Allow(clientPubKey string) {
-	if clientPubKey == "" {
-		return
-	}
-	for _, key := range c.allowedClientPubKeys {
-		if key == clientPubKey {
-			return
-		}
-	}
-	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
 // Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
@@ -146,19 +128,10 @@ func (c *Worker) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket(PULL): %w", err)
 	}
 
-	pubKey := ""
-	if c.curveSecretKey != "" {
-		domain := c.Endpoint().ZapDomain()
-		if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
-			_ = socket.Close()
-			return fmt.Errorf("socket.ServerAuthCurve: %w", err)
-		}
-		if len(c.allowedClientPubKeys) > 0 {
-			zmq.AuthCurveAdd(domain, c.allowedClientPubKeys...)
-		}
-		if derivedKey, deriveErr := zmq.AuthCurvePublic(c.curveSecretKey); deriveErr == nil {
-			pubKey = derivedKey
-		}
+	err = c.register(socket, c.Endpoint())
+	if err != nil {
+		_ = socket.Close()
+		return fmt.Errorf("register: %w", err)
 	}
 
 	externalUrl := c.Endpoint().HandlerUrl()
@@ -170,6 +143,7 @@ func (c *Worker) bindExternal() error {
 	c.socket = socket
 	c.Control.SetSocketReady()
 
+	pubKey := c.publicKey()
 	err = c.npacRegisterHandler(externalUrl, pubKey)
 	if err != nil {
 		return fmt.Errorf("npacRegisterHandler: %w", err)

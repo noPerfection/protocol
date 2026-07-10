@@ -17,12 +17,11 @@ const BroadcastParameter = "reply"
 type Publisher struct {
 	*Handler
 	*Autocontext
-	socket               *zmq.Socket
-	broadcasterW         sync.WaitGroup
-	broadcasting         *datatype.Queue
-	Control              *Control
-	curveSecretKey       string
-	allowedClientPubKeys []string
+	*Security
+	socket       *zmq.Socket
+	broadcasterW sync.WaitGroup
+	broadcasting *datatype.Queue
+	Control      *Control
 }
 
 // NewPublisher Publisher returned
@@ -32,6 +31,7 @@ func NewPublisher() *Publisher {
 		broadcasting: datatype.NewQueue(),
 		Control:      NewControl(),
 		Autocontext:  NewAutocontext(),
+		Security:     NewSecurity(),
 	}
 }
 
@@ -49,24 +49,6 @@ func (c *Publisher) SetLogger(parent *log.Logger) error {
 		return c.Control.SetLogger(nil)
 	}
 	return c.Control.SetLogger(parent.Child(ControlCategory))
-}
-
-// Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
-func (c *Publisher) Secure(secretKey string) {
-	c.curveSecretKey = secretKey
-}
-
-// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
-func (c *Publisher) Allow(clientPubKey string) {
-	if clientPubKey == "" {
-		return
-	}
-	for _, key := range c.allowedClientPubKeys {
-		if key == clientPubKey {
-			return
-		}
-	}
-	c.allowedClientPubKeys = append(c.allowedClientPubKeys, clientPubKey)
 }
 
 // Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
@@ -149,20 +131,11 @@ func (c *Publisher) startBroadcaster() error {
 			return
 		}
 
-		pubKey := ""
-		if c.curveSecretKey != "" {
-			domain := c.Endpoint().ZapDomain()
-			if err := socket.ServerAuthCurve(domain, c.curveSecretKey); err != nil {
-				_ = socket.Close()
-				ready <- fmt.Errorf("socket.ServerAuthCurve: %w", err)
-				return
-			}
-			if len(c.allowedClientPubKeys) > 0 {
-				zmq.AuthCurveAdd(domain, c.allowedClientPubKeys...)
-			}
-			if derivedKey, deriveErr := zmq.AuthCurvePublic(c.curveSecretKey); deriveErr == nil {
-				pubKey = derivedKey
-			}
+		err = c.register(socket, c.Endpoint())
+		if err != nil {
+			_ = socket.Close()
+			ready <- fmt.Errorf("register: %w", err)
+			return
 		}
 
 		pubUrl := c.Endpoint().HandlerUrl()
@@ -175,6 +148,7 @@ func (c *Publisher) startBroadcaster() error {
 		c.socket = socket
 		c.Control.SetSocketReady()
 
+		pubKey := c.publicKey()
 		_ = c.npacRegisterHandler(pubUrl, pubKey)
 
 		ready <- nil
