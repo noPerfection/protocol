@@ -19,13 +19,6 @@ const (
 	WorkerType  HandlerType = "Worker" // Workers receive messages but don't return any result to the caller.
 )
 
-const (
-	Incomplete  = "incomplete"
-	SocketIdle  = "idle"
-	SocketReady = "ready"
-	SocketNil   = "nil"
-)
-
 type HandlerConfig struct {
 	Type             HandlerType `json:"type" yaml:"type"`
 	Category         string      `json:"category" yaml:"category"`

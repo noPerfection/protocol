@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	Incomplete  = "incomplete"
 	SocketIdle  = "idle"  // Socket is bind but not listening to receive messages
 	SocketReady = "ready" // Socket is bind and started
 	SocketNil   = "nil"   // Socket is removed and all clean
@@ -31,7 +30,7 @@ type Handler struct {
 	logger        *log.Logger
 	messagePacker message.Packer
 	routes        datatype.KeyValue
-	// command -> secret -> true
+	// command -> secret -> true, one command may have multiple secrets
 	whitelists map[string]map[string]bool
 }
 
@@ -210,7 +209,6 @@ func (c *Handler) ValidateReplyHmac(reply message.ReplyInterface, hash string) b
 	}
 	return false
 }
-
 
 func (c *Handler) MatchRequestSecret(req message.RequestInterface, hash string) (string, bool) {
 	secrets := c.getHmacSecrets(req.CommandName())

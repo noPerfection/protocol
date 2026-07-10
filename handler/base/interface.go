@@ -1,8 +1,6 @@
 package base
 
 import (
-	"fmt"
-
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/message"
 )
@@ -21,20 +19,6 @@ const (
 	UnknownType HandlerType = ""
 	WorkerType  HandlerType = "Worker" // Workers are receiving the messages but don't return any result to the caller.
 )
-
-// IsValid checks whether the given string is the valid or not.
-// If not valid, then returns the error otherwise returns nil.
-func IsValid(t HandlerType) error {
-	if t == SyncReplierType ||
-		t == WorkerType ||
-		t == PublisherType ||
-		t == ReplierType ||
-		t == PairType {
-		return nil
-	}
-
-	return fmt.Errorf("'%s' is not valid handler type", t)
-}
 
 // Interface of the handler. Any handlers must be based on this.
 // All handlers have

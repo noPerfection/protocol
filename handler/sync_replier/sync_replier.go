@@ -56,7 +56,7 @@ func (c *SyncReplier) Secure(secretKey string) {
 	c.curveSecretKey = secretKey
 }
 
-// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
+// Allow registers a client CURVE public key permitted to access this handler (zmq.AuthStart).
 func (c *SyncReplier) Allow(clientPubKey string) {
 	if clientPubKey == "" {
 		return
