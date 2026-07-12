@@ -43,6 +43,14 @@ type Interface interface {
 	// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
 	Allow(clientPubKey string)
 
+	// SetMushroomURL registers the handler URL.
+	// Prefer to follow the convention of the noPerfection/topology config for the service config URL plus handler category:
+	//
+	//	pkg:golang/github.com/noPerfection/service#cmd/service?var=services[name:main]&category=main
+	//
+	// By following the topology convention, the handler can be resolved by the topology.
+	SetMushroomURL(mushroomURL string)
+
 	// IsRouteExist returns true if the command is registered
 	IsRouteExist(string) bool
 

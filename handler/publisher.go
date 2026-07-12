@@ -45,7 +45,7 @@ func (c *Publisher) SetEndpoint(endpoint message.Endpoint) {
 }
 
 func (pair *Publisher) SetMushroomURL(mushroomURL string) {
-	pair.PublisherControl.SetMushroomURL(mushroomURL)
+	pair.PublisherControl.Autocontext.SetMushroomURL(mushroomURL)
 }
 
 func (c *Publisher) SetLogger(parent *log.Logger) error {

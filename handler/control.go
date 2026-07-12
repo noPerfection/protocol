@@ -73,6 +73,9 @@ func (m *Control) Secure(_ string) {}
 // Allow is a no-op; control sockets are inproc and do not use CURVE client allowlists.
 func (m *Control) Allow(_ string) {}
 
+// SetMushroomURL is a no-op; control sockets are inproc and do not register with npac.
+func (m *Control) SetMushroomURL(_ string) {}
+
 func (m *Control) Status() string {
 	return m.status
 }

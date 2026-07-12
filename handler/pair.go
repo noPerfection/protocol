@@ -35,7 +35,7 @@ func NewPair() *Pair {
 
 // SetMushroomURL configures the npac mushroom URL on the pair control.
 func (pair *Pair) SetMushroomURL(mushroomURL string) {
-	pair.PublisherControl.SetMushroomURL(mushroomURL)
+	pair.PublisherControl.Autocontext.SetMushroomURL(mushroomURL)
 }
 
 func (pair *Pair) Secure(secretKey string) {
