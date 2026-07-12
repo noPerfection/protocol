@@ -5,13 +5,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/noPerfection/protocol/client/autocontext"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
 
 const defaultReceiveBuffer = 64
 
+// It adds support of receiving message from handlers continuasly:
+// useful for subscribing messages for example, to do it asynchronously.
 type receiver struct {
 	socket    *Socket
 	replies   chan message.ReplyInterface
@@ -44,27 +45,28 @@ func (r *receiver) pollOnce() {
 
 	if r.socket.zmqSocket == nil {
 		if err := r.socket.reconnect(); err != nil {
-			// On ErrNoCurveKey: fetch the server public key from npac and retry once.
-			if errors.Is(err, message.ErrNoCurveKey) {
-				url := r.socket.endpoint.HandlerUrl()
-				if pubKey, lookupErr := autocontext.GetPublicKey(url); lookupErr == nil && pubKey != "" {
-					r.socket.Secure(pubKey)
-					if err = r.socket.reconnect(); err != nil {
-						return
-					}
-				} else {
-					return
-				}
-			} else {
-				return
-			}
+			r.markIdle()
+			return
 		}
 	}
 
 	r.socket.updateToPollIn()
 
 	sockets, err := r.socket.poller.Poll(0)
-	if err != nil || len(sockets) == 0 {
+	if err != nil {
+		r.markIdle()
+		return
+	}
+
+	if authErr := r.socket.monitorAuthErr(); authErr != nil {
+		if errors.Is(authErr, message.ErrNoCurveKey) && r.recoverNoCurveKey() {
+			return
+		}
+		r.markIdle()
+		return
+	}
+
+	if len(sockets) == 0 {
 		r.markIdle()
 		return
 	}
@@ -96,6 +98,32 @@ func (r *receiver) pollOnce() {
 	case r.replies <- reply:
 	default:
 	}
+}
+
+// recoverNoCurveKey looks up the handler's CURVE public key from npac, applies
+// it with Secure, and reconnects once. Returns false when recovery is skipped
+// or fails.
+func (r *receiver) recoverNoCurveKey() bool {
+	r.socket.mu.Lock()
+	alreadySecure := r.socket.serverPublicKey != ""
+	r.socket.mu.Unlock()
+	if alreadySecure {
+		return false
+	}
+
+	autocontext := NewAutocontext()
+	if autocontext == nil {
+		return false
+	}
+	defer func() { _ = autocontext.Close() }()
+
+	unregistered, publicKey, _, err := autocontext.HandlerContext(r.socket.endpoint, message.Any)
+	if err != nil || unregistered || publicKey == "" {
+		return false
+	}
+
+	r.socket.Secure(publicKey)
+	return r.socket.reconnect() == nil
 }
 
 func (r *receiver) activate() {
@@ -165,7 +193,6 @@ func (socket *Socket) Receive() <-chan message.ReplyInterface {
 	socket.receiver.activate()
 	return socket.receiver.replies
 }
-
 
 func (socket *Socket) afterReconnect(socketType zmq.Type) {
 	if socketType == zmq.SUB && socket.receiver != nil {

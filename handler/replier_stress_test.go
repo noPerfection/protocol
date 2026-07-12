@@ -134,6 +134,7 @@ func runStressTest(t *testing.T, clientAmount int, requestsPerClient int) {
 	require.NoError(t, replier.SetLogger(logger))
 
 	replier.SetEndpoint(handlerConfig)
+	replier.SetMushroomURL(testMushroomURL(testID))
 	require.NoError(t, replier.SetLogger(logger))
 	require.NoError(t, replier.Start())
 

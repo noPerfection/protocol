@@ -41,6 +41,7 @@ func (test *TestPairSuite) SetupTest() {
 
 	s.Require().NoError(test.pair.SetLogger(test.logger))
 	test.pair.SetEndpoint(test.pairConfig)
+	test.pair.SetMushroomURL(testMushroomURL(test.pairConfig.Id))
 	s.Require().NoError(test.pair.SetLogger(test.logger))
 	s.Require().NoError(test.pair.Route("client-message", func(request message.RequestInterface) message.ReplyInterface {
 		return request.Ok(request.RouteParameters().Set("handled", request.CommandName()))
@@ -54,7 +55,7 @@ func (test *TestPairSuite) SetupTest() {
 
 func (test *TestPairSuite) TearDownTest() {
 	if test.managerClient != nil {
-		if test.pair != nil && test.pair.Control.Status() == SocketReady {
+		if test.pair != nil && test.pair.PublisherControl.Status() == SocketReady {
 			reply := test.req(message.Request{Command: HandlerClose, Parameters: datatype.New()})
 			test.Require().True(reply.IsOK())
 		}
@@ -210,7 +211,7 @@ func (test *TestPairSuite) Test_10_StartReceivesAndBroadcasts() {
 
 	err := test.pair.Start()
 	s.Require().NoError(err)
-	s.Require().Equal(SocketReady, test.pair.Control.Status())
+	s.Require().Equal(SocketReady, test.pair.PublisherControl.Status())
 
 	test.newExternalClient()
 	time.Sleep(time.Millisecond * 50)

@@ -6,17 +6,18 @@ import (
 	"time"
 
 	"github.com/noPerfection/datatype"
-	cpair "github.com/noPerfection/protocol/client/pair"
-	cpublisher "github.com/noPerfection/protocol/client/publisher"
-	creplier "github.com/noPerfection/protocol/client/replier"
-	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
-	cworker "github.com/noPerfection/protocol/client/worker"
+	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/handler/npac"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/require"
 )
 
 func TestClientHandlerPairs(t *testing.T) {
+	n := npac.New()
+	require.NoError(t, n.Start())
+	time.Sleep(10 * time.Millisecond)
+
 	t.Run("sync replier request", testSyncReplierClientHandler)
 	t.Run("replier send receive", testReplierClientHandler)
 	t.Run("worker send", testWorkerClientHandler)
@@ -29,13 +30,14 @@ func testSyncReplierClientHandler(t *testing.T) {
 	id := testID(t, "sync")
 	svc := handler.NewSyncReplier()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
+	setHandlerMushroomURL(svc, id)
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
 
 	control := newSyncControl(t, id)
 	defer closeControl(t, control)
 
-	client, err := csyncreplier.NewClient(id, 0)
+	client, err := client.NewSyncReplier(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(time.Second)
@@ -50,13 +52,14 @@ func testReplierClientHandler(t *testing.T) {
 	id := testID(t, "replier")
 	svc := handler.NewReplier()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
+	setHandlerMushroomURL(svc, id)
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
 
 	control := newReplierControl(t, id)
 	defer closeControl(t, control)
 
-	client, err := creplier.NewClient(id, 0)
+	client, err := client.NewReplier(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(time.Second)
@@ -73,6 +76,7 @@ func testWorkerClientHandler(t *testing.T) {
 	handled := make(chan string, 1)
 	svc := handler.NewWorker()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
+	setHandlerMushroomURL(svc, id)
 	req.NoError(svc.Route("work", func(request message.RequestInterface) message.ReplyInterface {
 		value, err := request.RouteParameters().StringValue("value")
 		if err == nil {
@@ -85,7 +89,7 @@ func testWorkerClientHandler(t *testing.T) {
 	control := newWorkerControl(t, id)
 	defer closeControl(t, control)
 
-	client, err := cworker.NewClient(id, 0)
+	client, err := client.NewWorker(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(time.Second)
@@ -104,13 +108,14 @@ func testPairClientHandler(t *testing.T) {
 	id := testID(t, "pair")
 	svc := handler.NewPair()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
+	setHandlerMushroomURL(svc, id)
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
 
 	control := newPairControl(t, id)
 	defer closeControl(t, control)
 
-	client, err := cpair.NewClient(id, 0)
+	client, err := client.NewPair(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(time.Second)
@@ -127,12 +132,13 @@ func testPublisherClientHandler(t *testing.T) {
 	id := testID(t, "publisher")
 	svc := handler.NewPublisher()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
+	setHandlerMushroomURL(svc, id)
 	req.NoError(svc.Start())
 
 	control := newPublisherControl(t, id)
 	defer closeControl(t, control)
 
-	client, err := cpublisher.NewClient(id, 0)
+	client, err := client.NewPublisher(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(time.Second)
@@ -194,6 +200,14 @@ func testID(t *testing.T, suffix string) string {
 	t.Helper()
 	name := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
 	return name + "_" + suffix
+}
+
+type mushroomURLSetter interface {
+	SetMushroomURL(string)
+}
+
+func setHandlerMushroomURL(svc mushroomURLSetter, id string) {
+	svc.SetMushroomURL("pkg:golang/protocol-test#" + id)
 }
 
 type handlerControl interface {

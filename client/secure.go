@@ -21,7 +21,7 @@ func (socket *Socket) Secure(serverPublicKey string, clientSecretKey ...string) 
 }
 
 func (socket *Socket) applyCurveClient(zmqSocket *zmq.Socket) error {
-	if socket.serverPublicKey == "" {
+	if socket.serverPublicKey == "" || socket.endpoint.IsInproc() {
 		return nil
 	}
 

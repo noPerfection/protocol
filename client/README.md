@@ -135,15 +135,15 @@ See [protocol/test/hmac_test.go](../test/hmac_test.go) for client/handler integr
 When the target handler is secured with CURVE (see [protocol/handler](../handler)), configure the client with the handler's Z85 CURVE server public key using `Secure`. An empty key keeps the client non-secure:
 
 ```go
-import "github.com/noPerfection/protocol/handler/base"
+import "github.com/noPerfection/protocol/message"
 
-serverPublic, serverSecret, _ := base.GenerateCurveKey()
+serverPublic, serverSecret, _ := message.GenerateCurveKey()
 
 reqSync, _ := sync_replier.NewClient("billing", 6000)
 reqSync.Secure(serverPublic)
 
 // Optional: pass a fixed client secret key instead of generating one per reconnect.
-clientPublic, clientSecret, _ := base.GenerateCurveKey()
+clientPublic, clientSecret, _ := message.GenerateCurveKey()
 reqSync.Secure(serverPublic, clientSecret)
 ```
 

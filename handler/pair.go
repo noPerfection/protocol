@@ -14,12 +14,11 @@ import (
 
 type Pair struct {
 	*Handler
-	*Autocontext
 	*Security
-	socket       *zmq.Socket
-	pairW        sync.WaitGroup
-	broadcasting *datatype.Queue
-	Control      *Control
+	socket           *zmq.Socket
+	pairW            sync.WaitGroup
+	broadcasting     *datatype.Queue
+	PublisherControl *PublisherControl
 }
 
 var _ Interface = (*Pair)(nil)
@@ -27,18 +26,27 @@ var _ Interface = (*Pair)(nil)
 // NewPair Pair returned.
 func NewPair() *Pair {
 	return &Pair{
-		Handler:      New(),
-		broadcasting: datatype.NewQueue(),
-		Control:      NewControl(),
-		Autocontext:  NewAutocontext(),
-		Security:     NewSecurity(),
+		Handler:          New(),
+		broadcasting:     datatype.NewQueue(),
+		PublisherControl: NewPublisherControl(),
+		Security:         NewSecurity(),
 	}
+}
+
+// SetMushroomURL configures the npac mushroom URL on the pair control.
+func (pair *Pair) SetMushroomURL(mushroomURL string) {
+	pair.PublisherControl.SetMushroomURL(mushroomURL)
+}
+
+func (pair *Pair) Secure(secretKey string) {
+	pair.Security.Secure(secretKey)
+	pair.PublisherControl.setSecretKey(secretKey)
 }
 
 // SetEndpoint adds the parameters of the handler from the config.
 func (pair *Pair) SetEndpoint(endpoint message.Endpoint) {
 	pair.Handler.SetEndpoint(endpoint)
-	pair.Control.SetEndpoint(endpoint)
+	pair.PublisherControl.SetEndpoint(endpoint)
 }
 
 func (pair *Pair) SetLogger(parent *log.Logger) error {
@@ -46,9 +54,9 @@ func (pair *Pair) SetLogger(parent *log.Logger) error {
 		return err
 	}
 	if parent == nil {
-		return pair.Control.SetLogger(nil)
+		return pair.PublisherControl.SetLogger(nil)
 	}
-	return pair.Control.SetLogger(parent.Child(ControlCategory))
+	return pair.PublisherControl.SetLogger(parent.Child(ControlCategory))
 }
 
 // Type returns the handler type.
@@ -61,18 +69,18 @@ func (pair *Pair) Start() error {
 	if pair.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("configuration not set")
 	}
-	if pair.Control == nil {
+	if pair.PublisherControl == nil {
 		return fmt.Errorf("control not set")
 	}
 
-	if pair.mushroomURL == "" {
+	if pair.PublisherControl.mushroomURL == "" {
 		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
 	pair.setControlRoutes()
 
-	if pair.Control.Status() != SocketReady {
-		if err := pair.Control.Start(); err != nil {
+	if pair.PublisherControl.Status() != SocketReady {
+		if err := pair.PublisherControl.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
 	}
@@ -85,16 +93,16 @@ func (pair *Pair) Start() error {
 }
 
 func (pair *Pair) setControlRoutes() {
-	pair.Control.Route(HandlerConfig, pair.onControlConfig)
-	pair.Control.Route(HandlerStart, pair.onControlStart)
-	pair.Control.Route(HandlerClose, pair.onControlClose)
-	pair.Control.Route(Broadcast, pair.onBroadcast)
-	pair.Control.Route(MessageAmount, pair.onMessageAmount)
+	pair.PublisherControl.Route(HandlerConfig, pair.onControlConfig)
+	pair.PublisherControl.Route(HandlerStart, pair.onControlStart)
+	pair.PublisherControl.Route(HandlerClose, pair.onControlClose)
+	pair.PublisherControl.Route(Broadcast, pair.onBroadcast)
+	pair.PublisherControl.Route(MessageAmount, pair.onMessageAmount)
 }
 
 func (pair *Pair) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	pair.stopPair()
-	_ = pair.npacRemoveHandler()
+	_ = pair.PublisherControl.npacRemoveHandler()
 	return req.Ok(datatype.New())
 }
 
@@ -103,13 +111,13 @@ func (pair *Pair) onControlConfig(req message.RequestInterface) message.ReplyInt
 }
 
 func (pair *Pair) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if pair.Control.Status() == SocketReady {
-		return req.Fail(fmt.Sprintf("handler already running with status %s", pair.Control.Status()))
+	if pair.PublisherControl.Status() == SocketReady {
+		return req.Fail(fmt.Sprintf("handler already running with status %s", pair.PublisherControl.Status()))
 	}
 	if err := pair.startPair(); err != nil {
 		return req.Fail(err.Error())
 	}
-	return req.Ok(datatype.New().Set("status", pair.Control.Status()))
+	return req.Ok(datatype.New().Set("status", pair.PublisherControl.Status()))
 }
 
 func (pair *Pair) startPair() error {
@@ -145,9 +153,9 @@ func (pair *Pair) startPair() error {
 		}
 
 		pair.socket = socket
-		pair.Control.SetSocketReady()
+		pair.PublisherControl.SetSocketReady()
 
-		err = pair.npacRegisterHandler(pair.Control.Endpoint())
+		err = pair.PublisherControl.npacRegisterHandler(pair.PublisherControl.Endpoint())
 		if err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("npacRegisterHandler: %w", err)
@@ -159,7 +167,7 @@ func (pair *Pair) startPair() error {
 		poller := zmq.NewPoller()
 		poller.Add(socket, zmq.POLLIN)
 
-		for pair.Control.Running() {
+		for pair.PublisherControl.Running() {
 			pair.flushBroadcast(socket)
 
 			polled, err := poller.Poll(time.Millisecond)
@@ -185,7 +193,7 @@ func (pair *Pair) startPair() error {
 			pair.LogError("socket.Close", "error", err)
 		}
 		pair.socket = nil
-		pair.Control.SetSocketNil()
+		pair.PublisherControl.SetSocketNil()
 	}(ready)
 
 	return <-ready
@@ -221,7 +229,8 @@ func (pair *Pair) handleRequest(socket *zmq.Socket) error {
 	cmd := req.CommandName()
 	matchedSecret := ""
 	if pair.IsWhitelistExist(cmd) {
-		ok := pair.ValidateRequestHmac(req, hmacHash)
+		var ok bool
+		matchedSecret, ok = pair.getRequestSecret(req, hmacHash)
 		if !ok {
 			return pair.sendReply(socket, pair.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
 		}
@@ -232,13 +241,13 @@ func (pair *Pair) handleRequest(socket *zmq.Socket) error {
 		return pair.sendReply(socket, req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
-	if err := pair.npacPushHandleContext(cmd); err != nil {
+	if err := pair.PublisherControl.npacPushHandleContext(cmd); err != nil {
 		pair.LogError("AddRoute", "error", err)
 	}
 
 	reply := handleFunc(req)
 
-	if err := pair.popHandleContext(cmd); err != nil {
+	if err := pair.PublisherControl.popHandleContext(cmd); err != nil {
 		pair.LogError("RemoveRoute", "error", err)
 	}
 
@@ -261,11 +270,11 @@ func (pair *Pair) sendReply(socket *zmq.Socket, reply message.ReplyInterface, cm
 }
 
 func (pair *Pair) stopPair() {
-	if pair.socket == nil && !pair.Control.Running() {
+	if pair.socket == nil && !pair.PublisherControl.Running() {
 		return
 	}
 
-	pair.Control.SetSocketNil()
+	pair.PublisherControl.SetSocketNil()
 	pair.pairW.Wait()
 }
 

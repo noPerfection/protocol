@@ -80,3 +80,11 @@ func drainMonitor(mon *zmq.Socket) error {
 
 	return nil
 }
+
+// monitorAuthErr drains pending monitor events and reports handshake failures.
+func (socket *Socket) monitorAuthErr() error {
+	if socket.monitorSocket == nil {
+		return nil
+	}
+	return drainMonitor(socket.monitorSocket)
+}

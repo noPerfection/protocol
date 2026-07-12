@@ -161,9 +161,9 @@ Use the matching [protocol/client](../client) `Whitelist` on the client when cal
 Handlers can optionally encrypt their transport with ZeroMQ CURVE using `Secure`. An empty key keeps the handler non-secure:
 
 ```go
-import "github.com/noPerfection/protocol/handler/handler"
+import "github.com/noPerfection/protocol/message"
 
-_, serverSecret, _ := handler.GenerateCurveKey()
+_, serverSecret, _ := message.GenerateCurveKey()
 
 handler.Secure(serverSecret)
 ```
@@ -179,7 +179,7 @@ Clients must connect with the matching CURVE configuration; see [protocol/client
 Along with `Secure`, you can maintain an allowlist of client public keys permitted to connect. Register each allowed client before `Start`:
 
 ```go
-clientPublic, _, _ := handler.GenerateCurveKey()
+clientPublic, _, _ := message.GenerateCurveKey()
 
 handler.Allow(clientPublic)
 ```

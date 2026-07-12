@@ -16,29 +16,36 @@ const BroadcastParameter = "reply"
 
 type Publisher struct {
 	*Handler
-	*Autocontext
 	*Security
-	socket       *zmq.Socket
-	broadcasterW sync.WaitGroup
-	broadcasting *datatype.Queue
-	Control      *Control
+	socket           *zmq.Socket
+	broadcasterW     sync.WaitGroup
+	broadcasting     *datatype.Queue
+	PublisherControl *PublisherControl
 }
 
 // NewPublisher Publisher returned
 func NewPublisher() *Publisher {
 	return &Publisher{
-		Handler:      New(),
-		broadcasting: datatype.NewQueue(),
-		Control:      NewControl(),
-		Autocontext:  NewAutocontext(),
-		Security:     NewSecurity(),
+		Handler:          New(),
+		broadcasting:     datatype.NewQueue(),
+		PublisherControl: NewPublisherControl(),
+		Security:         NewSecurity(),
 	}
+}
+
+func (pair *Publisher) Secure(secretKey string) {
+	pair.Security.Secure(secretKey)
+	pair.PublisherControl.setSecretKey(secretKey)
 }
 
 // SetEndpoint adds the parameters of the handler from the config.
 func (c *Publisher) SetEndpoint(endpoint message.Endpoint) {
 	c.Handler.SetEndpoint(endpoint)
-	c.Control.SetEndpoint(endpoint)
+	c.PublisherControl.SetEndpoint(endpoint)
+}
+
+func (pair *Publisher) SetMushroomURL(mushroomURL string) {
+	pair.PublisherControl.SetMushroomURL(mushroomURL)
 }
 
 func (c *Publisher) SetLogger(parent *log.Logger) error {
@@ -46,9 +53,9 @@ func (c *Publisher) SetLogger(parent *log.Logger) error {
 		return err
 	}
 	if parent == nil {
-		return c.Control.SetLogger(nil)
+		return c.PublisherControl.SetLogger(nil)
 	}
-	return c.Control.SetLogger(parent.Child(ControlCategory))
+	return c.PublisherControl.SetLogger(parent.Child(ControlCategory))
 }
 
 // Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
@@ -66,18 +73,18 @@ func (c *Publisher) Start() error {
 	if c.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("configuration not set")
 	}
-	if c.Control == nil {
+	if c.PublisherControl == nil {
 		return fmt.Errorf("control not set")
 	}
 
-	if c.mushroomURL == "" {
+	if c.PublisherControl.mushroomURL == "" {
 		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
 	c.setControlRoutes()
 
-	if c.Control.Status() != SocketReady {
-		if err := c.Control.Start(); err != nil {
+	if c.PublisherControl.Status() != SocketReady {
+		if err := c.PublisherControl.Start(); err != nil {
 			return fmt.Errorf("control.Start: %w", err)
 		}
 	}
@@ -90,16 +97,16 @@ func (c *Publisher) Start() error {
 }
 
 func (c *Publisher) setControlRoutes() {
-	c.Control.Route(HandlerConfig, c.onControlConfig)
-	c.Control.Route(HandlerStart, c.onControlStart)
-	c.Control.Route(HandlerClose, c.onControlClose)
-	c.Control.Route(Broadcast, c.onBroadcast)
-	c.Control.Route(MessageAmount, c.onMessageAmount)
+	c.PublisherControl.Route(HandlerConfig, c.onControlConfig)
+	c.PublisherControl.Route(HandlerStart, c.onControlStart)
+	c.PublisherControl.Route(HandlerClose, c.onControlClose)
+	c.PublisherControl.Route(Broadcast, c.onBroadcast)
+	c.PublisherControl.Route(MessageAmount, c.onMessageAmount)
 }
 
 func (c *Publisher) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	c.stopBroadcaster()
-	_ = c.npacRemoveHandler()
+	_ = c.PublisherControl.npacRemoveHandler()
 	return req.Ok(datatype.New())
 }
 
@@ -108,13 +115,13 @@ func (c *Publisher) onControlConfig(req message.RequestInterface) message.ReplyI
 }
 
 func (c *Publisher) onControlStart(req message.RequestInterface) message.ReplyInterface {
-	if c.Control.Status() == SocketReady {
-		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
+	if c.PublisherControl.Status() == SocketReady {
+		return req.Fail(fmt.Sprintf("handler already running with status %s", c.PublisherControl.Status()))
 	}
 	if err := c.startBroadcaster(); err != nil {
 		return req.Fail(err.Error())
 	}
-	return req.Ok(datatype.New().Set("status", c.Control.Status()))
+	return req.Ok(datatype.New().Set("status", c.PublisherControl.Status()))
 }
 
 func (c *Publisher) startBroadcaster() error {
@@ -150,13 +157,13 @@ func (c *Publisher) startBroadcaster() error {
 		}
 
 		c.socket = socket
-		c.Control.SetSocketReady()
+		c.PublisherControl.SetSocketReady()
 
-		_ = c.npacRegisterHandler(c.Control.Endpoint())
+		_ = c.PublisherControl.npacRegisterHandler(c.PublisherControl.Endpoint())
 
 		ready <- nil
 
-		for c.Control.Running() {
+		for c.PublisherControl.Running() {
 			if c.broadcasting.IsEmpty() {
 				continue
 			}
@@ -177,18 +184,18 @@ func (c *Publisher) startBroadcaster() error {
 			c.LogError("socket.Close", "error", err)
 		}
 		c.socket = nil
-		c.Control.SetSocketNil()
+		c.PublisherControl.SetSocketNil()
 	}(ready)
 
 	return <-ready
 }
 
 func (c *Publisher) stopBroadcaster() {
-	if c.socket == nil && !c.Control.Running() {
+	if c.socket == nil && !c.PublisherControl.Running() {
 		return
 	}
 
-	c.Control.SetSocketNil()
+	c.PublisherControl.SetSocketNil()
 	c.broadcasterW.Wait()
 }
 

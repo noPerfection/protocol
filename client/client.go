@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/noPerfection/protocol/client/autocontext"
 	"github.com/noPerfection/protocol/message"
 
 	zmq "github.com/pebbe/zmq4"
@@ -404,11 +403,35 @@ func (socket *Socket) Send(req message.RequestInterface, hmac ...string) error {
 
 	// On ErrNoCurveKey: fetch the server public key from npac and retry once.
 	if sendErr != nil && errors.Is(sendErr, message.ErrNoCurveKey) {
-		url := socket.endpoint.HandlerUrl()
-		if pubKey, lookupErr := autocontext.GetPublicKey(url); lookupErr == nil && pubKey != "" {
-			socket.Secure(pubKey)
-			sendErr = socket.dispatcher.send(reqStr)
+		autocontext := NewAutocontext()
+		if autocontext == nil {
+			return fmt.Errorf("failed to create autocontext")
 		}
+		unregistered, publicKey, controlEndpoint, err := autocontext.HandlerContext(socket.endpoint, req.CommandName())
+
+		autocontext.Close()
+
+		if err != nil {
+			return fmt.Errorf("autocontext.HandlerContext: %w", err)
+		}
+		if unregistered {
+			return fmt.Errorf("%w: ErrNoCurveKey, and not registered in 'npap'.", message.ErrNoCurveKey)
+		}
+
+		control, err := NewControl(controlEndpoint.Id, controlEndpoint.Port)
+		if err != nil {
+			return fmt.Errorf("NewControl: %w", err)
+		}
+		envelope, err := socket.messagePacker.SerializeRequest(req, hmac...)
+		if err != nil {
+			return fmt.Errorf("request: message.ErrNoCurveKey: packer.SerializeRequest: %w", err)
+		}
+		// endpoint, public-key, request, hmac optional
+		_, err = control.RequestAsContext(socket.endpoint, socket.handlerType, publicKey, envelope, req.CommandName(), socket.attempt, socket.timeout, hmac...)
+		if err != nil {
+			return fmt.Errorf("control.Send: %w", err)
+		}
+		control.Close()
 	}
 
 	if sendErr != nil {
@@ -438,11 +461,38 @@ func (socket *Socket) Request(req message.RequestInterface, hmac ...string) (mes
 
 	// On ErrNoCurveKey: fetch the server public key from npac and retry once.
 	if reqErr != nil && errors.Is(reqErr, message.ErrNoCurveKey) {
-		url := socket.endpoint.HandlerUrl()
-		if pubKey, lookupErr := autocontext.GetPublicKey(url); lookupErr == nil && pubKey != "" {
-			socket.Secure(pubKey)
-			rawReply, reqErr = socket.dispatcher.request(reqStr)
+		autocontext := NewAutocontext()
+		if autocontext == nil {
+			return nil, fmt.Errorf("request: message.ErrNoCurveKey: failed to create autocontext")
 		}
+		unregistered, publicKey, controlEndpoint, err := autocontext.HandlerContext(socket.endpoint, req.CommandName())
+
+		autocontext.Close()
+
+		if err != nil {
+			return nil, fmt.Errorf("request: message.ErrNoCurveKey: autocontext.HandlerContext: %w", err)
+		}
+		if unregistered {
+			return nil, fmt.Errorf("request: message.ErrNoCurveKey: %w: ErrNoCurveKey, and not registered in 'npap'.", message.ErrNoCurveKey)
+		}
+
+		control, err := NewControl(controlEndpoint.Id, controlEndpoint.Port)
+		if err != nil {
+			return nil, fmt.Errorf("request: message.ErrNoCurveKey: NewControl: %w", err)
+		}
+		envelope, err := socket.messagePacker.SerializeRequest(req, hmac...)
+		if err != nil {
+			return nil, fmt.Errorf("request: message.ErrNoCurveKey: packer.SerializeRequest: %w", err)
+		}
+		// endpoint, public-key, request, hmac optional
+		reply, err := control.RequestAsContext(socket.endpoint, socket.handlerType, publicKey, envelope, req.CommandName(), socket.attempt, socket.timeout, hmac...)
+		if err != nil {
+			return nil, fmt.Errorf("request: message.ErrNoCurveKey: control.RequestAsContext: %w", err)
+		}
+
+		control.Close()
+
+		return reply, nil
 	}
 
 	if reqErr != nil {
@@ -457,19 +507,38 @@ func (socket *Socket) Request(req message.RequestInterface, hmac ...string) (mes
 	// On "access-denied" reply body: the handler requires HMAC but the client
 	// did not sign the request. Fetch the secret from npac, re-sign, and retry.
 	if !reply.IsOK() && reply.ErrorMessage() == message.ErrAccessDenied.Error() {
-		cmd := req.CommandName()
-		url := socket.endpoint.HandlerUrl()
-		if secret, lookupErr := autocontext.GetHmacSecret(url, cmd); lookupErr == nil && secret != "" {
-			if wlErr := socket.Whitelist(cmd, secret); wlErr == nil {
-				if signedReqStr, serErr := socket.serializeRequest(req); serErr == nil {
-					if rawReply2, reqErr2 := socket.dispatcher.request(signedReqStr); reqErr2 == nil {
-						if reply2, replyHmac2, deserErr := socket.messagePacker.DeserializeReply(rawReply2); deserErr == nil {
-							reply, replyHmac = reply2, replyHmac2
-						}
-					}
-				}
-			}
+		autocontext := NewAutocontext()
+		if autocontext == nil {
+			return nil, fmt.Errorf("reply: ErrAccessDenied: failed to create autocontext")
 		}
+		unregistered, publicKey, controlEndpoint, err := autocontext.HandlerContext(socket.endpoint, req.CommandName())
+
+		autocontext.Close()
+
+		if err != nil {
+			return nil, fmt.Errorf("reply: ErrAccessDenied: autocontext.HandlerContext: %w", err)
+		}
+		if unregistered {
+			return nil, fmt.Errorf("reply: ErrAccessDenied: %w: '%s' not registered in 'npap'.", message.ErrAccessDenied, socket.endpoint.HandlerUrl())
+		}
+
+		control, err := NewControl(controlEndpoint.Id, controlEndpoint.Port)
+		if err != nil {
+			return nil, fmt.Errorf("reply: ErrAccessDenied: NewControl: %w", err)
+		}
+		envelope, err := socket.messagePacker.SerializeRequest(req, hmac...)
+		if err != nil {
+			return nil, fmt.Errorf("reply: ErrAccessDenied: packer.SerializeRequest: %w", err)
+		}
+		// endpoint, public-key, request, hmac optional
+		reply, err := control.RequestAsContext(socket.endpoint, socket.handlerType, publicKey, envelope, req.CommandName(), socket.attempt, socket.timeout, hmac...)
+		if err != nil {
+			return nil, fmt.Errorf("reply: ErrAccessDenied: control.RequestAsContext: %w", err)
+		}
+
+		control.Close()
+
+		return reply, nil
 	}
 
 	if err := socket.validateReply(req.CommandName(), reply, replyHmac); err != nil {

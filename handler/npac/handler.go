@@ -19,14 +19,14 @@ import (
 
 const (
 	// Route command constants.
-	RegisterHandler       = "add-handler"
-	RemoveHandlerCmd      = "remove-handler"
-	RegisterOutbound      = "add-outbound"
-	RemoveOutbound        = "remove-outbound"
-	SecureEdgeCaseCmd     = "secure-edge-case"
-	PushHandlerContextCmd = "push-handler-context"
-	PopHandlerContextCmd  = "pop-handler-context"
-	HandlerContextCmd     = "handler-context"
+	RegisterHandler    = "register-handler"
+	RemoveHandler      = "remove-handler"
+	RegisterOutbound   = "register-outbound"
+	RemoveOutbound     = "remove-outbound"
+	SecureEdgeCase     = "secure-edge-case"
+	PushHandlerContext = "push-handler-context"
+	PopHandlerContext  = "pop-handler-context"
+	HandlerContext     = "handler-context"
 )
 
 // Endpoint is the inproc endpoint the npac handler binds to.
@@ -92,12 +92,12 @@ func New() *Npac {
 
 	h.routes[RegisterOutbound] = h.onRegisterOutbound
 	h.routes[RemoveOutbound] = h.onRemoveOutbound
-	h.routes[RegisterHandler] = h.onRegisterHandler          // HMAC protected
-	h.routes[RemoveHandlerCmd] = h.onRemoveHandler           // HMAC protected
-	h.routes[SecureEdgeCaseCmd] = h.onSecureEdgeCase         // HMAC protected
-	h.routes[PushHandlerContextCmd] = h.onPushHandlerContext // HMAC protected
-	h.routes[PopHandlerContextCmd] = h.onPopHandlerContext   // HMAC protected
-	h.routes[HandlerContextCmd] = h.onHandlerContext
+	h.routes[RegisterHandler] = h.onRegisterHandler       // HMAC protected
+	h.routes[RemoveHandler] = h.onRemoveHandler           // HMAC protected
+	h.routes[SecureEdgeCase] = h.onSecureEdgeCase         // HMAC protected
+	h.routes[PushHandlerContext] = h.onPushHandlerContext // HMAC protected
+	h.routes[PopHandlerContext] = h.onPopHandlerContext   // HMAC protected
+	h.routes[HandlerContext] = h.onHandlerContext         // Public, called by clients
 
 	return h
 }
@@ -116,7 +116,7 @@ func isAlreadyRunning() bool {
 
 	packer := &message.MessagePacker{}
 	envelope, err := packer.SerializeRequest(&message.Request{
-		Command:    HandlerContextCmd,
+		Command:    HandlerContext,
 		Parameters: datatype.New(),
 	})
 	if err != nil {
@@ -237,7 +237,7 @@ func (h *Npac) verifyHMAC(req message.RequestInterface, hash string) error {
 			return fmt.Errorf("npac-secret param: %w", err)
 		}
 		secret = s
-	case RemoveHandlerCmd:
+	case RemoveHandler:
 		mushroomURL, err := req.RouteParameters().StringValue("mushroom-url")
 		if err != nil {
 			return fmt.Errorf("mushroom-url param: %w", err)
@@ -247,7 +247,7 @@ func (h *Npac) verifyHMAC(req message.RequestInterface, hash string) error {
 			return fmt.Errorf("handler %q not registered", mushroomURL)
 		}
 		secret = entry.NpacSecret
-	case SecureEdgeCaseCmd, PushHandlerContextCmd, PopHandlerContextCmd:
+	case SecureEdgeCase, PushHandlerContext, PopHandlerContext:
 		routeURL, err := req.RouteParameters().StringValue("mushroom-url")
 		if err != nil {
 			return fmt.Errorf("mushroom-url param: %w", err)
@@ -343,9 +343,6 @@ func (h *Npac) onRemoveHandler(req message.RequestInterface) message.ReplyInterf
 
 // onRegisterOutbound registers an outbound handler entry keyed by its handler URL.
 // Parameters: endpoint (nested {id, port}), mushroom-url (pkg: URL), public-key (string).
-// The handler URL is derived from the endpoint via HandlerUrl().
-// mushroom-url must be a valid pkg: URL; plain strings are rejected.
-// Registering the same endpoint twice is an error.
 func (h *Npac) onRegisterOutbound(req message.RequestInterface) message.ReplyInterface {
 	endpointKV, err := req.RouteParameters().NestedValue("endpoint")
 	if err != nil {
@@ -476,21 +473,21 @@ func (h *Npac) onPopHandlerContext(req message.RequestInterface) message.ReplyIn
 //   - unregistered=true when the entrypoint is not in npac or cmd has no whitelist entry
 //   - error "cross-access-denied: …" when the last context is not authorised
 func (h *Npac) onHandlerContext(req message.RequestInterface) message.ReplyInterface {
-	entrypointKV, err := req.RouteParameters().NestedValue("entrypoint")
+	endpointKV, err := req.RouteParameters().NestedValue("endpoint")
 	if err != nil {
 		return req.Fail(fmt.Sprintf("entrypoint param: %v", err))
 	}
-	var entrypoint message.Endpoint
-	if err := entrypointKV.Interface(&entrypoint); err != nil {
+	var endpoint message.Endpoint
+	if err := endpointKV.Interface(&endpoint); err != nil {
 		return req.Fail(fmt.Sprintf("entrypoint: %v", err))
 	}
-	cmd, err := req.RouteParameters().StringValue("cmd")
+	cmd, err := req.RouteParameters().StringValue("command")
 	if err != nil {
-		return req.Fail(fmt.Sprintf("cmd param: %v", err))
+		return req.Fail(fmt.Sprintf("command param: %v", err))
 	}
 
 	// Resolve the outbound registered for this endpoint.
-	ob, exists := h.outbounds[entrypoint.HandlerUrl()]
+	ob, exists := h.outbounds[endpoint.HandlerUrl()]
 	if !exists {
 		return req.Ok(datatype.New().Set("unregistered", true))
 	}
@@ -538,15 +535,32 @@ func (h *Npac) onHandlerContext(req message.RequestInterface) message.ReplyInter
 
 // onRemoveOutbound removes an outbound entry by handler URL.
 func (h *Npac) onRemoveOutbound(req message.RequestInterface) message.ReplyInterface {
-	handlerURL, err := req.RouteParameters().StringValue("url")
+	entrypointKV, err := req.RouteParameters().NestedValue("entrypoint")
 	if err != nil {
-		return req.Fail(fmt.Sprintf("url param: %v", err))
+		return req.Fail(fmt.Sprintf("entrypoint param: %v", err))
+	}
+	var entrypoint message.Endpoint
+	if err := entrypointKV.Interface(&entrypoint); err != nil {
+		return req.Fail(fmt.Sprintf("entrypoint: %v", err))
+	}
+	handlerURL := entrypoint.HandlerUrl()
+
+	entry, exists := h.outbounds[handlerURL]
+	if !exists {
+		return req.Fail(fmt.Sprintf("outbound for entrypoint %q not found", handlerURL))
+	}
+	i := 0
+	for cmd := range entry.Whitelist {
+		for range entry.Whitelist[cmd] {
+			i++
+		}
+	}
+	if i > 0 {
+		return req.Fail(fmt.Sprintf("outbound for entrypoint %q has %d whitelisted mushroom URLs, please remove them first", handlerURL, i))
 	}
 
-	if entry, exists := h.outbounds[handlerURL]; exists {
-		delete(h.mushroomUrlToOutbounds, entry.MushroomURL)
-		delete(h.outbounds, handlerURL)
-	}
+	delete(h.mushroomUrlToOutbounds, entry.MushroomURL)
+	delete(h.outbounds, handlerURL)
 
 	return req.Ok(datatype.New())
 }

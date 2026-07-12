@@ -41,6 +41,11 @@ func NewReplier() *Replier {
 	}
 }
 
+func (replier *Replier) Secure(secretKey string) {
+	replier.Security.Secure(secretKey)
+	replier.Control.setSecretKey(secretKey)
+}
+
 // SetEndpoint adds the parameters of the handler from the config.
 func (c *Replier) SetEndpoint(endpoint message.Endpoint) {
 	c.Handler.SetEndpoint(endpoint)

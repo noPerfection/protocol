@@ -1,38 +1,31 @@
-package pair
+package client
 
 import (
 	"fmt"
 
 	"github.com/noPerfection/datatype"
-	"github.com/noPerfection/protocol/client/sync_replier"
 	"github.com/noPerfection/protocol/message"
 )
 
-const (
-	broadcastCommand     = "broadcast"
-	broadcastParameter   = "reply"
-	messageAmountCommand = "message-amount"
-)
-
-type Control struct {
-	*sync_replier.BaseControl
+type PublisherControl struct {
+	*Control
 }
 
-func NewControl(id string, port uint64) (*Control, error) {
-	control, err := sync_replier.NewBaseControl(id, port)
+func NewPublisherControl(id string, port uint64) (*PublisherControl, error) {
+	control, err := NewControl(id, port)
 	if err != nil {
 		return nil, err
 	}
-	return &Control{BaseControl: control}, nil
+	return &PublisherControl{Control: control}, nil
 }
 
-func (c *Control) Broadcast(reply message.Reply) error {
+func (c *PublisherControl) Broadcast(reply message.Reply) error {
 	broadcastReq := &message.Request{
-		Command:    broadcastCommand,
-		Parameters: datatype.New().Set(broadcastParameter, reply),
+		Command:    "broadcast",
+		Parameters: datatype.New().Set("reply", reply),
 	}
 
-	controlReply, err := c.Request(broadcastReq)
+	controlReply, err := c.SyncReplierClient.Request(broadcastReq)
 	if err != nil {
 		return err
 	}
@@ -42,9 +35,9 @@ func (c *Control) Broadcast(reply message.Reply) error {
 	return nil
 }
 
-func (c *Control) MessageAmount() (uint, error) {
+func (c *PublisherControl) MessageAmount() (uint, error) {
 	req := &message.Request{
-		Command:    messageAmountCommand,
+		Command:    "message-amount",
 		Parameters: datatype.New(),
 	}
 

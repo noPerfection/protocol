@@ -1,4 +1,4 @@
-package publisher
+package client
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ func TestReceiveSubscribesToInprocPublisher(t *testing.T) {
 	pub := newInprocPublisher(t, endpoint)
 	defer closePublisher(t, pub)
 
-	client, err := NewClient(endpoint, 0)
+	client, err := NewPublisher(endpoint, 0)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestReceiveSubscriptionAcrossPublisherRestart(t *testing.T) {
 	endpoint := randomInprocEndpoint(t)
 	pub := newInprocPublisher(t, endpoint)
 
-	client, err := NewClient(endpoint, 0)
+	client, err := NewPublisher(endpoint, 0)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}

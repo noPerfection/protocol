@@ -72,6 +72,7 @@ func (test *TestWorkerSuite) SetupTest() {
 	// Setting the configuration
 	// Setting the logger should be successful
 	test.worker.SetEndpoint(test.handlerConfig)
+	test.worker.SetMushroomURL(testMushroomURL(testID))
 	s.Require().NoError(test.worker.SetLogger(test.logger))
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)

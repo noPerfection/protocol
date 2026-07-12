@@ -37,6 +37,7 @@ func (test *TestPublisherSuite) SetupTest() {
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 
 	test.pub.SetEndpoint(test.config)
+	test.pub.SetMushroomURL(testMushroomURL(test.config.Id))
 	s.Require().Equal(PublisherType, test.pub.Type())
 	s.Require().NoError(test.pub.SetLogger(test.logger))
 

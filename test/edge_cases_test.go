@@ -5,9 +5,7 @@ import (
 	"time"
 
 	"github.com/noPerfection/datatype"
-	cpair "github.com/noPerfection/protocol/client/pair"
-	cpublisher "github.com/noPerfection/protocol/client/publisher"
-	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
+	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/require"
@@ -27,19 +25,20 @@ func testWrongCommand(t *testing.T) {
 	id := testID(t, "wrong-command")
 	svc := handler.NewSyncReplier()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
+	setHandlerMushroomURL(svc, id)
 	req.NoError(svc.Route("known", echoRoute))
 	req.NoError(svc.Start())
 
 	control := newSyncControl(t, id)
 	defer closeControl(t, control)
 
-	client, err := csyncreplier.NewClient(id, 0)
+	syncClient, err := client.NewSyncReplier(id, 0)
 	req.NoError(err)
-	defer func() { req.NoError(client.Close()) }()
-	client.Timeout(50 * time.Millisecond)
-	client.Attempt(1)
+	defer func() { req.NoError(syncClient.Close()) }()
+	syncClient.Timeout(50 * time.Millisecond)
+	syncClient.Attempt(1)
 
-	reply, err := client.Request(newRequest("unknown", "value"))
+	reply, err := syncClient.Request(newRequest("unknown", "value"))
 	req.NoError(err)
 	req.False(reply.IsOK())
 	req.Contains(reply.ErrorMessage(), "command handler not found")
@@ -50,6 +49,7 @@ func testWrongParameters(t *testing.T) {
 	id := testID(t, "wrong-parameters")
 	svc := handler.NewSyncReplier()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
+	setHandlerMushroomURL(svc, id)
 	req.NoError(svc.Route("needs-required", func(request message.RequestInterface) message.ReplyInterface {
 		value, err := request.RouteParameters().StringValue("required")
 		if err != nil {
@@ -62,13 +62,13 @@ func testWrongParameters(t *testing.T) {
 	control := newSyncControl(t, id)
 	defer closeControl(t, control)
 
-	client, err := csyncreplier.NewClient(id, 0)
+	syncClient, err := client.NewSyncReplier(id, 0)
 	req.NoError(err)
-	defer func() { req.NoError(client.Close()) }()
-	client.Timeout(50 * time.Millisecond)
-	client.Attempt(1)
+	defer func() { req.NoError(syncClient.Close()) }()
+	syncClient.Timeout(50 * time.Millisecond)
+	syncClient.Attempt(1)
 
-	reply, err := client.Request(&message.Request{
+	reply, err := syncClient.Request(&message.Request{
 		Command:    "needs-required",
 		Parameters: datatype.New().Set("unexpected", "value"),
 	})
@@ -79,13 +79,13 @@ func testWrongParameters(t *testing.T) {
 
 func testRequestTimeoutWithoutHandler(t *testing.T) {
 	req := require.New(t)
-	client, err := csyncreplier.NewClient(testID(t, "missing-handler"), 0)
+	syncClient, err := client.NewSyncReplier(testID(t, "missing-handler"), 0)
 	req.NoError(err)
-	defer func() { req.NoError(client.Close()) }()
-	client.Timeout(20 * time.Millisecond)
-	client.Attempt(1)
+	defer func() { req.NoError(syncClient.Close()) }()
+	syncClient.Timeout(20 * time.Millisecond)
+	syncClient.Attempt(1)
 
-	reply, err := client.Request(newRequest("echo", "value"))
+	reply, err := syncClient.Request(newRequest("echo", "value"))
 	req.Error(err)
 	req.Nil(reply)
 	req.Contains(err.Error(), "request_timeout")
@@ -93,7 +93,7 @@ func testRequestTimeoutWithoutHandler(t *testing.T) {
 
 func testControlTimeoutWithoutHandler(t *testing.T) {
 	req := require.New(t)
-	control, err := csyncreplier.NewControl(controlID(testID(t, "missing-control"), 0), 0)
+	control, err := client.NewControl(controlID(testID(t, "missing-control"), 0), 0)
 	req.NoError(err)
 	defer func() { req.NoError(control.Close()) }()
 	control.Timeout(20 * time.Millisecond)
@@ -107,13 +107,13 @@ func testControlTimeoutWithoutHandler(t *testing.T) {
 
 func testReceiveClosesWhenPublisherIdle(t *testing.T) {
 	req := require.New(t)
-	client, err := cpublisher.NewClient(testID(t, "idle-publisher"), 0)
+	pubClient, err := client.NewPublisher(testID(t, "idle-publisher"), 0)
 	req.NoError(err)
-	defer func() { req.NoError(client.Close()) }()
-	client.Timeout(20 * time.Millisecond)
-	client.Attempt(2)
+	defer func() { req.NoError(pubClient.Close()) }()
+	pubClient.Timeout(20 * time.Millisecond)
+	pubClient.Attempt(2)
 
-	replies := client.Receive()
+	replies := pubClient.Receive()
 	select {
 	case reply, ok := <-replies:
 		req.False(ok, "unexpected reply from missing publisher: %v", reply)
@@ -127,23 +127,24 @@ func testSendAfterHandlerStoppedDoesNotDeliver(t *testing.T) {
 	id := testID(t, "stopped-pair")
 	svc := handler.NewPair()
 	svc.SetEndpoint(message.NewEndpoint(id, 0))
+	setHandlerMushroomURL(svc, id)
 	req.NoError(svc.Route("echo", echoRoute))
 	req.NoError(svc.Start())
 
 	control := newPairControl(t, id)
 	defer func() { req.NoError(control.Close()) }()
 
-	client, err := cpair.NewClient(id, 0)
+	pairClient, err := client.NewPair(id, 0)
 	req.NoError(err)
-	defer func() { req.NoError(client.Close()) }()
-	client.Timeout(20 * time.Millisecond)
-	client.Attempt(1)
-	replies := client.Receive()
+	defer func() { req.NoError(pairClient.Close()) }()
+	pairClient.Timeout(20 * time.Millisecond)
+	pairClient.Attempt(1)
+	replies := pairClient.Receive()
 
 	req.NoError(control.HandlerClose())
 	waitForStatus(t, control, handler.SocketNil)
 
-	_ = client.Send(newRequest("echo", "value"))
+	_ = pairClient.Send(newRequest("echo", "value"))
 	select {
 	case reply, ok := <-replies:
 		req.False(ok, "unexpected reply after handler stopped: %v", reply)

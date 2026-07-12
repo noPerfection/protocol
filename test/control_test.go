@@ -5,11 +5,6 @@ import (
 	"time"
 
 	"github.com/noPerfection/protocol/client"
-	cpair "github.com/noPerfection/protocol/client/pair"
-	cpublisher "github.com/noPerfection/protocol/client/publisher"
-	creplier "github.com/noPerfection/protocol/client/replier"
-	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
-	cworker "github.com/noPerfection/protocol/client/worker"
 	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/require"
@@ -28,6 +23,7 @@ func TestHandlerControls(t *testing.T) {
 		svc := handler.NewSyncReplier()
 		endpoint := message.NewEndpoint(testID(t, "sync-control"), 0)
 		svc.SetEndpoint(endpoint)
+		setHandlerMushroomURL(svc, endpoint.Id)
 		require.NoError(t, svc.Route("echo", echoRoute))
 		require.NoError(t, svc.Start())
 		control := newSyncControl(t, endpoint.Id)
@@ -39,6 +35,7 @@ func TestHandlerControls(t *testing.T) {
 		svc := handler.NewReplier()
 		endpoint := message.NewEndpoint(testID(t, "replier-control"), 0)
 		svc.SetEndpoint(endpoint)
+		setHandlerMushroomURL(svc, endpoint.Id)
 		require.NoError(t, svc.Route("echo", echoRoute))
 		require.NoError(t, svc.Start())
 		control := newReplierControl(t, endpoint.Id)
@@ -50,6 +47,7 @@ func TestHandlerControls(t *testing.T) {
 		svc := handler.NewWorker()
 		endpoint := message.NewEndpoint(testID(t, "worker-control"), 0)
 		svc.SetEndpoint(endpoint)
+		setHandlerMushroomURL(svc, endpoint.Id)
 		require.NoError(t, svc.Route("work", func(request message.RequestInterface) message.ReplyInterface {
 			return request.Ok(request.RouteParameters())
 		}))
@@ -63,6 +61,7 @@ func TestHandlerControls(t *testing.T) {
 		svc := handler.NewPair()
 		endpoint := message.NewEndpoint(testID(t, "pair-control"), 0)
 		svc.SetEndpoint(endpoint)
+		setHandlerMushroomURL(svc, endpoint.Id)
 		require.NoError(t, svc.Route("echo", echoRoute))
 		require.NoError(t, svc.Start())
 		control := newPairControl(t, endpoint.Id)
@@ -74,6 +73,7 @@ func TestHandlerControls(t *testing.T) {
 		svc := handler.NewPublisher()
 		endpoint := message.NewEndpoint(testID(t, "publisher-control"), 0)
 		svc.SetEndpoint(endpoint)
+		setHandlerMushroomURL(svc, endpoint.Id)
 		require.NoError(t, svc.Start())
 		control := newPublisherControl(t, endpoint.Id)
 		defer func() { require.NoError(t, control.Close()) }()
@@ -125,45 +125,45 @@ func waitForStatus(t *testing.T, control controlClient, expected string) {
 	}
 }
 
-func newSyncControl(t *testing.T, id string) *csyncreplier.Control {
+func newSyncControl(t *testing.T, id string) *client.Control {
 	t.Helper()
-	control, err := csyncreplier.NewControl(controlID(id, 0), 0)
+	control, err := client.NewControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)
 	return control
 }
 
-func newReplierControl(t *testing.T, id string) *creplier.Control {
+func newReplierControl(t *testing.T, id string) *client.Control {
 	t.Helper()
-	control, err := creplier.NewControl(controlID(id, 0), 0)
+	control, err := client.NewControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)
 	return control
 }
 
-func newWorkerControl(t *testing.T, id string) *cworker.Control {
+func newWorkerControl(t *testing.T, id string) *client.Control {
 	t.Helper()
-	control, err := cworker.NewControl(controlID(id, 0), 0)
+	control, err := client.NewControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)
 	return control
 }
 
-func newPairControl(t *testing.T, id string) *cpair.Control {
+func newPairControl(t *testing.T, id string) *client.PairControl {
 	t.Helper()
-	control, err := cpair.NewControl(controlID(id, 0), 0)
+	control, err := client.NewPairControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)
 	return control
 }
 
-func newPublisherControl(t *testing.T, id string) *cpublisher.Control {
+func newPublisherControl(t *testing.T, id string) *client.PublisherControl {
 	t.Helper()
-	control, err := cpublisher.NewControl(controlID(id, 0), 0)
+	control, err := client.NewPublisherControl(controlID(id, 0), 0)
 	require.NoError(t, err)
 	control.Timeout(time.Second)
 	control.Attempt(3)

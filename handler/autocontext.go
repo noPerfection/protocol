@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,18 +15,19 @@ import (
 type Autocontext struct {
 	npacSecret  string
 	mushroomURL string
+	started     bool
 	client      *client.Socket
 }
 
 func NewAutocontext() *Autocontext {
-	secret := GenerateSecret()
+	secret := message.GenerateSecret()
 	c, _ := client.New("npac", 0, client.SyncReplierType)
 	if c != nil {
 		c.Timeout(50 * time.Millisecond)
-		_ = c.Whitelist(npac.RemoveHandlerCmd, secret)
-		_ = c.Whitelist(npac.SecureEdgeCaseCmd, secret)
-		_ = c.Whitelist(npac.PushHandlerContextCmd, secret)
-		_ = c.Whitelist(npac.PopHandlerContextCmd, secret)
+		_ = c.Whitelist(npac.RemoveHandler, secret)
+		_ = c.Whitelist(npac.SecureEdgeCase, secret)
+		_ = c.Whitelist(npac.PushHandlerContext, secret)
+		_ = c.Whitelist(npac.PopHandlerContext, secret)
 	}
 	return &Autocontext{
 		npacSecret: secret,
@@ -67,23 +69,31 @@ func (c *Autocontext) npacRegisterHandler(controlEndpoint message.Endpoint) erro
 	hmac := message.ComputeHMAC(req.String(), c.npacSecret)
 	reply, err := c.client.Request(req, hmac)
 	if err != nil {
+		if errors.Is(err, message.RequestTimeoutError) {
+			c.started = false
+			return nil
+		}
 		return err
 	}
 	if !reply.IsOK() {
 		return fmt.Errorf(reply.ErrorMessage())
 	}
+	c.started = true
 	return nil
 }
 
 // npacPushHandleContext pushes a route URL (mushroomURL + cmd as additional prop)
 // onto npac's context stack. HMAC-signed automatically via the client whitelist.
 func (c *Autocontext) npacPushHandleContext(cmd string) error {
+	if !c.started {
+		return nil
+	}
 	url, err := c.routeURL(cmd)
 	if err != nil {
 		return err
 	}
 	reply, err := c.client.Request(&message.Request{
-		Command:    npac.PushHandlerContextCmd,
+		Command:    npac.PushHandlerContext,
 		Parameters: datatype.New().Set("mushroom-url", url),
 	})
 	if err != nil {
@@ -95,15 +105,14 @@ func (c *Autocontext) npacPushHandleContext(cmd string) error {
 	return nil
 }
 
-// npacSecureEdgeCase whitelists this handler's mushroom URL as an allowed caller
-// for cmd on its outbound. HMAC-signed automatically via the client whitelist.
-func (c *Autocontext) npacSecureEdgeCase(outbound, cmd string) error {
+// NpacSecureEdgeCase authorizes the cmd's context to call the outbound.
+func (c *Autocontext) NpacSecureEdgeCase(outbound, cmd string) error {
 	mushroomURL, err := c.routeURL(cmd)
 	if err != nil {
 		return err
 	}
 	reply, err := c.client.Request(&message.Request{
-		Command: npac.SecureEdgeCaseCmd,
+		Command: npac.SecureEdgeCase,
 		Parameters: datatype.New().
 			Set("outbound", outbound).
 			Set("mushroom-url", mushroomURL),
@@ -120,8 +129,11 @@ func (c *Autocontext) npacSecureEdgeCase(outbound, cmd string) error {
 // npacRemoveHandler removes this handler's registration from npac.
 // HMAC-signed automatically via the client whitelist.
 func (c *Autocontext) npacRemoveHandler() error {
+	if !c.started {
+		return nil
+	}
 	reply, err := c.client.Request(&message.Request{
-		Command:    npac.RemoveHandlerCmd,
+		Command:    npac.RemoveHandler,
 		Parameters: datatype.New().Set("mushroom-url", c.mushroomURL),
 	})
 	if err != nil {
@@ -136,12 +148,15 @@ func (c *Autocontext) npacRemoveHandler() error {
 // popHandleContext pops the route URL (mushroomURL + cmd) from npac's context stack.
 // HMAC-signed automatically via the client whitelist.
 func (c *Autocontext) popHandleContext(cmd string) error {
+	if !c.started {
+		return nil
+	}
 	url, err := c.routeURL(cmd)
 	if err != nil {
 		return err
 	}
 	reply, err := c.client.Request(&message.Request{
-		Command:    npac.PopHandlerContextCmd,
+		Command:    npac.PopHandlerContext,
 		Parameters: datatype.New().Set("mushroom-url", url),
 	})
 	if err != nil {

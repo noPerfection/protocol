@@ -35,6 +35,11 @@ func NewWorker() *Worker {
 	}
 }
 
+func (worker *Worker) Secure(secretKey string) {
+	worker.Security.Secure(secretKey)
+	worker.Control.setSecretKey(secretKey)
+}
+
 // SetEndpoint adds the parameters of the handler from the config.
 func (c *Worker) SetEndpoint(endpoint message.Endpoint) {
 	c.Handler.SetEndpoint(endpoint)

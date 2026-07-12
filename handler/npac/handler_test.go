@@ -6,8 +6,7 @@ import (
 	"time"
 
 	"github.com/noPerfection/datatype"
-	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
-	"github.com/noPerfection/protocol/handler"
+	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler/npac"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/suite"
@@ -17,26 +16,26 @@ import (
 // directly via a sync-replier client, signing its requests with its own
 // internally-generated npac secret.
 type testActor struct {
-	c      *csyncreplier.Client
+	c      *client.SyncReplierClient
 	secret string
 }
 
 func newTestActor(t *testing.T) *testActor {
 	t.Helper()
 
-	secret := handler.GenerateSecret()
+	secret := message.GenerateSecret()
 
-	c, err := csyncreplier.NewClient(npac.Endpoint.Id, 0)
+	c, err := client.NewSyncReplier(npac.Endpoint.Id, 0)
 	if err != nil {
 		t.Fatalf("newTestActor: NewClient: %v", err)
 	}
 	c.Timeout(100 * time.Millisecond)
 	c.Attempt(1)
 	_ = c.Whitelist(npac.RegisterHandler, secret)
-	_ = c.Whitelist(npac.RemoveHandlerCmd, secret)
-	_ = c.Whitelist(npac.SecureEdgeCaseCmd, secret)
-	_ = c.Whitelist(npac.PushHandlerContextCmd, secret)
-	_ = c.Whitelist(npac.PopHandlerContextCmd, secret)
+	_ = c.Whitelist(npac.RemoveHandler, secret)
+	_ = c.Whitelist(npac.SecureEdgeCase, secret)
+	_ = c.Whitelist(npac.PushHandlerContext, secret)
+	_ = c.Whitelist(npac.PopHandlerContext, secret)
 	t.Cleanup(func() { _ = c.Close() })
 	return &testActor{c: c, secret: secret}
 }
@@ -89,7 +88,7 @@ func (a *testActor) addOutbound(endpoint message.Endpoint, mushroomURL, publicKe
 // mushroomURL is the URL to add to that command's whitelist.
 func (a *testActor) secureEdgeCase(outbound, mushroomURL string) error {
 	reply, err := a.c.Request(&message.Request{
-		Command: npac.SecureEdgeCaseCmd,
+		Command: npac.SecureEdgeCase,
 		Parameters: datatype.New().
 			Set("outbound", outbound).
 			Set("mushroom-url", mushroomURL),
@@ -105,7 +104,7 @@ func (a *testActor) secureEdgeCase(outbound, mushroomURL string) error {
 
 func (a *testActor) pushHandlerContext(routeURL string) error {
 	reply, err := a.c.Request(&message.Request{
-		Command:    npac.PushHandlerContextCmd,
+		Command:    npac.PushHandlerContext,
 		Parameters: datatype.New().Set("mushroom-url", routeURL),
 	})
 	if err != nil {
@@ -119,7 +118,7 @@ func (a *testActor) pushHandlerContext(routeURL string) error {
 
 func (a *testActor) popHandlerContext(routeURL string) error {
 	reply, err := a.c.Request(&message.Request{
-		Command:    npac.PopHandlerContextCmd,
+		Command:    npac.PopHandlerContext,
 		Parameters: datatype.New().Set("mushroom-url", routeURL),
 	})
 	if err != nil {
@@ -137,16 +136,16 @@ func (a *testActor) handlerContext(endpoint message.Endpoint, cmd string) (messa
 		return nil, fmt.Errorf("handlerContext: NewFromInterface: %w", err)
 	}
 	return a.c.Request(&message.Request{
-		Command: npac.HandlerContextCmd,
+		Command: npac.HandlerContext,
 		Parameters: datatype.New().
-			Set("entrypoint", endpointKV).
-			Set("cmd", cmd),
+			Set("endpoint", endpointKV).
+			Set("command", cmd),
 	})
 }
 
 func (a *testActor) removeHandler(mushroomURL string) error {
 	reply, err := a.c.Request(&message.Request{
-		Command:    npac.RemoveHandlerCmd,
+		Command:    npac.RemoveHandler,
 		Parameters: datatype.New().Set("mushroom-url", mushroomURL),
 	})
 	if err != nil {
@@ -196,10 +195,10 @@ func (s *TestNpacSuite) TestAddHandlerWithWrongHMAC() {
 
 	// Build a client that signs AddHandlerCmd with a different secret than
 	// what it declares in the npac-secret parameter.
-	declaredSecret := handler.GenerateSecret()
-	signingSecret := handler.GenerateSecret() // intentionally different
+	declaredSecret := message.GenerateSecret()
+	signingSecret := message.GenerateSecret() // intentionally different
 
-	c, err := csyncreplier.NewClient(npac.Endpoint.Id, 0)
+	c, err := client.NewSyncReplier(npac.Endpoint.Id, 0)
 	s.Require().NoError(err)
 	c.Timeout(100 * time.Millisecond)
 	c.Attempt(1)

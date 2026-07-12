@@ -32,6 +32,11 @@ func NewSyncReplier() *SyncReplier {
 	}
 }
 
+func (replier *SyncReplier) Secure(secretKey string) {
+	replier.Security.Secure(secretKey)
+	replier.Control.setSecretKey(secretKey)
+}
+
 // SetEndpoint adds the parameters of the handler from the config.
 func (c *SyncReplier) SetEndpoint(endpoint message.Endpoint) {
 	c.Handler.SetEndpoint(endpoint)
@@ -200,7 +205,7 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 		var ok bool
 		matchedSecret, ok = c.getRequestSecret(req, hmacHash)
 		if !ok {
-			return c.sendSyncReply(socket, c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
+			return c.sendSyncReply(socket, c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, "")
 		}
 	}
 
@@ -209,21 +214,14 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 		return c.sendSyncReply(socket, req.Fail(fmt.Sprintf("GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
-	// Register the current route's HMAC secret with npac so clients can look it up.
-	// Skip if this handler IS npac to avoid a self-referential inproc deadlock.
-	if matchedSecret != "" {
-		if err := c.npacPushHandleContext(cmd); err != nil {
-			c.LogError("AddRoute", "error", err)
-		}
+	if err := c.npacPushHandleContext(cmd); err != nil {
+		c.LogError("AddRoute", "error", err)
 	}
 
 	reply := handleFunc(req)
 
-	// Remove the route registration after handling.
-	if matchedSecret != "" {
-		if err := c.popHandleContext(cmd); err != nil {
-			c.LogError("RemoveRoute", "error", err)
-		}
+	if err := c.popHandleContext(cmd); err != nil {
+		c.LogError("RemoveRoute", "error", err)
 	}
 
 	return c.sendSyncReply(socket, reply, cmd, matchedSecret)
@@ -231,7 +229,7 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 
 func (c *SyncReplier) sendSyncReply(socket *zmq.Socket, reply message.ReplyInterface, cmd, matchedSecret string) error {
 	var hmac string
-	if c.IsWhitelistExist(cmd) && matchedSecret != "" {
+	if matchedSecret != "" {
 		hmac = message.ComputeHMAC(reply.String(), matchedSecret)
 	}
 	envelope, err := c.Packer().SerializeReply(reply, hmac)

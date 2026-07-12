@@ -57,6 +57,7 @@ func (test *TestReplierSuite) SetupTest() {
 	// Setting the configuration
 	// Setting the logger should be successful
 	test.replier.SetEndpoint(test.handlerConfig)
+	test.replier.SetMushroomURL(testMushroomURL(testID))
 	s.Require().NoError(test.replier.SetLogger(test.logger))
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)

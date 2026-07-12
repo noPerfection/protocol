@@ -52,6 +52,7 @@ func (test *TestSyncReplierSuite) SetupTest() {
 	s.Require().NoError(test.syncReplier.SetLogger(test.logger))
 
 	test.syncReplier.SetEndpoint(test.handlerConfig)
+	test.syncReplier.SetMushroomURL(testMushroomURL(testID))
 	s.Require().NoError(test.syncReplier.SetLogger(test.logger))
 
 	test.managerClient, err = zmq.NewSocket(zmq.REQ)
@@ -301,6 +302,7 @@ func (test *TestSyncReplierSuite) Test_12_StartWithoutLogger() {
 	testID := strings.ReplaceAll(test.T().Name(), "/", "_")
 	handlerConfig := message.NewEndpoint(testID, 0)
 	svc.SetEndpoint(handlerConfig)
+	svc.SetMushroomURL(testMushroomURL(testID))
 	s.Require().NoError(svc.Route("command_1", test.routes["command_1"]))
 
 	s.Require().NoError(svc.Start())

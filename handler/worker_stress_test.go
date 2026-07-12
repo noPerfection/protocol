@@ -38,6 +38,7 @@ func TestWorkerStressTest(t *testing.T) {
 	require.NoError(t, worker.SetLogger(logger))
 
 	worker.SetEndpoint(handlerConfig)
+	worker.SetMushroomURL(testMushroomURL(testID))
 	require.NoError(t, worker.SetLogger(logger))
 	require.NoError(t, worker.Start())
 
