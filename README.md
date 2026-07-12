@@ -7,22 +7,22 @@ NoPerfection adds to them a security, circuit break, and other additional utilit
 It is split into three Go modules:
 
 - [client](./client/README.md) is the client side zeromq sockets:
-    `zmq.REQ` as client.SyncReplier, 
-    `zmq.PAIR` as ClientPair, 
-    `zmq.DEALER` as client.Replier, 
-    `zmq.SUB` as client.Publisher,
-    *etc*
+`zmq.REQ` as client.SyncReplier, 
+`zmq.PAIR` as ClientPair, 
+`zmq.DEALER` as client.Replier, 
+`zmq.SUB` as client.Publisher,
+*etc*
 - [handler](./handler/README.md) is the server side zeromq sockets: 
-    `zmq.REP` as handler.SyncReplier, 
-    `zmq.PAIR` as handler.Pair, 
-    `zmq.ROUTER` as handler.Replier,
-    `zmq.PUB` as handler.Publisher,
-    *etc*
+`zmq.REP` as handler.SyncReplier, 
+`zmq.PAIR` as handler.Pair, 
+`zmq.ROUTER` as handler.Replier,
+`zmq.PUB` as handler.Publisher,
+*etc*
 - [message](./message/README.md) defines the message format that sockets use: 
-    request, 
-    reply, 
-    endpoint,
-    etc.
+request, 
+reply, 
+endpoint,
+etc.
 
 Additionally it has the [test](./test/README.md) that tests the protocol workflow from client to handlers.
 
@@ -36,10 +36,12 @@ The network protocol are identified dynamically. NoPerfection supports three typ
 1. TCP is when `port` is not 0:
 
 ```js
-// tcp is internet's foundational protocol, I assume my readers knows it already.
+// 
 const endpoint1 = {id: "localhost", port: 3000}     // tcp://localhost:3000/
 const endpoint2 = {id: "example.com", port: 3000}   // tcp://example.com:3000/
 ```
+
+`tcp` is internet's foundational protocol, I assume my readers knows it already.
 
 1. IPC is when `port` is 0, id has the `tmp/` prefix:
 
@@ -48,7 +50,7 @@ const endpoint1 = {id: "tmp/localhost", port: 0}    // ipc://tmp/localhost
 const endpoint2 = {id: "tmp/my-sample-app", port: 0}// ipc://tmp/my-sample-app
 ```
 
-`ipc` stands for inter-process-communication and used in operating systems for app to app communications.
+`ipc` protocol is the stands for *inter-process communication*. Its an operating systems protocol for app to app communications. Check on wikipedia [Inter-process communication](https://en.wikipedia.org/wiki/Inter-process_communication)
 
 1. Inproc is when `port` is 0, id has no `tmp/` prefix:
 
@@ -57,57 +59,117 @@ const endpoint1 = {id: "localhost", port: 0}        // inproc://localhost
 const endpoint2 = {id: "tmp-app", port: 0}    // inproc://tmp-app
 ```
 
-`inproc` is the zeromq's own protocol for multithreaded communication.
+`inproc` is the zeromq's own protocol for inter-thread communication. If your app has multiple concurrent threads then use the inproc for it.
 
 ---
-
-In noPerfection, you can compile your app as a single binary but multi threaded. All you need to do to convert it into multi process application is by changing the endpoints.
-If your app turns into a cloud based app, across multiple servers, then simply add the port.
 
 Source code of the endpoints are in the `protocol/message/endpoint.go`.
 
 # Security
 
-Socket authentication and message encryption is done using Curve public/secret keys. Curves are used for both authentication and encryption. Its built into the zeromq. So under the hood it uses `zap` protocol.
+> **If you use the noPerfection/service you won't have to worry about security, its done automatically. You don't have to remember where to whitelist, where to secure as services will do it themselves**
 
-With noPerfection, you can be manage access control per remote function calls:
+For authentication and encryption noPerfection uses zeromq protocol. Its based on curve public/secret keys. In short it uses *zap* protocol.
 
-Assume your service has a one handler socket with five route commands. You can make access control that one route can be called by certain sockets only. It's called `whitelisting` which uses the HMAC (hashed message authentication) .
+Additionally, noPerfection supports access control per route using [HMAC](https://en.wikipedia.org/wiki/HMAC).
 
-## NPAP
-
-If you want to connect to the handler within a handler, then enable the `npap`:
+In noPerfection terminology the authentication/encryption is called *allowance*, the access control is called *whitelisting*.
 
 ```go
-import "github.com/noPerfection/protocol/handler/npap"
+import "github.com/noPerfection/protocol/handler"
+import "github.com/noPerfection/protocol/message"
 
 func main() {
-    ap := npap.New()
-    ap.Start()
+    clientPublic, _, _ := message.GenerateCurveKey()
+    _, handlerSecret, _ := message.GenerateCurveKey()
+    h, _ := handler.NewSyncReplier()
+    h.Secure(handlerSecret) // Enabling the authentication
+    h.Allow(clientPublic) // Authenticate only this.
+    
+    // Add the handlers for the routes: h.Route("hello-world", onHelloWorld)
+    // h.SetMushroomURL()
+    // h.SetEndpoint()
+    
+    hmacSecret := message.GenerateSecret()
+    h.Whitelist("hello-world", hmacSecret) // now, hello-world is possible if hmacKey is written
+
+    // h.Start()
+    // h.Watch()
 }
 ```
 
-The `noPerfection/service` automatically start the npap so you won't need to start them.
+If you set the Secure(), then it will encrypt the messages but anyone can access the socket. 
+Client needs to know the public key of the handler.
 
-Npap stands for *noPerfection authentication protocol*. Its actually wraps the ZAP (zeromq authentication protocol). And all handlers automatically interact with this socket to tell about context. Whenever you connect to a socket within a handler function, then the client uses the `npap` to authenticate within the handler.
+```go
+import "github.com/noPerfection/protocol/client"
 
-- `**protocol/handler/autocontext`** — handler-side registration (`AddHandler`, `AddRoute`, `RemoveHandler`, `RemoveRoute`).
-- `**protocol/client/autocontext*`* — client-side lookup (`GetPublicKey`, `GetHmacSecret`).
+func main() {
+    c, _ := client.NewSyncReplier()
+    c.Secure(serverPublic)
+} 
+```
 
-> For advanced users, you can think of NPAP as the event system for the application, so later you can extend it if you want to have events. In that case, just make sure you start it before you call any `service.Start()`.
+The allow means it authenticates and only authenticated clients can access the service.
+In this case, client needs to pass its own secret key when setting the security:
 
-### How it works
+```go
+c.Secure(serverPublic, clientSecret)
+```
+
+In both case if not encrypted or not authenticated, the client will return `message.ErrNoCurveKey`.
+
+The whitelisted commands mean client must pass the hash of the message as well:
+
+```go
+c.Whitelist("hello-world", hmacSecret)
+
+helloWorldMsg := message.Request{Command: "hello-world", /*...*/}
+fooBarMsg := message.Request{Command: "foo-bar", /*...*/}
+
+c.Request(&helloWorldMsg)   // will apply hmac hash
+c.Request(&fooBarMsg)   // will be skipped from hmac
+```
+
+## NPAC
+
+If you want to connect to a handler from within another handler, start **npac** (noPerfection AutoContext). It is an in-process registry that tracks handler security context so nested calls can authenticate and sign requests automatically.
+
+```go
+import "github.com/noPerfection/protocol/handler/npac"
+
+func main() {
+    n := npac.New()
+    n.Start()
+}
+```
+
+`**noPerfection/service` starts npac automatically**.
+
+> For advanced users, npac can be thought of as an in-process event bus for the application. You can extend it later if you need broader events — just make sure it is started before any `service.Start()`.
+
+The purpose of the `Secure()`, `Allow()` and `Whitelist()` is to secure the service-to-service calls.
+The noPerfection services does it automatically using the `npac`.
+
+For example if you define a database extension (type of noPerfection service) for the main service, then only that main handler will be accessing to the database extension. Even if the extension and main app are multi threaded, and your main app has other code bases and modules or even third party libraries they won't be able to connect to the database. Because database receives sockets only within the main service.
+
+### For contributors: How it works
+
+Handlers embed `handler.Autocontext` and talk to npac over an inproc socket. Whenever a client connects from inside a handler function, it uses npac to resolve CURVE keys and route context.
+
+- `protocol/handler/autocontext.go` — handler-side registration (`register-handler`, `push-handler-context`, `pop-handler-context`, `remove-handler`).
+- `protocol/client/autocontext.go` — client-side lookup (`HandlerContext`, `RegisterOutbound`, `RemoveOutbound`).
 
 **Handlers** register their security information with npac at runtime:
 
-1. When a handler **starts**, it calls `autocontext.AddHandler(endpoint, url, publicKey)` to register its CURVE public key.
-2. **Before** calling a user handle function, the handler calls `autocontext.AddRoute(endpoint, url, command, secret)` to publish the HMAC secret for the current request.
-3. **After** the handle function returns, the handler calls `autocontext.RemoveRoute(url, command)` to unpublish the secret.
-4. When a handler **closes**, it calls `autocontext.RemoveHandler(url)` to remove its registration.
+1. When a handler **starts**, it registers its mushroom URL and control endpoint with npac (`register-handler`).
+2. **Before** calling a user handle function, it pushes the current route onto npac's context stack (`push-handler-context`).
+3. **After** the handle function returns, it pops the route from the stack (`pop-handler-context`).
+4. When a handler **closes**, it removes its registration (`remove-handler`).
 
 **Clients** use npac to recover from security errors automatically:
 
-- On `ErrNoCurveKey` — the client looks up the server's CURVE public key via `autocontext.GetPublicKey(url)`, configures the socket with `Secure`, and retries once.
-- On an `"access-denied"` reply — the client looks up the HMAC secret via `autocontext.GetHmacSecret(url, command)`, signs the request, and retries once.
+- On `ErrNoCurveKey` — the client calls `HandlerContext(endpoint, command)`, gets the target's CURVE public key and the calling handler's control endpoint, then retries once through `Control.RequestAsContext`.
+- On an `"access-denied"` reply — the same `HandlerContext` lookup routes the request through the calling handler's control socket, which signs it with the route HMAC secret, and retries once.
 
-All autocontext calls use a **50 ms timeout with 1 attempt**. Errors are silently ignored by handlers (npac may not be running in all environments).
+Autocontext clients use a **50 ms timeout**. Handler-side npac calls that fail (for example when npac is not running) are silently ignored.
