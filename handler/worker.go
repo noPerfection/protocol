@@ -216,11 +216,11 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 
 	go func() {
 		if err := c.npacPushHandleContext(cmd); err != nil {
-			c.LogError("AddRoute", "error", err)
+			c.LogError("npacPushHandleContext", "error", err)
 		}
 		handleFunc(req)
 		if err := c.popHandleContext(cmd); err != nil {
-			c.LogError("RemoveRoute", "error", err)
+			c.LogError("popHandleContext", "error", err)
 		}
 	}()
 

@@ -215,13 +215,13 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 	}
 
 	if err := c.npacPushHandleContext(cmd); err != nil {
-		c.LogError("AddRoute", "error", err)
+		c.LogError("npacPushHandleContext", "error", err)
 	}
 
 	reply := handleFunc(req)
 
 	if err := c.popHandleContext(cmd); err != nil {
-		c.LogError("RemoveRoute", "error", err)
+		c.LogError("popHandleContext", "error", err)
 	}
 
 	return c.sendSyncReply(socket, reply, cmd, matchedSecret)

@@ -242,13 +242,13 @@ func (pair *Pair) handleRequest(socket *zmq.Socket) error {
 	}
 
 	if err := pair.PublisherControl.npacPushHandleContext(cmd); err != nil {
-		pair.LogError("AddRoute", "error", err)
+		pair.LogError("npacPushHandleContext", "error", err)
 	}
 
 	reply := handleFunc(req)
 
 	if err := pair.PublisherControl.popHandleContext(cmd); err != nil {
-		pair.LogError("RemoveRoute", "error", err)
+		pair.LogError("popHandleContext", "error", err)
 	}
 
 	return pair.sendReply(socket, reply, cmd, matchedSecret)
