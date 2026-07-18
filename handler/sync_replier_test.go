@@ -294,6 +294,95 @@ func (test *TestSyncReplierSuite) Test_13_WhitelistHMAC() {
 	s.Require().True(controlReply.IsOK())
 }
 
+func (test *TestSyncReplierSuite) Test_14_RequireWhitelist() {
+	s := &test.Suite
+	defer test.cleanOut()
+
+	const secret = "require-whitelist-secret"
+	_, serverSecret, err := message.GenerateCurveKey()
+	s.Require().NoError(err)
+	test.syncReplier.Secure(serverSecret)
+	test.syncReplier.RequireWhitelist("command_1")
+	s.Require().True(test.syncReplier.IsWhitelistRequired("command_1"))
+	s.Require().NoError(test.syncReplier.Whitelist("command_1", secret))
+	s.Require().NoError(test.syncReplier.Start())
+	time.Sleep(100 * time.Millisecond)
+
+	unsigned := message.Request{
+		Command:    "command_1",
+		Parameters: datatype.New().Set("id", "unsigned"),
+	}
+	unsignedEnvelope, err := test.syncReplier.Packer().SerializeRequest(&unsigned)
+	s.Require().NoError(err)
+	_, err = test.externalClient.SendMessage(unsignedEnvelope)
+	s.Require().NoError(err)
+	raw, err := test.externalClient.RecvMessage(0)
+	s.Require().NoError(err)
+	unsignedReply, _, err := test.syncReplier.Packer().DeserializeReply(raw)
+	s.Require().NoError(err)
+	s.Require().False(unsignedReply.IsOK())
+	s.Require().Equal(message.ErrAccessDenied.Error(), unsignedReply.ErrorMessage())
+
+	signed := message.Request{
+		Command:    "command_1",
+		Parameters: datatype.New().Set("id", "signed"),
+	}
+	hmacHash := message.ComputeHMAC(signed.String(), secret)
+	signedEnvelope, err := test.syncReplier.Packer().SerializeRequest(&signed, hmacHash)
+	s.Require().NoError(err)
+	_, err = test.externalClient.SendMessage(signedEnvelope)
+	s.Require().NoError(err)
+	raw, err = test.externalClient.RecvMessage(0)
+	s.Require().NoError(err)
+	signedReply, replyHmac, err := test.syncReplier.Packer().DeserializeReply(raw)
+	s.Require().NoError(err)
+	s.Require().True(signedReply.IsOK())
+	s.Require().NotEmpty(replyHmac)
+	s.Require().True(message.VerifyHMAC(signedReply.String(), secret, replyHmac))
+
+	controlReq := message.Request{Command: HandlerClose, Parameters: datatype.New()}
+	controlReply := test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+}
+
+func (test *TestSyncReplierSuite) Test_15_RequireWhitelistWithoutSecure() {
+	s := &test.Suite
+
+	test.syncReplier.RequireWhitelist("command_1")
+	s.Require().True(test.syncReplier.IsWhitelistRequired("command_1"))
+}
+
+func (test *TestSyncReplierSuite) Test_16_RequireWhitelistRejectsUnlistedRoute() {
+	s := &test.Suite
+	defer test.cleanOut()
+
+	_, serverSecret, err := message.GenerateCurveKey()
+	s.Require().NoError(err)
+	test.syncReplier.Secure(serverSecret)
+	test.syncReplier.RequireWhitelist("command_1")
+	s.Require().NoError(test.syncReplier.Start())
+	time.Sleep(100 * time.Millisecond)
+
+	open := message.Request{
+		Command:    "command_1",
+		Parameters: datatype.New().Set("id", "open"),
+	}
+	openEnvelope, err := test.syncReplier.Packer().SerializeRequest(&open)
+	s.Require().NoError(err)
+	_, err = test.externalClient.SendMessage(openEnvelope)
+	s.Require().NoError(err)
+	raw, err := test.externalClient.RecvMessage(0)
+	s.Require().NoError(err)
+	openReply, _, err := test.syncReplier.Packer().DeserializeReply(raw)
+	s.Require().NoError(err)
+	s.Require().False(openReply.IsOK())
+	s.Require().Equal(message.ErrAccessDenied.Error()+", whitelist required", openReply.ErrorMessage())
+
+	controlReq := message.Request{Command: HandlerClose, Parameters: datatype.New()}
+	controlReply := test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+}
+
 func (test *TestSyncReplierSuite) Test_12_StartWithoutLogger() {
 	s := &test.Suite
 	defer test.cleanOut()

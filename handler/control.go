@@ -31,9 +31,10 @@ const (
 // Control is the control ROUTER socket for a handler.
 type Control struct {
 	*Handler
-	socket         *zmq.Socket
-	status         string
-	curveSecretKey string
+	socket           *zmq.Socket
+	status           string
+	curveSecretKey   string
+	requireWhitelistCmds map[string]bool
 	// endpoint -> command: secret
 	outbounds map[string]map[string]string
 }
@@ -68,7 +69,32 @@ func (m *Control) SetEndpoint(handlerEndpoint message.Endpoint) {
 }
 
 // Secure is a no-op; control sockets are inproc and do not use CURVE.
-func (m *Control) Secure(_ string) {}
+func (m *Control) Secure(_ string) {
+}
+
+func (m *Control) IsSecure() bool {
+	return m.curveSecretKey != ""
+}
+
+func (m *Control) RequireWhitelist(cmd string) {
+	if cmd == "" {
+		return
+	}
+	if m.requireWhitelistCmds == nil {
+		m.requireWhitelistCmds = make(map[string]bool)
+	}
+	m.requireWhitelistCmds[cmd] = true
+}
+
+func (m *Control) IsWhitelistRequired(cmd string) bool {
+	if m.requireWhitelistCmds == nil {
+		return false
+	}
+	if m.requireWhitelistCmds[cmd] {
+		return true
+	}
+	return m.requireWhitelistCmds[message.Any]
+}
 
 // Allow is a no-op; control sockets are inproc and do not use CURVE client allowlists.
 func (m *Control) Allow(_ string) {}
@@ -163,7 +189,7 @@ func (m *Control) onRequestAsContext(req message.RequestInterface) message.Reply
 	if err != nil {
 		publicKey = ""
 	} else if m.curveSecretKey != "" {
-		return req.Fail(fmt.Sprintf("handler doesn't know what secret key to use to identify itself, please call handler.Control.SetSecretKey"))
+		return req.Fail("handler doesn't know what secret key to use to identify itself, please call handler.Control.SetSecretKey")
 	}
 
 	rawClientType, err := req.RouteParameters().StringValue("client-type")
@@ -208,13 +234,16 @@ func (m *Control) onRequestAsContext(req message.RequestInterface) message.Reply
 
 	// Now we set a client:
 	c, err := client.New(endpoint.Id, endpoint.Port, clientType)
-	defer c.Close()
 	if err != nil {
 		return req.Fail(fmt.Sprintf("failed to create client: %v", err))
 	}
+	defer c.Close()
 
 	if publicKey != "" {
-		c.Secure(publicKey, m.curveSecretKey)
+		c.Allow(publicKey)
+	}
+	if m.curveSecretKey != "" {
+		c.Secure(m.curveSecretKey)
 	}
 	// Now we send the request:
 	packer := message.RawPacker{}
@@ -270,7 +299,7 @@ func (m *Control) Start() error {
 		ready <- nil
 
 		for {
-			sockets, err := poller.Poll(time.Millisecond)
+			sockets, err := poller.Poll(blockForever)
 			if err != nil {
 				m.LogError("poller.Poll", "error", err)
 				break
@@ -306,6 +335,9 @@ func (m *Control) Start() error {
 					m.sendControlReply(socket, req, req.Fail(message.ErrAccessDenied.Error()), cmd, "")
 					continue
 				}
+			} else if m.IsWhitelistRequired(cmd) {
+				m.sendControlReply(socket, req, req.Fail(message.ErrAccessDenied.Error()+", whitelist required"), cmd, "")
+				continue
 			}
 
 			handleFunc, err := m.GetHandleFunc(cmd)

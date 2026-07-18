@@ -271,6 +271,40 @@ func (test *TestReplierSuite) Test_12_HandlesMultipleRouterClients() {
 	test.cleanOut()
 }
 
+func (test *TestReplierSuite) Test_RequireWhitelistRejectsUnlistedRouteOverRouter() {
+	s := &test.Suite
+	defer test.cleanOut()
+
+	_, serverSecret, err := message.GenerateCurveKey()
+	s.Require().NoError(err)
+	test.replier.Secure(serverSecret)
+	test.replier.RequireWhitelist("command_1")
+	s.Require().NoError(test.replier.Start())
+	time.Sleep(100 * time.Millisecond)
+
+	open := message.Request{
+		Command:    "command_1",
+		Parameters: datatype.New().Set("id", "open"),
+	}
+	openReply, err := test.externalReq(test.externalClient, open)
+	s.Require().NoError(err)
+	s.Require().False(openReply.IsOK())
+	s.Require().Equal(message.ErrAccessDenied.Error()+", whitelist required", openReply.ErrorMessage())
+
+	managerProbe := message.Request{
+		Command:    "is-service-running",
+		Parameters: datatype.New().Set("service", "ai"),
+	}
+	probeReply, err := test.externalReq(test.externalClient, managerProbe)
+	s.Require().NoError(err)
+	s.Require().False(probeReply.IsOK())
+	s.Require().Contains(probeReply.ErrorMessage(), "handler.GetHandleFunc")
+
+	controlReq := message.Request{Command: HandlerClose, Parameters: datatype.New()}
+	controlReply := test.req(test.managerClient, controlReq)
+	s.Require().True(controlReply.IsOK())
+}
+
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
 func TestReplier(t *testing.T) {

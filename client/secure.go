@@ -6,16 +6,19 @@ import (
 	zmq "github.com/pebbe/zmq4"
 )
 
-// Secure stores the CURVE server public key (Z85). An empty key keeps the client non-secure.
-// An optional client secret key may be passed; when set, its public key is derived with AuthCurvePublic.
-// When omitted, an ephemeral client keypair is generated on each reconnect.
-func (socket *Socket) Secure(serverPublicKey string, clientSecretKey ...string) *Socket {
+// Secure stores the CURVE client secret key (Z85). When empty, an ephemeral
+// client keypair is generated on each reconnect.
+func (socket *Socket) Secure(clientSecretKey string) *Socket {
 	socket.mu.Lock()
-	socket.serverPublicKey = serverPublicKey
-	socket.curveSecretKey = ""
-	if len(clientSecretKey) > 0 {
-		socket.curveSecretKey = clientSecretKey[0]
-	}
+	socket.curveSecretKey = clientSecretKey
+	socket.mu.Unlock()
+	return socket
+}
+
+// Allow stores the CURVE server public key (Z85). An empty key keeps the client non-secure.
+func (socket *Socket) Allow(handlerPublicKey string) *Socket {
+	socket.mu.Lock()
+	socket.serverPublicKey = handlerPublicKey
 	socket.mu.Unlock()
 	return socket
 }

@@ -1,6 +1,6 @@
 module github.com/noPerfection/protocol/test
 
-go 1.19
+go 1.22
 
 require (
 	github.com/noPerfection/datatype v0.0.0
@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/ahmetson/mushroom v0.0.0-20260707102258-ccc67a16e74a // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/lipgloss v0.8.0 // indirect
 	github.com/charmbracelet/log v0.2.4 // indirect
@@ -34,6 +35,7 @@ require (
 )
 
 replace (
+	github.com/ahmetson/mushroom => ../../../ahmetson/mushroom
 	github.com/noPerfection/datatype => ../../datatype
 	github.com/noPerfection/log => ../../log
 	github.com/noPerfection/protocol/client => ../client

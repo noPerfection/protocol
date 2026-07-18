@@ -1,5 +1,7 @@
 package handler
 
+// Asynchronous replier
+
 import (
 	"fmt"
 	"sync"
@@ -10,9 +12,10 @@ import (
 	zmq "github.com/pebbe/zmq4"
 )
 
-type SyncReplier struct {
+// Basic Replier is the Replier without Autocontext.
+// Better name would be a manual replier or direct replier without autocontext.
+type BasicReplier struct {
 	*Handler
-	*Autocontext
 	*Security
 	socket  *zmq.Socket
 	wake    *wakePipe
@@ -20,30 +23,27 @@ type SyncReplier struct {
 	workW   sync.WaitGroup
 }
 
-var _ Interface = (*SyncReplier)(nil)
+var _ Interface = (*BasicReplier)(nil)
 
-// NewSyncReplier returns a new SyncReplier.
-func NewSyncReplier() *SyncReplier {
-	return &SyncReplier{
-		Handler:     New(),
-		Control:     NewControl(),
-		Autocontext: NewAutocontext(),
-		Security:    NewSecurity(),
+// NewBasicReplier asynchronous replying handler.
+func NewBasicReplier() *BasicReplier {
+	return &BasicReplier{
+		Handler:  New(),
+		Control:  NewControl(),
+		Security: NewSecurity(),
 	}
 }
 
-func (replier *SyncReplier) Secure(secretKey string) {
-	replier.Security.Secure(secretKey)
-	replier.Control.setSecretKey(secretKey)
+func (c *BasicReplier) SetMushroomURL(_ string) {
 }
 
 // SetEndpoint adds the parameters of the handler from the config.
-func (c *SyncReplier) SetEndpoint(endpoint message.Endpoint) {
+func (c *BasicReplier) SetEndpoint(endpoint message.Endpoint) {
 	c.Handler.SetEndpoint(endpoint)
 	c.Control.SetEndpoint(endpoint)
 }
 
-func (c *SyncReplier) SetLogger(parent *log.Logger) error {
+func (c *BasicReplier) SetLogger(parent *log.Logger) error {
 	if err := c.Handler.SetLogger(parent); err != nil {
 		return err
 	}
@@ -53,21 +53,18 @@ func (c *SyncReplier) SetLogger(parent *log.Logger) error {
 	return c.Control.SetLogger(parent.Child(ControlCategory))
 }
 
-// Type returns the handler type.
-func (c *SyncReplier) Type() HandlerType {
-	return SyncReplierType
+// Type returns the handler type. If the configuration is not set, returns handler.UnknownType.
+func (c *BasicReplier) Type() HandlerType {
+	return ReplierType
 }
 
-// Start the handler directly, not by goroutine.
-func (c *SyncReplier) Start() error {
+// Start the handler directly, not by goroutine
+func (c *BasicReplier) Start() error {
 	if c.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("configuration not set")
 	}
 	if c.Control == nil {
 		return fmt.Errorf("control not set")
-	}
-	if c.mushroomURL == "" {
-		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
 	c.setControlRoutes()
@@ -89,13 +86,13 @@ func (c *SyncReplier) Start() error {
 	return nil
 }
 
-func (c *SyncReplier) setControlRoutes() {
+func (c *BasicReplier) setControlRoutes() {
 	c.Control.Route(HandlerConfig, c.onControlConfig)
 	c.Control.Route(HandlerStart, c.onControlStart)
 	c.Control.Route(HandlerClose, c.onControlClose)
 }
 
-func (c *SyncReplier) onControlClose(req message.RequestInterface) message.ReplyInterface {
+func (c *BasicReplier) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	if c.Control.Running() {
 		c.Control.SetSocketNil()
 		if wake := c.wake; wake != nil {
@@ -103,15 +100,14 @@ func (c *SyncReplier) onControlClose(req message.RequestInterface) message.Reply
 		}
 		c.workW.Wait()
 	}
-	_ = c.npacRemoveHandler()
 	return req.Ok(datatype.New())
 }
 
-func (c *SyncReplier) onControlConfig(req message.RequestInterface) message.ReplyInterface {
+func (c *BasicReplier) onControlConfig(req message.RequestInterface) message.ReplyInterface {
 	return req.Ok(datatype.New().Set("config", c.Endpoint()))
 }
 
-func (c *SyncReplier) onControlStart(req message.RequestInterface) message.ReplyInterface {
+func (c *BasicReplier) onControlStart(req message.RequestInterface) message.ReplyInterface {
 	if c.Control.Status() == SocketReady {
 		return req.Fail(fmt.Sprintf("handler already running with status %s", c.Control.Status()))
 	}
@@ -121,7 +117,7 @@ func (c *SyncReplier) onControlStart(req message.RequestInterface) message.Reply
 	return req.Ok(datatype.New().Set("status", c.Control.Status()))
 }
 
-func (c *SyncReplier) restartWork() error {
+func (c *BasicReplier) restartWork() error {
 	if err := c.bindExternal(); err != nil {
 		return err
 	}
@@ -130,10 +126,10 @@ func (c *SyncReplier) restartWork() error {
 	return nil
 }
 
-func (c *SyncReplier) bindExternal() error {
-	socket, err := zmq.NewSocket(zmq.REP)
+func (c *BasicReplier) bindExternal() error {
+	socket, err := zmq.NewSocket(zmq.ROUTER)
 	if err != nil {
-		return fmt.Errorf("zmq.NewSocket(REP): %w", err)
+		return fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
 	}
 
 	err = c.register(socket, c.Endpoint())
@@ -151,15 +147,10 @@ func (c *SyncReplier) bindExternal() error {
 	c.socket = socket
 	c.Control.SetSocketReady()
 
-	err = c.npacRegisterHandler(c.Control.Endpoint())
-	if err != nil {
-		_ = socket.Close()
-		return fmt.Errorf("npacRegisterHandler: %w", err)
-	}
 	return nil
 }
 
-func (c *SyncReplier) run() {
+func (c *BasicReplier) run() {
 	defer c.workW.Done()
 
 	socket := c.socket
@@ -172,15 +163,18 @@ func (c *SyncReplier) run() {
 
 	wake, err := newWakePipe()
 	if err != nil {
-		c.LogError("sync_replier.newWakePipe", "error", err)
+		c.LogError("basic_replier.newWakePipe", "error", err)
 		c.cleanup()
 		return
 	}
 	c.wake = wake
 	defer wake.close()
 	wake.addToPoller(poller)
+	replies := make(chan pendingReply, 65536)
 
 	for c.Control.Running() {
+		c.flushReplies(socket, replies)
+
 		sockets, err := poller.Poll(blockForever)
 		if err != nil {
 			break
@@ -194,8 +188,11 @@ func (c *SyncReplier) run() {
 			if polled.Socket != socket {
 				continue
 			}
-			if err := c.handleRequest(socket); err != nil {
-				c.LogError("sync_replier.handleRequest", "error", err)
+			if polled.Socket != socket {
+				continue
+			}
+			if err := c.handleRequest(socket, replies); err != nil {
+				c.LogError("replier.handleRequest", "error", err)
 			}
 		}
 	}
@@ -204,7 +201,27 @@ func (c *SyncReplier) run() {
 	c.cleanup()
 }
 
-func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
+func (c *BasicReplier) flushReplies(socket *zmq.Socket, replies <-chan pendingReply) {
+	for {
+		select {
+		case pending := <-replies:
+			if err := c.sendReply(socket, pending.reply, pending.cmd, pending.matchedSecret); err != nil {
+				c.LogError("replier.sendReply", "error", err)
+			}
+		default:
+			return
+		}
+	}
+}
+
+func (c *BasicReplier) failReply(raw []string, errMsg string) message.ReplyInterface {
+	conId, _, _ := message.EnvelopeToMessage(raw)
+	fail := c.Packer().EmptyRequest()
+	fail.SetConId(conId)
+	return fail.Fail(errMsg)
+}
+
+func (c *BasicReplier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply) error {
 	raw, err := socket.RecvMessage(0)
 	if err != nil {
 		return fmt.Errorf("socket.RecvMessage: %w", err)
@@ -212,8 +229,8 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 
 	req, hmacHash, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
-		reply := c.Packer().EmptyRequest().Fail(fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
-		return c.sendSyncReply(socket, reply, "")
+		replies <- pendingReply{reply: c.failReply(raw, fmt.Sprintf("messageOps.DeserializeRequest: %v", err))}
+		return nil
 	}
 
 	cmd := req.CommandName()
@@ -222,33 +239,29 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 		var ok bool
 		matchedSecret, ok = c.getRequestSecret(req, hmacHash)
 		if !ok {
-			return c.sendSyncReply(socket, c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), "")
+			replies <- pendingReply{reply: req.Fail(message.ErrAccessDenied.Error())}
+			return nil
 		}
 	} else if c.IsWhitelistRequired(cmd) {
-		return c.sendSyncReply(socket, c.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()+", whitelist required"), "")
+		replies <- pendingReply{reply: req.Fail(message.ErrAccessDenied.Error() + ", whitelist required")}
+		return nil
 	}
 
 	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		return c.sendSyncReply(socket, req.Fail(fmt.Sprintf("GetHandleFunc(%s): %v", cmd, err)), matchedSecret)
-	}
-
-	if err := c.npacPushHandleContext(cmd, handleFunc); err != nil {
-		c.LogError("npacPushHandleContext", "error", err)
+		replies <- pendingReply{reply: req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err))}
+		return nil
 	}
 
 	reply := handleFunc(req)
+	replies <- pendingReply{reply: reply, cmd: cmd, matchedSecret: matchedSecret}
 
-	if err := c.popHandleContext(cmd, handleFunc); err != nil {
-		c.LogError("popHandleContext", "error", err)
-	}
-
-	return c.sendSyncReply(socket, reply, matchedSecret)
+	return nil
 }
 
-func (c *SyncReplier) sendSyncReply(socket *zmq.Socket, reply message.ReplyInterface, matchedSecret string) error {
+func (c *BasicReplier) sendReply(socket *zmq.Socket, reply message.ReplyInterface, cmd, matchedSecret string) error {
 	var hmac string
-	if matchedSecret != "" {
+	if c.IsWhitelistExist(cmd) && matchedSecret != "" {
 		hmac = message.ComputeHMAC(reply.String(), matchedSecret)
 	}
 	envelope, err := c.Packer().SerializeReply(reply, hmac)
@@ -261,7 +274,7 @@ func (c *SyncReplier) sendSyncReply(socket *zmq.Socket, reply message.ReplyInter
 	return nil
 }
 
-func (c *SyncReplier) cleanup() {
+func (c *BasicReplier) cleanup() {
 	takeAndCloseSocket(&c.socket)
 	c.wake = nil
 	c.Control.SetSocketNil()

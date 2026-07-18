@@ -122,7 +122,10 @@ func (r *receiver) recoverNoCurveKey() bool {
 		return false
 	}
 
-	r.socket.Secure(publicKey)
+	r.socket.Allow(publicKey)
+	if r.socket.curveSecretKey != "" {
+		r.socket.Secure(r.socket.curveSecretKey)
+	}
 	return r.socket.reconnect() == nil
 }
 
@@ -135,6 +138,13 @@ func (r *receiver) activate() {
 	r.active = true
 	r.timeouts = 0
 	r.nextRetry = time.Now().Add(timeout)
+	r.socket.signalDispatcher()
+}
+
+func (socket *Socket) signalDispatcher() {
+	if socket.dispatcher != nil {
+		socket.dispatcher.signalWake()
+	}
 }
 
 func (r *receiver) isActive() bool {

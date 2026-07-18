@@ -2,7 +2,6 @@ package handler
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/message"
@@ -65,7 +64,7 @@ func (m *PublisherControl) Start() error {
 		ready <- nil
 
 		for {
-			sockets, err := poller.Poll(time.Millisecond)
+			sockets, err := poller.Poll(blockForever)
 			if err != nil {
 				m.LogError("poller.Poll", "error", err)
 				break
@@ -101,16 +100,12 @@ func (m *PublisherControl) Start() error {
 					m.sendControlReply(socket, req, req.Fail(message.ErrAccessDenied.Error()), cmd, "")
 					continue
 				}
+			} else if m.IsWhitelistRequired(cmd) {
+				m.sendControlReply(socket, req, req.Fail(message.ErrAccessDenied.Error()+", whitelist required"), cmd, "")
+				continue
 			}
 
 			useNpacContext := cmd != HandlerClose && cmd != HandlerConfig && cmd != HandlerStart && cmd != HandlerStatus
-			if useNpacContext {
-				err = m.npacPushHandleContext(cmd)
-				if err != nil {
-					m.sendControlReply(socket, req, req.Fail(fmt.Sprintf("npacPushHandleContext(%s): %v", cmd, err)), cmd, matchedSecret)
-					continue
-				}
-			}
 
 			handleFunc, err := m.GetHandleFunc(cmd)
 			if err != nil {
@@ -118,10 +113,18 @@ func (m *PublisherControl) Start() error {
 				continue
 			}
 
+			if useNpacContext {
+				err = m.npacPushHandleContext(cmd, handleFunc)
+				if err != nil {
+					m.sendControlReply(socket, req, req.Fail(fmt.Sprintf("npacPushHandleContext(%s): %v", cmd, err)), cmd, matchedSecret)
+					continue
+				}
+			}
+
 			reply := handleFunc(req)
 
 			if useNpacContext {
-				err = m.popHandleContext(cmd)
+				err = m.popHandleContext(cmd, handleFunc)
 				if err != nil {
 					m.sendControlReply(socket, req, req.Fail(fmt.Sprintf("popHandleContext(%s): %v", cmd, err)), cmd, matchedSecret)
 					continue

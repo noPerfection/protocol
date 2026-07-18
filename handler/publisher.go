@@ -20,17 +20,21 @@ type Publisher struct {
 	socket           *zmq.Socket
 	broadcasterW     sync.WaitGroup
 	broadcasting     *datatype.Queue
+	broadcastMu      sync.Mutex
+	broadcastCond    *sync.Cond
 	PublisherControl *PublisherControl
 }
 
 // NewPublisher Publisher returned
 func NewPublisher() *Publisher {
-	return &Publisher{
+	publisher := &Publisher{
 		Handler:          New(),
 		broadcasting:     datatype.NewQueue(),
 		PublisherControl: NewPublisherControl(),
 		Security:         NewSecurity(),
 	}
+	publisher.broadcastCond = sync.NewCond(&publisher.broadcastMu)
+	return publisher
 }
 
 func (pair *Publisher) Secure(secretKey string) {
@@ -164,8 +168,13 @@ func (c *Publisher) startBroadcaster() error {
 		ready <- nil
 
 		for c.PublisherControl.Running() {
-			if c.broadcasting.IsEmpty() {
-				continue
+			c.broadcastCond.L.Lock()
+			for c.broadcasting.IsEmpty() && c.PublisherControl.Running() {
+				c.broadcastCond.Wait()
+			}
+			c.broadcastCond.L.Unlock()
+			if !c.PublisherControl.Running() {
+				break
 			}
 
 			reply := c.broadcasting.Pop().(message.ReplyInterface)
@@ -196,6 +205,7 @@ func (c *Publisher) stopBroadcaster() {
 	}
 
 	c.PublisherControl.SetSocketNil()
+	c.broadcastCond.Broadcast()
 	c.broadcasterW.Wait()
 }
 
@@ -215,6 +225,7 @@ func (c *Publisher) onBroadcast(req message.RequestInterface) message.ReplyInter
 	}
 
 	c.broadcasting.Push(&broadcastReply)
+	c.broadcastCond.Signal()
 
 	return req.Ok(datatype.New())
 }

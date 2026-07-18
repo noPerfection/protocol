@@ -1,7 +1,9 @@
 package protocoltest
 
 import (
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -196,10 +198,12 @@ func receiveReply(t *testing.T, replies <-chan message.ReplyInterface) message.R
 	}
 }
 
+var nextTestID atomic.Uint64
+
 func testID(t *testing.T, suffix string) string {
 	t.Helper()
 	name := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
-	return name + "_" + suffix
+	return fmt.Sprintf("%s_%d_%s", name, nextTestID.Add(1), suffix)
 }
 
 type mushroomURLSetter interface {

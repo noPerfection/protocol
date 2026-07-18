@@ -300,7 +300,7 @@ func (s *TestNpacSuite) TestPushPopHandlerContext() {
 		otherURL := handlerURL + "?command=other"
 		err := actor.popHandlerContext(otherURL)
 		s.Require().Error(err)
-		s.Contains(err.Error(), "does not match")
+		s.Contains(err.Error(), "not found")
 	})
 
 	s.Run("pop remaining entry succeeds", func() {

@@ -20,6 +20,38 @@ const (
 	WorkerType  HandlerType = "Worker" // Workers are receiving the messages but don't return any result to the caller.
 )
 
+type secure interface {
+	//
+	// CURVE KEYs for authentication and encryption. Based on ZAP protocol from zeromq.
+	// So start it before running the handler.
+	//
+	// The curve is not applied in the inproc protoocl.
+
+	// Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
+	Secure(secretKey string)
+
+	IsSecure() bool
+
+	// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
+	Allow(clientPubKey string)
+
+	//
+	// HMAC to whitelist per route or to authenticate the inproc request
+	//
+	// Whitelist registers one or more shared secrets for a command.
+	// Use message.Any for a route-wide policy that applies when no command-specific whitelist exists.
+	Whitelist(cmd string, secrets ...string) error
+
+	// IsWhitelistExist reports whether the given command requires HMAC validation.
+	IsWhitelistExist(cmd string) bool
+
+	//
+	// If handler secured, then access also requires whitelisting
+	//
+	RequireWhitelist(cmd string)
+	IsWhitelistRequired(cmd string) bool
+}
+
 // Interface of the handler. Any handlers must be based on this.
 // All handlers have
 //
@@ -27,6 +59,9 @@ const (
 // handler.SetEndpoint(endpoint)
 // handler.Route("hello", onHello)
 type Interface interface {
+	// Security, Allowance and Whitelist
+	secure
+
 	Endpoint() message.Endpoint
 	// SetEndpoint adds the parameters of the handler from the endpoint config.
 	SetEndpoint(message.Endpoint)
@@ -36,12 +71,6 @@ type Interface interface {
 
 	// SetLogger adds an optional logger. Passing nil disables logging.
 	SetLogger(*log.Logger) error
-
-	// Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
-	Secure(secretKey string)
-
-	// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
-	Allow(clientPubKey string)
 
 	// SetMushroomURL registers the handler URL.
 	// Prefer to follow the convention of the noPerfection/topology config for the service config URL plus handler category:

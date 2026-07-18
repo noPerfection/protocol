@@ -54,7 +54,12 @@ func (c *ReplierClient) Whitelist(cmd string, secrets ...string) error {
 	return c.socket.Whitelist(cmd, secrets...)
 }
 
-func (c *ReplierClient) Secure(serverPublicKey string, clientSecretKey ...string) *ReplierClient {
-	c.socket.Secure(serverPublicKey, clientSecretKey...)
+func (c *ReplierClient) Secure(clientSecretKey string) *ReplierClient {
+	c.socket.Secure(clientSecretKey)
+	return c
+}
+
+func (c *ReplierClient) Allow(handlerPublicKey string) *ReplierClient {
+	c.socket.Allow(handlerPublicKey)
 	return c
 }

@@ -5,11 +5,18 @@ package client
 
 import (
 	"fmt"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/noPerfection/datatype"
-	"github.com/noPerfection/protocol/handler/npac"
 	"github.com/noPerfection/protocol/message"
+)
+
+const (
+	npacHandlerContext   = "handler-context"
+	npacRegisterOutbound = "register-outbound"
+	npacRemoveOutbound   = "remove-outbound"
 )
 
 type Autocontext struct {
@@ -34,17 +41,27 @@ func (c *Autocontext) Close() error {
 // Returns the validated context if any to access the endpoint and request cmd.
 //
 // Returns:
-// - unregistered (if endpoint is not registered by any handler)
-// - control-endpoint the message.Endpoint of the handler that can call it.
-// - public-key of the endpoint to pass to control to call it. Can be empty.
+//   - unregistered (if endpoint is not registered by any handler), true if unregistered, false if registered
+//   - public-key of the endpoint to pass to control to call it. Can be empty.
+//   - control-endpoint the message.Endpoint of the handler that can call it.
 //
-// If endpoint is registered, but the handler is not allowed or not whitelisted then returns error.
+// HandlerContext resolves whether endpoint/cmd is reachable from the active
+// handler context on npac's stack.
 func (c *Autocontext) HandlerContext(endpoint message.Endpoint, cmd string) (bool, string, message.Endpoint, error) {
+	params := datatype.New().
+		Set("endpoint", endpoint).
+		Set("command", cmd)
+
+	callerStack := callerStackEntries()
+	if len(callerStack) == 0 {
+		return false, "", message.Endpoint{}, fmt.Errorf("no caller stack")
+	}
+	fmt.Println("callerStack: ", callerStack)
+	params.Set("caller-stack", callerStack)
+
 	reply, err := c.client.Request(&message.Request{
-		Command: npac.HandlerContext,
-		Parameters: datatype.New().
-			Set("endpoint", endpoint).
-			Set("command", cmd),
+		Command:    npacHandlerContext,
+		Parameters: params,
 	})
 
 	if err != nil {
@@ -80,7 +97,7 @@ func (c *Autocontext) HandlerContext(endpoint message.Endpoint, cmd string) (boo
 // - endpoint: the endpoint of the handler
 func (c *Autocontext) RegisterOutbound(endpoint message.Endpoint, mushroomURL string, publicKey string) error {
 	reply, err := c.client.Request(&message.Request{
-		Command: npac.RegisterOutbound,
+		Command: npacRegisterOutbound,
 		Parameters: datatype.New().
 			Set("endpoint", endpoint).
 			Set("mushroom-url", mushroomURL).
@@ -95,9 +112,28 @@ func (c *Autocontext) RegisterOutbound(endpoint message.Endpoint, mushroomURL st
 	return nil
 }
 
+// callerStackEntries returns normalized function names from the current stack,
+// innermost frame first, stopping at main.main.
+func callerStackEntries() []string {
+	const depth = 64
+	var pcs [depth]uintptr
+	n := runtime.Callers(0, pcs[:])
+	frames := runtime.CallersFrames(pcs[:n])
+
+	var entries []string
+	for {
+		frame, more := frames.Next()
+		entries = append(entries, strings.TrimSuffix(frame.Function, "-fm"))
+		if frame.Function == "main.main" || !more {
+			break
+		}
+	}
+	return entries
+}
+
 func (c *Autocontext) RemoveOutbound(entrypoint message.Endpoint) error {
 	reply, err := c.client.Request(&message.Request{
-		Command: npac.RemoveOutbound,
+		Command: npacRemoveOutbound,
 		Parameters: datatype.New().
 			Set("entrypoint", entrypoint),
 	})

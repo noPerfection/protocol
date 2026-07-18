@@ -3,6 +3,9 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/ahmetson/mushroom"
@@ -39,9 +42,9 @@ func (c *Autocontext) SetMushroomURL(mushroomURL string) {
 	c.mushroomURL = mushroomURL
 }
 
-// routeURL returns the handler's mushroom URL with cmd embedded as the
-// "command" additional property, producing a route URL that npac can parse.
-func (c *Autocontext) routeURL(cmd string) (string, error) {
+// routeURL returns the handler mushroom URL with cmd as the "command" additional
+// property. When handleFunc is non-empty it is stored in "handle-func".
+func (c *Autocontext) routeURL(cmd string, handleFunc string) (string, error) {
 	hypha, err := (&mushroom.Soil{}).Hypha(c.mushroomURL)
 	if err != nil {
 		return "", fmt.Errorf("routeURL: parse %q: %w", c.mushroomURL, err)
@@ -50,7 +53,22 @@ func (c *Autocontext) routeURL(cmd string) (string, error) {
 		hypha.AdditionalProps = make(map[string]string)
 	}
 	hypha.AdditionalProps["command"] = cmd
+	if handleFunc != "" {
+		hypha.AdditionalProps["handle-func"] = handleFunc
+	}
 	return hypha.String(), nil
+}
+
+func handleFuncName(fn any) string {
+	if fn == nil {
+		return ""
+	}
+	ptr := reflect.ValueOf(fn).Pointer()
+	rf := runtime.FuncForPC(ptr)
+	if rf == nil {
+		return ""
+	}
+	return strings.TrimSuffix(rf.Name(), "-fm")
 }
 
 // npacRegisterHandler registers a handler's mushroom URL, CURVE public key, and
@@ -82,15 +100,15 @@ func (c *Autocontext) npacRegisterHandler(controlEndpoint message.Endpoint) erro
 	return nil
 }
 
-// npacPushHandleContext pushes a route URL (mushroomURL + cmd as additional prop)
-// onto npac's context stack. HMAC-signed automatically via the client whitelist.
-func (c *Autocontext) npacPushHandleContext(cmd string) error {
-	if !c.started {
-		return nil
-	}
-	url, err := c.routeURL(cmd)
+// npacPushHandleContext pushes a route URL (mushroomURL + cmd) onto npac's
+// context stack so outbound calls can reach this handler's control endpoint.
+func (c *Autocontext) npacPushHandleContext(cmd string, handleFunc message.HandleFunc) error {
+	url, err := c.routeURL(cmd, handleFuncName(handleFunc))
 	if err != nil {
 		return err
+	}
+	if !c.started {
+		return nil
 	}
 	reply, err := c.client.Request(&message.Request{
 		Command:    npac.PushHandlerContext,
@@ -107,7 +125,7 @@ func (c *Autocontext) npacPushHandleContext(cmd string) error {
 
 // NpacSecureEdgeCase authorizes the cmd's context to call the outbound.
 func (c *Autocontext) NpacSecureEdgeCase(outbound, cmd string) error {
-	mushroomURL, err := c.routeURL(cmd)
+	mushroomURL, err := c.routeURL(cmd, "")
 	if err != nil {
 		return err
 	}
@@ -127,7 +145,6 @@ func (c *Autocontext) NpacSecureEdgeCase(outbound, cmd string) error {
 }
 
 // npacRemoveHandler removes this handler's registration from npac.
-// HMAC-signed automatically via the client whitelist.
 func (c *Autocontext) npacRemoveHandler() error {
 	if !c.started {
 		return nil
@@ -145,13 +162,22 @@ func (c *Autocontext) npacRemoveHandler() error {
 	return nil
 }
 
+// HandlerContext resolves outbound access from this handler's npac context.
+func (c *Autocontext) HandlerContext(endpoint message.Endpoint, cmd string) (bool, string, message.Endpoint, error) {
+	autocontext := client.NewAutocontext()
+	if autocontext == nil {
+		return false, "", message.Endpoint{}, fmt.Errorf("failed to create autocontext")
+	}
+	defer func() { _ = autocontext.Close() }()
+	return autocontext.HandlerContext(endpoint, cmd)
+}
+
 // popHandleContext pops the route URL (mushroomURL + cmd) from npac's context stack.
-// HMAC-signed automatically via the client whitelist.
-func (c *Autocontext) popHandleContext(cmd string) error {
+func (c *Autocontext) popHandleContext(cmd string, handleFunc message.HandleFunc) error {
 	if !c.started {
 		return nil
 	}
-	url, err := c.routeURL(cmd)
+	url, err := c.routeURL(cmd, handleFuncName(handleFunc))
 	if err != nil {
 		return err
 	}

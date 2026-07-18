@@ -2,13 +2,13 @@ package client
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/noPerfection/datatype"
-	zmq "github.com/pebbe/zmq4"
 )
+
+const receiverPollInterval = 50 * time.Millisecond
 
 // Transmit is one queued client operation processed by the dispatcher.
 type Transmit struct {
@@ -18,76 +18,92 @@ type Transmit struct {
 }
 
 type dispatcher struct {
-	socket     *Socket
-	queue      *datatype.Queue
-	schedulers *zmq.Reactor
-	consumerId uint64
-	wg         sync.WaitGroup
+	socket *Socket
+	queue  *datatype.Queue
+	wake   chan struct{}
+	wg     sync.WaitGroup
 }
 
 func newDispatcher(socket *Socket) *dispatcher {
 	d := &dispatcher{
-		socket:     socket,
-		queue:      datatype.NewQueue(),
-		schedulers: zmq.NewReactor(),
+		socket: socket,
+		queue:  datatype.NewQueue(),
+		wake:   make(chan struct{}, 1),
 	}
 
-	d.consumerId = d.schedulers.AddChannelTime(time.Tick(time.Microsecond), 0,
-		func(_ interface{}) error { return d.handleConsume() })
-
 	d.wg.Add(1)
-	go func() {
-		defer d.wg.Done()
-		err := d.schedulers.Run(time.Microsecond * 2)
-		if err != nil &&
-			err.Error() != "No sockets to poll, no channels to read" &&
-			err.Error() != "client socket closed" {
-			_, _ = fmt.Fprintf(os.Stderr, "reactor exited with an error: %v\n", err)
-		}
-	}()
+	go d.runLoop()
 
 	return d
 }
 
+func (d *dispatcher) signalWake() {
+	select {
+	case d.wake <- struct{}{}:
+	default:
+	}
+}
+
 func (d *dispatcher) stop() {
-	// Wait for handleConsume to observe socket.closed and exit Run.
-	// Do not call Reactor.RemoveChannel from this goroutine; the reactor is not thread-safe.
+	d.signalWake()
 	d.wg.Wait()
 }
 
-func (d *dispatcher) handleConsume() error {
-	if d.socket.isClosed() {
-		return fmt.Errorf("client socket closed")
-	}
+func (d *dispatcher) runLoop() {
+	defer d.wg.Done()
 
-	msg := d.popTransmit()
-	if msg == nil {
-		if recv := d.socket.receiver; recv != nil {
-			recv.pollOnce()
+	receiverTick := time.NewTicker(receiverPollInterval)
+	defer receiverTick.Stop()
+
+	for {
+		if d.socket.isClosed() {
+			return
 		}
-		return nil
-	}
 
-	if msg.replyMsg == nil {
-		err := d.socket.attemptSending(msg.envelope)
+		if err := d.drainQueue(); err != nil {
+			return
+		}
+
+		select {
+		case <-d.wake:
+		case <-receiverTick.C:
+			if recv := d.socket.receiver; recv != nil && recv.isActive() {
+				recv.pollOnce()
+			}
+		}
+	}
+}
+
+func (d *dispatcher) drainQueue() error {
+	for {
+		if d.socket.isClosed() {
+			return fmt.Errorf("client socket closed")
+		}
+
+		msg := d.popTransmit()
+		if msg == nil {
+			return nil
+		}
+
+		if msg.replyMsg == nil {
+			err := d.socket.attemptSending(msg.envelope)
+			if err != nil {
+				msg.delayedErr <- fmt.Errorf("socket.rawSendByTimeout: %w", err)
+			} else {
+				msg.delayedErr <- nil
+			}
+			continue
+		}
+
+		reply, err := d.socket.attemptRequesting(msg.envelope)
 		if err != nil {
-			msg.delayedErr <- fmt.Errorf("socket.rawSendByTimeout: %w", err)
-		} else {
-			msg.delayedErr <- nil
+			msg.delayedErr <- err
+			continue
 		}
-		return nil
+
+		msg.delayedErr <- nil
+		msg.replyMsg <- reply
 	}
-
-	reply, err := d.socket.attemptRequesting(msg.envelope)
-	if err != nil {
-		msg.delayedErr <- err
-		return nil
-	}
-
-	msg.delayedErr <- nil
-	msg.replyMsg <- reply
-
-	return nil
 }
 
 func (d *dispatcher) enqueueTransmit(msg *Transmit) error {
@@ -102,6 +118,7 @@ func (d *dispatcher) enqueueTransmit(msg *Transmit) error {
 	}
 
 	d.queue.Push(msg)
+	d.signalWake()
 	return nil
 }
 

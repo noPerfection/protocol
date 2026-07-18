@@ -415,7 +415,7 @@ func (socket *Socket) Send(req message.RequestInterface, hmac ...string) error {
 			return fmt.Errorf("autocontext.HandlerContext: %w", err)
 		}
 		if unregistered {
-			return fmt.Errorf("%w: ErrNoCurveKey, and not registered in 'npap'.", message.ErrNoCurveKey)
+			return fmt.Errorf("%w: autocontext.HandlerContext(%s, %s): unregistered in 'npap'.", message.ErrNoCurveKey, socket.endpoint.HandlerUrl(), req.CommandName())
 		}
 
 		control, err := NewControl(controlEndpoint.Id, controlEndpoint.Port)
@@ -473,13 +473,14 @@ func (socket *Socket) Request(req message.RequestInterface, hmac ...string) (mes
 			return nil, fmt.Errorf("request: message.ErrNoCurveKey: autocontext.HandlerContext: %w", err)
 		}
 		if unregistered {
-			return nil, fmt.Errorf("request: message.ErrNoCurveKey: %w: ErrNoCurveKey, and not registered in 'npap'.", message.ErrNoCurveKey)
+			return nil, fmt.Errorf("%w: autocontext.HandlerContext(%s, %s): outbound is unregistered in 'npac'.", message.ErrNoCurveKey, socket.endpoint.HandlerUrl(), req.CommandName())
 		}
 
 		control, err := NewControl(controlEndpoint.Id, controlEndpoint.Port)
 		if err != nil {
 			return nil, fmt.Errorf("request: message.ErrNoCurveKey: NewControl: %w", err)
 		}
+		defer control.Close()
 		envelope, err := socket.messagePacker.SerializeRequest(req, hmac...)
 		if err != nil {
 			return nil, fmt.Errorf("request: message.ErrNoCurveKey: packer.SerializeRequest: %w", err)
@@ -489,8 +490,6 @@ func (socket *Socket) Request(req message.RequestInterface, hmac ...string) (mes
 		if err != nil {
 			return nil, fmt.Errorf("request: message.ErrNoCurveKey: control.RequestAsContext: %w", err)
 		}
-
-		control.Close()
 
 		return reply, nil
 	}

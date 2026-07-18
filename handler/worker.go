@@ -5,7 +5,6 @@ package handler
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
@@ -19,6 +18,7 @@ type Worker struct {
 	*Autocontext
 	*Security
 	socket  *zmq.Socket
+	wake    *wakePipe
 	Control *Control
 	workW   sync.WaitGroup
 }
@@ -102,6 +102,9 @@ func (c *Worker) setControlRoutes() {
 func (c *Worker) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	if c.Control.Running() {
 		c.Control.SetSocketNil()
+		if wake := c.wake; wake != nil {
+			wake.signal()
+		}
 		c.workW.Wait()
 	}
 	_ = c.npacRemoveHandler()
@@ -170,13 +173,30 @@ func (c *Worker) run() {
 	poller := zmq.NewPoller()
 	poller.Add(socket, zmq.POLLIN)
 
+	wake, err := newWakePipe()
+	if err != nil {
+		c.LogError("worker.newWakePipe", "error", err)
+		c.cleanup()
+		return
+	}
+	c.wake = wake
+	defer wake.close()
+	wake.addToPoller(poller)
+
 	for c.Control.Running() {
-		sockets, err := poller.Poll(time.Millisecond)
+		sockets, err := poller.Poll(blockForever)
 		if err != nil {
 			break
 		}
 
 		for _, polled := range sockets {
+			if isWakePoll(wake, polled) {
+				wake.drain()
+				continue
+			}
+			if polled.Socket != socket {
+				continue
+			}
 			if polled.Socket != socket {
 				continue
 			}
@@ -207,6 +227,8 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 		if !ok {
 			return fmt.Errorf("%w", message.ErrAccessDenied)
 		}
+	} else if c.IsWhitelistRequired(cmd) {
+		return fmt.Errorf("%s", message.ErrAccessDenied.Error()+", whitelist required")
 	}
 
 	handleFunc, err := c.GetHandleFunc(cmd)
@@ -215,11 +237,11 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 	}
 
 	go func() {
-		if err := c.npacPushHandleContext(cmd); err != nil {
+		if err := c.npacPushHandleContext(cmd, handleFunc); err != nil {
 			c.LogError("npacPushHandleContext", "error", err)
 		}
 		handleFunc(req)
-		if err := c.popHandleContext(cmd); err != nil {
+		if err := c.popHandleContext(cmd, handleFunc); err != nil {
 			c.LogError("popHandleContext", "error", err)
 		}
 	}()
@@ -228,9 +250,7 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 }
 
 func (c *Worker) cleanup() {
-	if socket := c.socket; socket != nil {
-		_ = socket.Close()
-	}
-	c.socket = nil
+	takeAndCloseSocket(&c.socket)
+	c.wake = nil
 	c.Control.SetSocketNil()
 }

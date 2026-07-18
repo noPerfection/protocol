@@ -4,7 +4,6 @@ package handler
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
@@ -16,6 +15,7 @@ type Pair struct {
 	*Handler
 	*Security
 	socket           *zmq.Socket
+	wake             *wakePipe
 	pairW            sync.WaitGroup
 	broadcasting     *datatype.Queue
 	PublisherControl *PublisherControl
@@ -164,35 +164,48 @@ func (pair *Pair) startPair() error {
 
 		ready <- nil
 
+		wake, err := newWakePipe()
+		if err != nil {
+			_ = socket.Close()
+			ready <- err
+			return
+		}
+		pair.wake = wake
+		defer wake.close()
+
 		poller := zmq.NewPoller()
 		poller.Add(socket, zmq.POLLIN)
+		wake.addToPoller(poller)
 
 		for pair.PublisherControl.Running() {
 			pair.flushBroadcast(socket)
 
-			polled, err := poller.Poll(time.Millisecond)
+			polled, err := poller.Poll(blockForever)
 			if err != nil {
 				pair.LogError("poller.Poll", "error", err)
 				break
 			}
 
-			if len(polled) == 0 {
-				continue
-			}
-
-			if err := pair.handleRequest(socket); err != nil {
-				pair.LogError("pair.handleRequest", "error", err)
-				break
+			for _, item := range polled {
+				if isWakePoll(wake, item) {
+					wake.drain()
+					continue
+				}
+				if item.Socket != socket {
+					continue
+				}
+				if err := pair.handleRequest(socket); err != nil {
+					pair.LogError("pair.handleRequest", "error", err)
+					break
+				}
 			}
 		}
 
 		if err := poller.RemoveBySocket(socket); err != nil {
 			pair.LogError("poller.RemoveBySocket", "error", err)
 		}
-		if err := socket.Close(); err != nil {
-			pair.LogError("socket.Close", "error", err)
-		}
-		pair.socket = nil
+		takeAndCloseSocket(&pair.socket)
+		pair.wake = nil
 		pair.PublisherControl.SetSocketNil()
 	}(ready)
 
@@ -234,6 +247,8 @@ func (pair *Pair) handleRequest(socket *zmq.Socket) error {
 		if !ok {
 			return pair.sendReply(socket, pair.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()), cmd, matchedSecret)
 		}
+	} else if pair.IsWhitelistRequired(cmd) {
+		return pair.sendReply(socket, pair.Packer().EmptyRequest().Fail(message.ErrAccessDenied.Error()+", whitelist required"), cmd, matchedSecret)
 	}
 
 	handleFunc, err := pair.GetHandleFunc(cmd)
@@ -241,13 +256,13 @@ func (pair *Pair) handleRequest(socket *zmq.Socket) error {
 		return pair.sendReply(socket, req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err)), cmd, matchedSecret)
 	}
 
-	if err := pair.PublisherControl.npacPushHandleContext(cmd); err != nil {
+	if err := pair.PublisherControl.npacPushHandleContext(cmd, handleFunc); err != nil {
 		pair.LogError("npacPushHandleContext", "error", err)
 	}
 
 	reply := handleFunc(req)
 
-	if err := pair.PublisherControl.popHandleContext(cmd); err != nil {
+	if err := pair.PublisherControl.popHandleContext(cmd, handleFunc); err != nil {
 		pair.LogError("popHandleContext", "error", err)
 	}
 
@@ -275,6 +290,9 @@ func (pair *Pair) stopPair() {
 	}
 
 	pair.PublisherControl.SetSocketNil()
+	if pair.wake != nil {
+		pair.wake.signal()
+	}
 	pair.pairW.Wait()
 }
 
@@ -294,6 +312,9 @@ func (pair *Pair) onBroadcast(req message.RequestInterface) message.ReplyInterfa
 	}
 
 	pair.broadcasting.Push(&broadcastReply)
+	if pair.wake != nil {
+		pair.wake.signal()
+	}
 
 	return req.Ok(datatype.New())
 }

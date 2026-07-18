@@ -15,6 +15,7 @@ replace (
 	github.com/ahmetson/mushroom => ../../../ahmetson/mushroom
 	github.com/noPerfection/datatype => ../../datatype
 	github.com/noPerfection/log => ../../log
+	github.com/noPerfection/protocol/client => ../client
 	github.com/noPerfection/protocol/message => ../message
 )
 

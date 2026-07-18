@@ -144,7 +144,6 @@ func (h *Npac) Start() error {
 		return nil
 	}
 	if isAlreadyRunning() {
-		h.started = true
 		return nil
 	}
 
@@ -169,16 +168,19 @@ func (h *Npac) Start() error {
 // It is safe to call Stop even if Start was not called or returned an error.
 func (h *Npac) Stop() {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	if !h.started {
+		h.mu.Unlock()
 		return
 	}
-	if h.socket != nil {
-		_ = h.socket.Close()
-		h.socket = nil
-	}
+	socket := h.socket
+	h.socket = nil
 	h.started = false
+	h.mu.Unlock()
+
+	if socket != nil {
+		_ = socket.SetLinger(0)
+		_ = socket.Close()
+	}
 	h.wg.Wait()
 }
 
@@ -186,9 +188,34 @@ func (h *Npac) run() {
 	defer h.wg.Done()
 
 	packer := &message.MessagePacker{}
+	poller := zmq.NewPoller()
+
+	h.mu.Lock()
+	socket := h.socket
+	h.mu.Unlock()
+	if socket == nil {
+		return
+	}
+	poller.Add(socket, zmq.POLLIN)
 
 	for {
-		raw, err := h.socket.RecvMessage(0)
+		h.mu.Lock()
+		running := h.started && h.socket != nil
+		socket = h.socket
+		h.mu.Unlock()
+		if !running || socket == nil {
+			break
+		}
+
+		sockets, err := poller.Poll(50 * time.Millisecond)
+		if err != nil {
+			break
+		}
+		if len(sockets) == 0 {
+			continue
+		}
+
+		raw, err := socket.RecvMessage(0)
 		if err != nil {
 			break
 		}
@@ -197,7 +224,7 @@ func (h *Npac) run() {
 		if err != nil {
 			reply := packer.EmptyRequest().Fail(fmt.Sprintf("DeserializeRequest: %v", err))
 			envelope, _ := packer.SerializeReply(reply, "")
-			_, _ = h.socket.SendMessage(envelope)
+			_, _ = socket.SendMessage(envelope)
 			continue
 		}
 
@@ -217,8 +244,10 @@ func (h *Npac) run() {
 		if err != nil {
 			continue
 		}
-		_, _ = h.socket.SendMessage(envelope)
+		_, _ = socket.SendMessage(envelope)
 	}
+
+	_ = poller.RemoveBySocket(socket)
 }
 
 // verifyHMAC validates the request HMAC for commands that require it.
@@ -272,7 +301,7 @@ func (h *Npac) verifyHMAC(req message.RequestInterface, hash string) error {
 }
 
 // routeURLToHandlerURL converts a route mushroom URL to its handler mushroom URL
-// by removing the "command" additional property and returning the link form.
+// by removing route metadata additional properties and returning the link form.
 // The second return value is the command that was present, or "" if absent.
 // e.g. pkg:golang/pkg#mod?command=push&service=svc  →  ("pkg:golang/pkg#mod?service=svc", "push", nil)
 func routeURLToHandlerURL(routeURL string) (handlerURL, command string, err error) {
@@ -285,7 +314,20 @@ func routeURLToHandlerURL(routeURL string) (handlerURL, command string, err erro
 	}
 	command = hypha.AdditionalProps["command"]
 	delete(hypha.AdditionalProps, "command")
+	delete(hypha.AdditionalProps, "handle-func")
 	return hypha.AsLink().String(), command, nil
+}
+
+func routeURLForWhitelistMatch(routeURL string) (string, error) {
+	hypha, err := (&mushroom.Soil{}).Hypha(routeURL)
+	if err != nil {
+		return "", fmt.Errorf("mushroom-url parse: %w", err)
+	}
+	if !hypha.URL {
+		return "", fmt.Errorf("mushroom-url %q is not a mushroom URL", routeURL)
+	}
+	delete(hypha.AdditionalProps, "handle-func")
+	return hypha.String(), nil
 }
 
 // onRegisterHandler registers a handler by its mushroom URL, npac secret, and control endpoint.
@@ -388,6 +430,11 @@ func (h *Npac) onRegisterOutbound(req message.RequestInterface) message.ReplyInt
 //   - outbound:     route URL whose base identifies the outbound and whose
 //     "command" additional property names the whitelist key
 //   - mushroom-url: mushroom URL to add to the command's whitelist
+//
+// Example:
+//
+//	outbound: "pkg:golang/pkg#mod?var=services[0]&category=main&command=any"
+//	mushroom-url: "pkg:golang/pkg#mod?var=services[0]&category=main&command=any"
 func (h *Npac) onSecureEdgeCase(req message.RequestInterface) message.ReplyInterface {
 	outbound, err := req.RouteParameters().StringValue("outbound")
 	if err != nil {
@@ -434,13 +481,14 @@ func (h *Npac) onPushHandlerContext(req message.RequestInterface) message.ReplyI
 	if err != nil {
 		return req.Fail(fmt.Sprintf("mushroom-url param: %v", err))
 	}
+	fmt.Println("onPushHandlerContext: ", len(h.contexts))
 	h.contexts = append(h.contexts, mushroomURL)
 	return req.Ok(datatype.New())
 }
 
-// onPopHandlerContext checks that the top of the context stack matches
-// mushroom-url and, if so, removes it. Returns an error when the stack is
-// empty or the top does not match.
+// onPopHandlerContext removes the given route mushroom URL from the context stack.
+// HMAC is verified via the handler resolved by stripping the "command" additional
+// property from the route URL.
 func (h *Npac) onPopHandlerContext(req message.RequestInterface) message.ReplyInterface {
 	mushroomURL, err := req.RouteParameters().StringValue("mushroom-url")
 	if err != nil {
@@ -449,12 +497,14 @@ func (h *Npac) onPopHandlerContext(req message.RequestInterface) message.ReplyIn
 	if len(h.contexts) == 0 {
 		return req.Fail("context stack is empty")
 	}
-	top := h.contexts[len(h.contexts)-1]
-	if top != mushroomURL {
-		return req.Fail(fmt.Sprintf("context top %q does not match %q", top, mushroomURL))
+	fmt.Println("onPopHandlerContext: ", len(h.contexts))
+	for i := len(h.contexts) - 1; i >= 0; i-- {
+		if h.contexts[i] == mushroomURL {
+			h.contexts = append(h.contexts[:i], h.contexts[i+1:]...)
+			return req.Ok(datatype.New())
+		}
 	}
-	h.contexts = h.contexts[:len(h.contexts)-1]
-	return req.Ok(datatype.New())
+	return req.Fail(fmt.Sprintf("context %q not found in stack", mushroomURL))
 }
 
 // onHandlerContext is the public route called by clients to resolve whether a
@@ -485,10 +535,12 @@ func (h *Npac) onHandlerContext(req message.RequestInterface) message.ReplyInter
 	if err != nil {
 		return req.Fail(fmt.Sprintf("command param: %v", err))
 	}
+	fmt.Println("handler context: ", h.contexts)
 
 	// Resolve the outbound registered for this endpoint.
 	ob, exists := h.outbounds[endpoint.HandlerUrl()]
 	if !exists {
+		fmt.Println("outbounds not exist so return unregistered, contexts: ", h.contexts)
 		return req.Ok(datatype.New().Set("unregistered", true))
 	}
 
@@ -496,18 +548,21 @@ func (h *Npac) onHandlerContext(req message.RequestInterface) message.ReplyInter
 	_, cmdWhitelisted := ob.Whitelist[cmd]
 	_, anyWhitelisted := ob.Whitelist[message.Any]
 	if !cmdWhitelisted && !anyWhitelisted {
+		fmt.Println("command not whitelisted so return unregistered, contexts: ", h.contexts)
 		return req.Ok(datatype.New().Set("unregistered", true))
 	}
 
-	// Verify the last handler context is authorised to call this command.
-	if len(h.contexts) == 0 {
-		return req.Fail("no-context, please call it within the handler context")
-	}
-	lastContext := h.contexts[len(h.contexts)-1]
+	// Resolve the active handler context.
 
-	inCmdWhitelist := cmdWhitelisted && slices.Contains(ob.Whitelist[cmd], lastContext)
+	callerStack := parseCallerStack(req.RouteParameters())
+	lastContext, err := h.getContextByStack(callerStack)
+	if err != nil {
+		return req.Fail(err.Error())
+	}
+
+	inCmdWhitelist := cmdWhitelisted && slices.Contains(ob.Whitelist[cmd], whitelistRouteURL(lastContext))
 	if !inCmdWhitelist {
-		if !anyWhitelisted || !slices.Contains(ob.Whitelist[message.Any], lastContext) {
+		if !anyWhitelisted || !slices.Contains(ob.Whitelist[message.Any], whitelistRouteURL(lastContext)) {
 			return req.Fail(fmt.Sprintf("cross-access-denied: command doesn't support to be accessed from the '%s' context", lastContext))
 		}
 	}
@@ -531,6 +586,68 @@ func (h *Npac) onHandlerContext(req message.RequestInterface) message.ReplyInter
 		Set("unregistered", false).
 		Set("public-key", ob.PublicKey).
 		Set("control-endpoint", controlKV))
+}
+
+func whitelistRouteURL(routeURL string) string {
+	normalized, err := routeURLForWhitelistMatch(routeURL)
+	if err != nil {
+		return routeURL
+	}
+	return normalized
+}
+
+func parseCallerStack(params datatype.KeyValue) []string {
+	if !params.Exist("caller-stack") {
+		return nil
+	}
+	raw := params["caller-stack"]
+
+	switch values := raw.(type) {
+	case []string:
+		return values
+	case []interface{}:
+		stack := make([]string, 0, len(values))
+		for _, rawValue := range values {
+			name, ok := rawValue.(string)
+			if !ok || name == "" {
+				continue
+			}
+			stack = append(stack, name)
+		}
+		return stack
+	default:
+		return nil
+	}
+}
+
+func handleFuncFromRouteURL(routeURL string) (string, bool) {
+	hypha, err := (&mushroom.Soil{}).Hypha(routeURL)
+	if err != nil {
+		return "", false
+	}
+	raw, ok := hypha.AdditionalProps["handle-func"]
+	if !ok || raw == "" {
+		return "", false
+	}
+	return raw, true
+}
+
+func (h *Npac) getContextByStack(callerStack []string) (string, error) {
+	if len(h.contexts) == 0 {
+		return "", fmt.Errorf("'npac' context stack is empty, please call it within the handler context")
+	}
+
+	for _, callerLine := range callerStack {
+		callerName := strings.ReplaceAll(strings.ReplaceAll(callerLine, "(", ""), ")", "")
+		for i := len(h.contexts) - 1; i >= 0; i-- {
+			ctx := h.contexts[i]
+			ctxFunc, ok := handleFuncFromRouteURL(ctx)
+			if ok && ctxFunc == callerName {
+				return ctx, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no handler context matches caller stack")
 }
 
 // onRemoveOutbound removes an outbound entry by handler URL.

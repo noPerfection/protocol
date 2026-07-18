@@ -146,30 +146,6 @@ func (c *Handler) getHmacSecrets(cmd string) map[string]bool {
 	return c.whitelists[message.Any]
 }
 
-// ValidateRequestHmac reports whether hash is valid for the request command whitelist.
-func (c *Handler) ValidateRequestHmac(req message.RequestInterface, hash string) bool {
-	_, ok := c.getRequestSecret(req, hash)
-	return ok
-}
-
-// ValidateReplyHmac reports whether hash is valid for the message.Any-route whitelist.
-func (c *Handler) ValidateReplyHmac(reply message.ReplyInterface, hash string) bool {
-	secrets := c.getHmacSecrets(message.Any)
-	if secrets == nil {
-		return true
-	}
-	if hash == "" {
-		return false
-	}
-	body := reply.String()
-	for secret := range secrets {
-		if message.VerifyHMAC(body, secret, hash) {
-			return true
-		}
-	}
-	return false
-}
-
 func (c *Handler) getRequestSecret(req message.RequestInterface, hash string) (string, bool) {
 	secrets := c.getHmacSecrets(req.CommandName())
 	if secrets == nil {

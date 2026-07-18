@@ -49,7 +49,12 @@ func (c *WorkerClient) Whitelist(cmd string, secrets ...string) error {
 	return c.socket.Whitelist(cmd, secrets...)
 }
 
-func (c *WorkerClient) Secure(serverPublicKey string, clientSecretKey ...string) *WorkerClient {
-	c.socket.Secure(serverPublicKey, clientSecretKey...)
+func (c *WorkerClient) Secure(clientSecretKey string) *WorkerClient {
+	c.socket.Secure(clientSecretKey)
+	return c
+}
+
+func (c *WorkerClient) Allow(handlerPublicKey string) *WorkerClient {
+	c.socket.Allow(handlerPublicKey)
 	return c
 }
