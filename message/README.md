@@ -1,6 +1,8 @@
 # Protocol/message
 
-`Protocol/message` is part of the noPerfection framework. It defines the message data types, and how to serialize the zmq message envelopes into the messages. It's used by `protocol/client` and `protocol/handler` to commincate over zmq library.
+`Protocol/message` is used by `protocol/client` and `protocol/handler` to commincate over zmq library. It defines the message data types, and how to serialize the zmq bytes into messages understood by handlers and clients.
+
+> License? **Public Domain**
 
 Due to client/handler nature, there are two types of messages. The **Request** is a message from client to handler.
 And **Reply** as a reverse from handler to client.
@@ -30,8 +32,8 @@ The module has three layers:
 
 noPerfection wires in `MessagePacker` with `Request` / `Reply`. `RawPacker` with `RawRequest` / `RawReply` is the reference extension: same `Packer` interface, different message types and envelope rules.
 
-
 ## ZeroMQ Envelopes
+
 ZeroMQ envelopes are defined by the zeromq library as a series of strings: `[]string`. Message module is based on it. To interact with them, you may need to check its official protocol specification.
 Otherwise if you don't want to handle with it simply use the `message.go` package.
 

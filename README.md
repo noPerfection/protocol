@@ -4,6 +4,8 @@
 
 NoPerfection adds to them a security, circuit break, and other additional utilities for a production grade.
 
+> License? **Public Domain**
+
 It is split into three Go modules:
 
 - [client](./client/README.md) is the client side zeromq sockets:

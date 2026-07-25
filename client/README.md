@@ -1,6 +1,8 @@
 # protocol/client
 
-Thread-safe ZeroMQ clients for connecting to [github.com/noPerfection/protocol/handler](https://github.com/noPerfection/protocol/tree/main/handler) handlers.
+Thread-safe ZeroMQ client sockets to connect to noPerfection [handlers](https://github.com/noPerfection/protocol/tree/main/handler). Handler is the ZeroMQ server sockets.
+
+> License? **Public Domain**
 
 ## Requirements
 
@@ -38,13 +40,15 @@ Clients are divided per package by handler name. Depending on the handler type, 
 
 Handler types are defined in the README for [github.com/noPerfection/protocol/handler](https://github.com/noPerfection/protocol/tree/main/handler).
 
-| Handler's Client | Client's ZMQ socket | Send Interface | Request Interface | Receive Interface |
-|------------------|---------------------|----------------|-------------------|-------------------|
-| `sync_replier.Client` | `zmq.REQ` | | ✓ | |
-| `replier.Client` | `zmq.DEALER` | ✓ | | ✓ |
-| `worker.Client` | `zmq.PUSH` | ✓ | | |
-| `publisher.Client` | `zmq.SUB` | | | ✓ |
-| `pair.Client` | `zmq.PAIR` | ✓ | | ✓ |
+
+| Handler's Client      | Client's ZMQ socket | Send Interface | Request Interface | Receive Interface |
+| --------------------- | ------------------- | -------------- | ----------------- | ----------------- |
+| `sync_replier.Client` | `zmq.REQ`           |                | ✓                 |                   |
+| `replier.Client`      | `zmq.DEALER`        | ✓              |                   | ✓                 |
+| `worker.Client`       | `zmq.PUSH`          | ✓              |                   |                   |
+| `publisher.Client`    | `zmq.SUB`           |                |                   | ✓                 |
+| `pair.Client`         | `zmq.PAIR`          | ✓              |                   | ✓                 |
+
 
 ## Client Cycle
 
@@ -191,6 +195,7 @@ The control endpoint uses the handler control address, not the handler's message
 - `Receive` clients close their receive channel automatically when nothing arrives for `Attempt` consecutive idle periods, each lasting `Timeout`. Set `Attempt(0)` to retry forever. Receiving a message resets the idle counter. Call `Receive()` again on a new client after the channel closes.
 - `replier.Client` and `pair.Client` receive paths are not polished under stress yet. Stress tests show receive channels can close after only a few accepted messages during heavy concurrent send pressure.
 - `pair.Client` is sensitive to PAIR socket timing. Start `Receive()` and allow the connection to settle before sending, especially in tests.
+
 ## Maintenance Memo
 
 This is a memo for myself if I need to change the code after a few months of pause.

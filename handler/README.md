@@ -1,6 +1,8 @@
 # protocol/handler
 
-Route ZeroMQ messages to Go functions. Handlers expose a command-based API: a client sends a command name plus parameters, and the handler dispatches to the matching route.
+Thread safe ZeroMQ sockets that handls requests. Handlers expose a command-based API: a client sends a command name plus parameters, and the handler dispatches to the matching route.
+
+> License? **Public Domain**
 
 ## Requirements
 
@@ -15,15 +17,17 @@ go get github.com/noPerfection/protocol/handler@latest
 
 ## Handler Types
 
-| Package | Type | Use when |
-|---------|------|----------|
-| [`sync_replier`](sync_replier) | `SyncReplier` | One request at a time per handler; extra requests wait in queue |
-| [`replier`](replier) | `Replier` | Many concurrent request/reply clients; handlers run asynchronously behind a ROUTER socket |
-| [`publisher`](publisher) | `Publisher` | Broadcast to subscribers |
-| [`worker`](worker) | `Worker` | Consume fire-and-forget messages without replying to the caller |
-| [`pair`](pair) | `Pair` | Bridge another protocol or in-process component through a PAIR socket |
 
-All handlers implement [`handler.Interface`](handler/interface.go): `SetEndpoint`, `SetLogger`, `Route`, `Start`, and related lifecycle methods.
+| Package                        | Type          | Use when                                                                                  |
+| ------------------------------ | ------------- | ----------------------------------------------------------------------------------------- |
+| `[sync_replier](sync_replier)` | `SyncReplier` | One request at a time per handler; extra requests wait in queue                           |
+| `[replier](replier)`           | `Replier`     | Many concurrent request/reply clients; handlers run asynchronously behind a ROUTER socket |
+| `[publisher](publisher)`       | `Publisher`   | Broadcast to subscribers                                                                  |
+| `[worker](worker)`             | `Worker`      | Consume fire-and-forget messages without replying to the caller                           |
+| `[pair](pair)`                 | `Pair`        | Bridge another protocol or in-process component through a PAIR socket                     |
+
+
+All handlers implement `[handler.Interface](handler/interface.go)`: `SetEndpoint`, `SetLogger`, `Route`, `Start`, and related lifecycle methods.
 
 ## Quick Start
 
@@ -226,19 +230,23 @@ REPLIER_STRESS_LARGE=1 go test ./handler/replier -run TestStressTest -v -timeout
 
 Example benchmark results with the default `50ms` handler delay:
 
-| Clients | Requests per client | Total requests | Throughput | Duration | Result |
-|---------|---------------------|----------------|------------|----------|--------|
-| `1,000` | `5` | `5,000` | `8,221.33 req/s` | `608ms` | Pass |
-| `10,000` | `100` | `1,000,000` | `8,347.28 req/s` | `1m59.8s` | Pass |
-| `100,000` | `5` | `500,000` | `9,010.06 req/s` | `55.493s` | Pass |
+
+| Clients   | Requests per client | Total requests | Throughput       | Duration  | Result |
+| --------- | ------------------- | -------------- | ---------------- | --------- | ------ |
+| `1,000`   | `5`                 | `5,000`        | `8,221.33 req/s` | `608ms`   | Pass   |
+| `10,000`  | `100`               | `1,000,000`    | `8,347.28 req/s` | `1m59.8s` | Pass   |
+| `100,000` | `5`                 | `500,000`      | `9,010.06 req/s` | `55.493s` | Pass   |
+
 
 Example benchmark results with `REPLIER_HANDLE_TIME=1`:
 
-| Clients | Requests per client | Total requests | Throughput | Duration | Result |
-|---------|---------------------|----------------|------------|----------|--------|
-| `1,000` | `5` | `5,000` | `11,527.30 req/s` | `434ms` | Pass |
-| `10,000` | `100` | `1,000,000` | `12,589.71 req/s` | `1m19.43s` | Pass |
-| `100,000` | `5` | `500,000` | `12,511.81 req/s` | `39.962s` | Pass |
+
+| Clients   | Requests per client | Total requests | Throughput        | Duration   | Result |
+| --------- | ------------------- | -------------- | ----------------- | ---------- | ------ |
+| `1,000`   | `5`                 | `5,000`        | `11,527.30 req/s` | `434ms`    | Pass   |
+| `10,000`  | `100`               | `1,000,000`    | `12,589.71 req/s` | `1m19.43s` | Pass   |
+| `100,000` | `5`                 | `500,000`      | `12,511.81 req/s` | `39.962s`  | Pass   |
+
 
 Large client counts may require a higher file descriptor limit, for example `ulimit -n 200000`.
 
