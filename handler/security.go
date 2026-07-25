@@ -38,18 +38,29 @@ func (security *Security) RequireWhitelist(cmd string) {
 	security.requireWhitelistCmds[cmd] = true
 }
 
-func (security *Security) IsWhitelistRequired(cmd string) bool {
+func (security *Security) IsWhitelistRequired(cmd string, dontUseAny ...bool) bool {
 	if security.requireWhitelistCmds == nil {
 		return false
 	}
 	if security.requireWhitelistCmds[cmd] {
 		return true
 	}
+	if len(dontUseAny) > 0 && dontUseAny[0] {
+		return false
+	}
 	return security.requireWhitelistCmds[message.Any]
 }
 
 func (security *Security) IsSecure() bool {
 	return security.curveSecretKey != ""
+}
+
+// PublicKey returns the Z85 CURVE public key for the stored server secret key.
+func (security *Security) PublicKey() (string, error) {
+	if security.curveSecretKey == "" {
+		return "", fmt.Errorf("handler is not secure")
+	}
+	return message.DerivePublicKey(security.curveSecretKey)
 }
 
 // Secure stores the CURVE server secret key. An empty key keeps the handler non-secure.
@@ -68,7 +79,7 @@ func (security *Security) Allow(clientPubKey string) {
 	security.allowedClientPubKeys = append(security.allowedClientPubKeys, clientPubKey)
 }
 
-func (security *Security) register(socket *zmq.Socket, endpoint message.Endpoint) error {
+func (security *Security) auth(socket *zmq.Socket, endpoint message.Endpoint) error {
 	if security.curveSecretKey != "" && !endpoint.IsInproc() {
 		domain := endpoint.ZapDomain()
 		if err := socket.ServerAuthCurve(domain, security.curveSecretKey); err != nil {

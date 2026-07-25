@@ -32,6 +32,9 @@ type secure interface {
 
 	IsSecure() bool
 
+	// PublicKey returns the Z85 CURVE public key when the handler is secure.
+	PublicKey() (string, error)
+
 	// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
 	Allow(clientPubKey string)
 
@@ -43,13 +46,15 @@ type secure interface {
 	Whitelist(cmd string, secrets ...string) error
 
 	// IsWhitelistExist reports whether the given command requires HMAC validation.
-	IsWhitelistExist(cmd string) bool
+	// When dontUseAny is true, only an exact cmd entry counts; otherwise message.Any is checked last.
+	IsWhitelistExist(cmd string, dontUseAny ...bool) bool
 
 	//
 	// If handler secured, then access also requires whitelisting
 	//
 	RequireWhitelist(cmd string)
-	IsWhitelistRequired(cmd string) bool
+	// When dontUseAny is true, only an exact cmd entry counts; otherwise message.Any is checked last.
+	IsWhitelistRequired(cmd string, dontUseAny ...bool) bool
 }
 
 // Interface of the handler. Any handlers must be based on this.

@@ -26,6 +26,15 @@ func infiniteAttempts(attempt uint8) bool {
 	return attempt == 0
 }
 
+// controlWaitTimeout is how long the control client waits for one request-as-context
+// round-trip. Inner outbound uses up to attempt+1 tries of timeout each.
+func controlWaitTimeout(timeout time.Duration, attempt uint8) time.Duration {
+	if infiniteAttempts(attempt) {
+		return timeout
+	}
+	return timeout * time.Duration(attempt)
+}
+
 // A Socket is the structure that transmits the data to the handlers.
 type Socket struct {
 	mu              sync.Mutex
@@ -81,21 +90,13 @@ func (socket *Socket) Packer(packer message.Packer) *Socket {
 	return socket
 }
 
-// Attempts to connect to the endpoint.
-// The difference from zmqSocket.reconnect() is that it will not authenticate if security is enabled.
+// reconnect connects when no socket is open yet.
 func (socket *Socket) reconnect() (err error) {
-	socketType := targetToClient(socket.handlerType)
-
-	if socket.monitorSocket != nil {
-		_ = socket.monitorSocket.Close()
-		socket.monitorSocket = nil
-	}
-
 	if socket.zmqSocket != nil {
-		if err := socket.zmqSocket.Close(); err != nil {
-			return fmt.Errorf("failed to close zmqSocket in zmq: %w", err)
-		}
+		return nil
 	}
+
+	socketType := targetToClient(socket.handlerType)
 
 	socket.zmqSocket, err = zmq.NewSocket(socketType)
 	if err != nil {
@@ -133,6 +134,18 @@ func (socket *Socket) reconnect() (err error) {
 	}
 
 	return nil
+}
+
+func (socket *Socket) disconnect() {
+	if socket.monitorSocket != nil {
+		_ = socket.monitorSocket.Close()
+		socket.monitorSocket = nil
+	}
+
+	if socket.zmqSocket != nil {
+		_ = socket.zmqSocket.Close()
+		socket.zmqSocket = nil
+	}
 }
 
 func (socket *Socket) updateToPollIn() {
@@ -293,6 +306,10 @@ func (socket *Socket) attemptRequesting(envelope []string) ([]string, error) {
 			}
 			// Monitor fired (non-error) but no reply yet — keep polling the same socket.
 		}
+
+		if socket.zmqSocket != nil {
+			socket.disconnect()
+		}
 	}
 }
 
@@ -332,9 +349,8 @@ func (socket *Socket) attemptSending(envelope []string) error {
 func (socket *Socket) send(envelope []string) (bool, error) {
 	timeoutDuration, _ := socket.options()
 
-	err := socket.reconnect()
-	if err != nil {
-		return false, fmt.Errorf("initial  socket.reconnect: %w", err)
+	if err := socket.reconnect(); err != nil {
+		return false, fmt.Errorf("socket connect: %w", err)
 	}
 
 	socket.pollOut()
@@ -394,6 +410,10 @@ func (socket *Socket) omitReplyIfPresent() {
 // the method looks up the server's public key from the npac autocontext and
 // retries once with the new key.
 func (socket *Socket) Send(req message.RequestInterface, hmac ...string) error {
+	if socket.receiver != nil {
+		socket.receiver.activate()
+	}
+
 	reqStr, err := socket.serializeRequest(req, hmac...)
 	if err != nil {
 		return fmt.Errorf("packer.SerializeRequest: %w", err)
@@ -418,16 +438,19 @@ func (socket *Socket) Send(req message.RequestInterface, hmac ...string) error {
 			return fmt.Errorf("%w: autocontext.HandlerContext(%s, %s): unregistered in 'npap'.", message.ErrNoCurveKey, socket.endpoint.HandlerUrl(), req.CommandName())
 		}
 
+		timeout, attempt := socket.options()
+
 		control, err := NewControl(controlEndpoint.Id, controlEndpoint.Port)
 		if err != nil {
 			return fmt.Errorf("NewControl: %w", err)
 		}
+		control.Timeout(controlWaitTimeout(timeout, attempt))
+		control.Attempt(1)
 		envelope, err := socket.messagePacker.SerializeRequest(req, hmac...)
 		if err != nil {
 			return fmt.Errorf("request: message.ErrNoCurveKey: packer.SerializeRequest: %w", err)
 		}
-		// endpoint, public-key, request, hmac optional
-		_, err = control.RequestAsContext(socket.endpoint, socket.handlerType, publicKey, envelope, req.CommandName(), socket.attempt, socket.timeout, hmac...)
+		_, err = control.RequestAsContext(socket.endpoint, socket.handlerType, publicKey, envelope, req.CommandName(), attempt, timeout)
 		if err != nil {
 			return fmt.Errorf("control.Send: %w", err)
 		}
@@ -476,17 +499,20 @@ func (socket *Socket) Request(req message.RequestInterface, hmac ...string) (mes
 			return nil, fmt.Errorf("%w: autocontext.HandlerContext(%s, %s): outbound is unregistered in 'npac'.", message.ErrNoCurveKey, socket.endpoint.HandlerUrl(), req.CommandName())
 		}
 
+		timeout, attempt := socket.options()
+
 		control, err := NewControl(controlEndpoint.Id, controlEndpoint.Port)
 		if err != nil {
 			return nil, fmt.Errorf("request: message.ErrNoCurveKey: NewControl: %w", err)
 		}
 		defer control.Close()
+		control.Timeout(controlWaitTimeout(timeout, attempt))
+		control.Attempt(1)
 		envelope, err := socket.messagePacker.SerializeRequest(req, hmac...)
 		if err != nil {
 			return nil, fmt.Errorf("request: message.ErrNoCurveKey: packer.SerializeRequest: %w", err)
 		}
-		// endpoint, public-key, request, hmac optional
-		reply, err := control.RequestAsContext(socket.endpoint, socket.handlerType, publicKey, envelope, req.CommandName(), socket.attempt, socket.timeout, hmac...)
+		reply, err := control.RequestAsContext(socket.endpoint, socket.handlerType, publicKey, envelope, req.CommandName(), attempt, timeout)
 		if err != nil {
 			return nil, fmt.Errorf("request: message.ErrNoCurveKey: control.RequestAsContext: %w", err)
 		}
@@ -503,15 +529,15 @@ func (socket *Socket) Request(req message.RequestInterface, hmac ...string) (mes
 		return nil, fmt.Errorf("packer.DeserializeReply('%v'): %w", rawReply, err)
 	}
 
-	// On "access-denied" reply body: the handler requires HMAC but the client
-	// did not sign the request. Fetch the secret from npac, re-sign, and retry.
+	// On "access-denied" reply body: unsigned request. Fetch secret from npac and retry once.
+	// When the caller already signed the request, do not npac-retry (avoids deadlocking
+	// nested request-as-context on the same control handler).
 	if !reply.IsOK() && reply.ErrorMessage() == message.ErrAccessDenied.Error() {
 		autocontext := NewAutocontext()
 		if autocontext == nil {
 			return nil, fmt.Errorf("reply: ErrAccessDenied: failed to create autocontext")
 		}
 		unregistered, publicKey, controlEndpoint, err := autocontext.HandlerContext(socket.endpoint, req.CommandName())
-
 		autocontext.Close()
 
 		if err != nil {
@@ -521,21 +547,23 @@ func (socket *Socket) Request(req message.RequestInterface, hmac ...string) (mes
 			return nil, fmt.Errorf("reply: ErrAccessDenied: %w: '%s' not registered in 'npap'.", message.ErrAccessDenied, socket.endpoint.HandlerUrl())
 		}
 
+		timeout, attempt := socket.options()
+
 		control, err := NewControl(controlEndpoint.Id, controlEndpoint.Port)
 		if err != nil {
 			return nil, fmt.Errorf("reply: ErrAccessDenied: NewControl: %w", err)
 		}
+		defer control.Close()
+		control.Timeout(controlWaitTimeout(timeout, attempt))
+		control.Attempt(1)
 		envelope, err := socket.messagePacker.SerializeRequest(req, hmac...)
 		if err != nil {
 			return nil, fmt.Errorf("reply: ErrAccessDenied: packer.SerializeRequest: %w", err)
 		}
-		// endpoint, public-key, request, hmac optional
-		reply, err := control.RequestAsContext(socket.endpoint, socket.handlerType, publicKey, envelope, req.CommandName(), socket.attempt, socket.timeout, hmac...)
+		reply, err := control.RequestAsContext(socket.endpoint, socket.handlerType, publicKey, envelope, req.CommandName(), attempt, timeout)
 		if err != nil {
 			return nil, fmt.Errorf("reply: ErrAccessDenied: control.RequestAsContext: %w", err)
 		}
-
-		control.Close()
 
 		return reply, nil
 	}

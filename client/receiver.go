@@ -36,6 +36,10 @@ func supportsReceive(handlerType HandlerType) bool {
 }
 
 func (r *receiver) pollOnce() {
+	r.pollOnceWithTimeout(0)
+}
+
+func (r *receiver) pollOnceWithTimeout(pollTimeout time.Duration) {
 	r.socket.zmqMu.Lock()
 	defer r.socket.zmqMu.Unlock()
 
@@ -43,16 +47,14 @@ func (r *receiver) pollOnce() {
 		return
 	}
 
-	if r.socket.zmqSocket == nil {
-		if err := r.socket.reconnect(); err != nil {
-			r.markIdle()
-			return
-		}
+	if err := r.socket.reconnect(); err != nil {
+		r.markIdle()
+		return
 	}
 
 	r.socket.updateToPollIn()
 
-	sockets, err := r.socket.poller.Poll(0)
+	sockets, err := r.socket.poller.Poll(pollTimeout)
 	if err != nil {
 		r.markIdle()
 		return
@@ -76,7 +78,24 @@ func (r *receiver) pollOnce() {
 		return
 	}
 
-	raw, err := r.socket.zmqSocket.RecvMessage(0)
+	ready := false
+	for _, s := range sockets {
+		if s.Socket == r.socket.zmqSocket {
+			ready = true
+			break
+		}
+	}
+	if !ready {
+		r.markIdle()
+		return
+	}
+
+	flags := zmq.Flag(0)
+	if pollTimeout == 0 {
+		flags = zmq.DONTWAIT
+	}
+
+	raw, err := r.socket.zmqSocket.RecvMessage(flags)
 	if err != nil {
 		r.markIdle()
 		return
@@ -94,6 +113,15 @@ func (r *receiver) pollOnce() {
 	}
 
 	r.markReceived()
+	r.deliver(reply)
+}
+
+func (r *receiver) deliver(reply message.ReplyInterface) {
+	r.socket.mu.Lock()
+	defer r.socket.mu.Unlock()
+	if !r.active {
+		return
+	}
 	select {
 	case r.replies <- reply:
 	default:
@@ -126,6 +154,7 @@ func (r *receiver) recoverNoCurveKey() bool {
 	if r.socket.curveSecretKey != "" {
 		r.socket.Secure(r.socket.curveSecretKey)
 	}
+	r.socket.disconnect()
 	return r.socket.reconnect() == nil
 }
 
@@ -155,12 +184,11 @@ func (r *receiver) isActive() bool {
 }
 
 func (r *receiver) close() {
-	r.socket.mu.Lock()
-	r.active = false
-	r.socket.mu.Unlock()
-
 	r.closeOnce.Do(func() {
+		r.socket.mu.Lock()
+		r.active = false
 		close(r.replies)
+		r.socket.mu.Unlock()
 	})
 }
 
@@ -201,6 +229,7 @@ func (socket *Socket) Receive() <-chan message.ReplyInterface {
 		return ch
 	}
 	socket.receiver.activate()
+	socket.receiver.pollOnce()
 	return socket.receiver.replies
 }
 

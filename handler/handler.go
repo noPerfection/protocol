@@ -131,9 +131,13 @@ func (c *Handler) Whitelist(cmd string, secrets ...string) error {
 }
 
 // IsWhitelistExist reports whether the given command requires HMAC validation.
-func (c *Handler) IsWhitelistExist(cmd string) bool {
+// When dontUseAny is true, only an exact cmd entry counts; otherwise message.Any is checked last.
+func (c *Handler) IsWhitelistExist(cmd string, dontUseAny ...bool) bool {
 	if _, ok := c.whitelists[cmd]; ok {
 		return true
+	}
+	if len(dontUseAny) > 0 && dontUseAny[0] {
+		return false
 	}
 	_, ok := c.whitelists[message.Any]
 	return ok

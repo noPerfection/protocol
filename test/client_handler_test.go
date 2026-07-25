@@ -24,6 +24,8 @@ func TestClientHandlerPairs(t *testing.T) {
 	t.Run("replier send receive", testReplierClientHandler)
 	t.Run("worker send", testWorkerClientHandler)
 	t.Run("pair send receive", testPairClientHandler)
+	t.Run("pair send then receive", testPairClientHandlerSendThenReceive)
+	t.Run("pair send then receive round trips", testPairClientHandlerSendThenReceiveRoundTrips)
 	t.Run("publisher receive broadcast", testPublisherClientHandler)
 }
 
@@ -106,6 +108,39 @@ func testWorkerClientHandler(t *testing.T) {
 }
 
 func testPairClientHandler(t *testing.T) {
+	client, req := newPairEchoClient(t)
+	defer func() { req.NoError(client.Close()) }()
+
+	replies := client.Receive()
+	time.Sleep(time.Millisecond * 50)
+
+	req.NoError(client.Send(newRequest("echo", "pair-value")))
+	assertEchoReply(t, receiveReply(t, replies), "echo", "pair-value")
+}
+
+func testPairClientHandlerSendThenReceive(t *testing.T) {
+	client, req := newPairEchoClient(t)
+	defer func() { req.NoError(client.Close()) }()
+
+	req.NoError(client.Send(newRequest("echo", "pair-send-first")))
+	replies := client.Receive()
+	assertEchoReply(t, receiveReply(t, replies), "echo", "pair-send-first")
+}
+
+func testPairClientHandlerSendThenReceiveRoundTrips(t *testing.T) {
+	client, req := newPairEchoClient(t)
+	defer func() { req.NoError(client.Close()) }()
+
+	for i := range 20 {
+		value := fmt.Sprintf("pair-round-%d", i)
+		req.NoError(client.Send(newRequest("echo", value)))
+		replies := client.Receive()
+		assertEchoReply(t, receiveReply(t, replies), "echo", value)
+	}
+}
+
+func newPairEchoClient(t *testing.T) (*client.PairClient, *require.Assertions) {
+	t.Helper()
 	req := require.New(t)
 	id := testID(t, "pair")
 	svc := handler.NewPair()
@@ -115,18 +150,13 @@ func testPairClientHandler(t *testing.T) {
 	req.NoError(svc.Start())
 
 	control := newPairControl(t, id)
-	defer closeControl(t, control)
+	t.Cleanup(func() { closeControl(t, control) })
 
 	client, err := client.NewPair(id, 0)
 	req.NoError(err)
-	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(time.Second)
 	client.Attempt(3)
-	replies := client.Receive()
-	time.Sleep(time.Millisecond * 50)
-
-	req.NoError(client.Send(newRequest("echo", "pair-value")))
-	assertEchoReply(t, receiveReply(t, replies), "echo", "pair-value")
+	return client, req
 }
 
 func testPublisherClientHandler(t *testing.T) {

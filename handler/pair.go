@@ -77,6 +77,7 @@ func (pair *Pair) Start() error {
 		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
+	pair.PublisherControl.setNpacSecureEdgeCase(pair.PublisherControl.NpacSecureEdgeCase)
 	pair.setControlRoutes()
 
 	if pair.PublisherControl.Status() != SocketReady {
@@ -98,6 +99,73 @@ func (pair *Pair) setControlRoutes() {
 	pair.PublisherControl.Route(HandlerClose, pair.onControlClose)
 	pair.PublisherControl.Route(Broadcast, pair.onBroadcast)
 	pair.PublisherControl.Route(MessageAmount, pair.onMessageAmount)
+	pair.PublisherControl.Route(HandlerCommands, func(req message.RequestInterface) message.ReplyInterface {
+		return req.Ok(datatype.New().Set("commands", pair.Commands()))
+	})
+	pair.PublisherControl.Route(HandlerRegisterOutbounds, pair.PublisherControl.onRegisterOutbounds)
+	pair.PublisherControl.Route(HandlerRequireWhitelist, pair.onControlRequireWhitelist)
+	pair.PublisherControl.Route(HandlerRequireSecure, pair.onControlRequireSecure)
+	pair.PublisherControl.Route(HandlerAllow, func(req message.RequestInterface) message.ReplyInterface {
+		publicKey, err := req.RouteParameters().StringValue("public-key")
+		if err != nil || publicKey == "" {
+			return req.Fail("public-key is required")
+		}
+		pair.Allow(publicKey)
+		return req.Ok(datatype.New())
+	})
+}
+
+func (pair *Pair) onControlRequireWhitelist(req message.RequestInterface) message.ReplyInterface {
+	cmd, err := req.RouteParameters().StringValue("command")
+	if err != nil {
+		return req.Fail(fmt.Sprintf("req.RouteParameters().StringValue('command'): %v", err))
+	}
+	if cmd == "" {
+		return req.Fail("command is required")
+	}
+
+	secret, err := req.RouteParameters().StringValue("secret")
+	if err == nil && secret != "" {
+		if pair.IsWhitelistExist(cmd, true) {
+			return req.Ok(datatype.New().Set("whitelisted", true))
+		}
+		if err := pair.Whitelist(cmd, secret); err != nil {
+			return req.Fail(fmt.Sprintf(`Whitelist("%s"): %v`, cmd, err))
+		}
+	} else {
+		if pair.IsWhitelistRequired(cmd, true) {
+			return req.Ok(datatype.New())
+		}
+		pair.RequireWhitelist(cmd)
+	}
+
+	return req.Ok(datatype.New())
+}
+
+func (pair *Pair) onControlRequireSecure(req message.RequestInterface) message.ReplyInterface {
+	if !pair.IsSecure() {
+		_, secret, err := message.GenerateCurveKey()
+		if err != nil {
+			return req.Fail(fmt.Sprintf("message.GenerateCurveKey: %v", err))
+		}
+		wasRunning := pair.PublisherControl.Running()
+		if wasRunning {
+			pair.stopPair()
+		}
+		pair.Secure(secret)
+		if wasRunning {
+			if err := pair.startPair(); err != nil {
+				return req.Fail(err.Error())
+			}
+		}
+	}
+
+	pubKey, err := pair.PublicKey()
+	if err != nil {
+		return req.Fail(fmt.Sprintf("PublicKey: %v", err))
+	}
+
+	return req.Ok(datatype.New().Set("public-key", pubKey))
 }
 
 func (pair *Pair) onControlClose(req message.RequestInterface) message.ReplyInterface {
@@ -138,7 +206,7 @@ func (pair *Pair) startPair() error {
 			return
 		}
 
-		err = pair.register(socket, pair.Endpoint())
+		err = pair.auth(socket, pair.Endpoint())
 		if err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("register: %w", err)
@@ -262,8 +330,8 @@ func (pair *Pair) handleRequest(socket *zmq.Socket) error {
 
 	reply := handleFunc(req)
 
-	if err := pair.PublisherControl.popHandleContext(cmd, handleFunc); err != nil {
-		pair.LogError("popHandleContext", "error", err)
+	if err := pair.PublisherControl.npacPopHandleContext(cmd, handleFunc); err != nil {
+		pair.LogError("npacPopHandleContext", "error", err)
 	}
 
 	return pair.sendReply(socket, reply, cmd, matchedSecret)

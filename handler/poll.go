@@ -31,6 +31,19 @@ func takeAndCloseSocket(socket **zmq.Socket) {
 	interruptSocket(s)
 }
 
+// takeAndCloseBoundSocket clears *socket, unbinds, then closes with zero linger.
+func takeAndCloseBoundSocket(socket **zmq.Socket, bindURL string) {
+	if socket == nil || *socket == nil {
+		return
+	}
+	s := *socket
+	*socket = nil
+	if bindURL != "" {
+		_ = s.Unbind(bindURL)
+	}
+	interruptSocket(s)
+}
+
 // wakePipe wakes a blocked Poll via an inproc PUSH/PULL pair.
 type wakePipe struct {
 	pull *zmq.Socket

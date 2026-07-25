@@ -15,11 +15,27 @@ import (
 	"github.com/noPerfection/protocol/message"
 )
 
+// ErrAlreadyWhitelisted is returned when NpacSecureEdgeCase is called for an
+// already authorized handler route on an outbound.
+var ErrAlreadyWhitelisted = errors.New("already whitelisted")
+
 type Autocontext struct {
 	npacSecret  string
 	mushroomURL string
 	started     bool
 	client      *client.Socket
+}
+
+// AutocontextHandler is implemented by handlers that embed Autocontext.
+type AutocontextHandler interface {
+	NpacPushAnyContext(functionPath any) error
+	NpacPopAnyContext(functionPath any) error
+}
+
+// AsAutocontextHandler reports whether h embeds an Autocontext.
+func AsAutocontextHandler(h Interface) (AutocontextHandler, bool) {
+	ac, ok := h.(AutocontextHandler)
+	return ac, ok
 }
 
 func NewAutocontext() *Autocontext {
@@ -94,6 +110,10 @@ func (c *Autocontext) npacRegisterHandler(controlEndpoint message.Endpoint) erro
 		return err
 	}
 	if !reply.IsOK() {
+		if strings.Contains(reply.ErrorMessage(), "already registered") {
+			c.started = true
+			return nil
+		}
 		return fmt.Errorf(reply.ErrorMessage())
 	}
 	c.started = true
@@ -102,7 +122,7 @@ func (c *Autocontext) npacRegisterHandler(controlEndpoint message.Endpoint) erro
 
 // npacPushHandleContext pushes a route URL (mushroomURL + cmd) onto npac's
 // context stack so outbound calls can reach this handler's control endpoint.
-func (c *Autocontext) npacPushHandleContext(cmd string, handleFunc message.HandleFunc) error {
+func (c *Autocontext) npacPushHandleContext(cmd string, handleFunc any) error {
 	url, err := c.routeURL(cmd, handleFuncName(handleFunc))
 	if err != nil {
 		return err
@@ -123,6 +143,14 @@ func (c *Autocontext) npacPushHandleContext(cmd string, handleFunc message.Handl
 	return nil
 }
 
+// NpacPushAnyContext pushes message.Any with functionPath onto npac's context stack.
+func (c *Autocontext) NpacPushAnyContext(functionPath any) error {
+	if !c.started {
+		return nil
+	}
+	return c.npacPushHandleContext(message.Any, functionPath)
+}
+
 // NpacSecureEdgeCase authorizes the cmd's context to call the outbound.
 func (c *Autocontext) NpacSecureEdgeCase(outbound, cmd string) error {
 	mushroomURL, err := c.routeURL(cmd, "")
@@ -139,6 +167,9 @@ func (c *Autocontext) NpacSecureEdgeCase(outbound, cmd string) error {
 		return err
 	}
 	if !reply.IsOK() {
+		if strings.Contains(reply.ErrorMessage(), "already whitelisted") {
+			return ErrAlreadyWhitelisted
+		}
 		return fmt.Errorf(reply.ErrorMessage())
 	}
 	return nil
@@ -172,8 +203,8 @@ func (c *Autocontext) HandlerContext(endpoint message.Endpoint, cmd string) (boo
 	return autocontext.HandlerContext(endpoint, cmd)
 }
 
-// popHandleContext pops the route URL (mushroomURL + cmd) from npac's context stack.
-func (c *Autocontext) popHandleContext(cmd string, handleFunc message.HandleFunc) error {
+// npacPopHandleContext pops the route URL (mushroomURL + cmd) from npac's context stack.
+func (c *Autocontext) npacPopHandleContext(cmd string, handleFunc any) error {
 	if !c.started {
 		return nil
 	}
@@ -192,4 +223,9 @@ func (c *Autocontext) popHandleContext(cmd string, handleFunc message.HandleFunc
 		return fmt.Errorf(reply.ErrorMessage())
 	}
 	return nil
+}
+
+// NpacPopAnyContext pops the message.Any route for functionPath from npac's context stack.
+func (c *Autocontext) NpacPopAnyContext(functionPath any) error {
+	return c.npacPopHandleContext(message.Any, functionPath)
 }

@@ -3,7 +3,6 @@ package handler
 import (
 	"fmt"
 	"sync"
-
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/message"
@@ -85,6 +84,7 @@ func (c *Publisher) Start() error {
 		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
+	c.PublisherControl.setNpacSecureEdgeCase(c.PublisherControl.NpacSecureEdgeCase)
 	c.setControlRoutes()
 
 	if c.PublisherControl.Status() != SocketReady {
@@ -106,6 +106,73 @@ func (c *Publisher) setControlRoutes() {
 	c.PublisherControl.Route(HandlerClose, c.onControlClose)
 	c.PublisherControl.Route(Broadcast, c.onBroadcast)
 	c.PublisherControl.Route(MessageAmount, c.onMessageAmount)
+	c.PublisherControl.Route(HandlerCommands, func(req message.RequestInterface) message.ReplyInterface {
+		return req.Ok(datatype.New().Set("commands", c.Commands()))
+	})
+	c.PublisherControl.Route(HandlerRegisterOutbounds, c.PublisherControl.onRegisterOutbounds)
+	c.PublisherControl.Route(HandlerRequireWhitelist, c.onControlRequireWhitelist)
+	c.PublisherControl.Route(HandlerRequireSecure, c.onControlRequireSecure)
+	c.PublisherControl.Route(HandlerAllow, func(req message.RequestInterface) message.ReplyInterface {
+		publicKey, err := req.RouteParameters().StringValue("public-key")
+		if err != nil || publicKey == "" {
+			return req.Fail("public-key is required")
+		}
+		c.Allow(publicKey)
+		return req.Ok(datatype.New())
+	})
+}
+
+func (c *Publisher) onControlRequireWhitelist(req message.RequestInterface) message.ReplyInterface {
+	cmd, err := req.RouteParameters().StringValue("command")
+	if err != nil {
+		return req.Fail(fmt.Sprintf("req.RouteParameters().StringValue('command'): %v", err))
+	}
+	if cmd == "" {
+		return req.Fail("command is required")
+	}
+
+	secret, err := req.RouteParameters().StringValue("secret")
+	if err == nil && secret != "" {
+		if c.IsWhitelistExist(cmd, true) {
+			return req.Ok(datatype.New().Set("whitelisted", true))
+		}
+		if err := c.Whitelist(cmd, secret); err != nil {
+			return req.Fail(fmt.Sprintf(`Whitelist("%s"): %v`, cmd, err))
+		}
+	} else {
+		if c.IsWhitelistRequired(cmd, true) {
+			return req.Ok(datatype.New())
+		}
+		c.RequireWhitelist(cmd)
+	}
+
+	return req.Ok(datatype.New())
+}
+
+func (c *Publisher) onControlRequireSecure(req message.RequestInterface) message.ReplyInterface {
+	if !c.IsSecure() {
+		_, secret, err := message.GenerateCurveKey()
+		if err != nil {
+			return req.Fail(fmt.Sprintf("message.GenerateCurveKey: %v", err))
+		}
+		wasRunning := c.PublisherControl.Running()
+		if wasRunning {
+			c.stopBroadcaster()
+		}
+		c.Secure(secret)
+		if wasRunning {
+			if err := c.startBroadcaster(); err != nil {
+				return req.Fail(err.Error())
+			}
+		}
+	}
+
+	pubKey, err := c.PublicKey()
+	if err != nil {
+		return req.Fail(fmt.Sprintf("PublicKey: %v", err))
+	}
+
+	return req.Ok(datatype.New().Set("public-key", pubKey))
 }
 
 func (c *Publisher) onControlClose(req message.RequestInterface) message.ReplyInterface {
@@ -146,7 +213,7 @@ func (c *Publisher) startBroadcaster() error {
 			return
 		}
 
-		err = c.register(socket, c.Endpoint())
+		err = c.auth(socket, c.Endpoint())
 		if err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("register: %w", err)

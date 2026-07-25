@@ -37,6 +37,12 @@ func (replier *SyncReplier) Secure(secretKey string) {
 	replier.Control.setSecretKey(secretKey)
 }
 
+func (replier *SyncReplier) wireControlAutocontext() {
+	if replier.Autocontext != nil {
+		replier.Control.setNpacSecureEdgeCase(replier.NpacSecureEdgeCase)
+	}
+}
+
 // SetEndpoint adds the parameters of the handler from the config.
 func (c *SyncReplier) SetEndpoint(endpoint message.Endpoint) {
 	c.Handler.SetEndpoint(endpoint)
@@ -70,6 +76,7 @@ func (c *SyncReplier) Start() error {
 		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
+	c.wireControlAutocontext()
 	c.setControlRoutes()
 
 	if c.Control.Status() != SocketReady {
@@ -93,15 +100,77 @@ func (c *SyncReplier) setControlRoutes() {
 	c.Control.Route(HandlerConfig, c.onControlConfig)
 	c.Control.Route(HandlerStart, c.onControlStart)
 	c.Control.Route(HandlerClose, c.onControlClose)
+	c.Control.Route(HandlerCommands, func(req message.RequestInterface) message.ReplyInterface {
+		return req.Ok(datatype.New().Set("commands", c.Commands()))
+	})
+	c.Control.Route(HandlerRequireWhitelist, c.onControlRequireWhitelist)
+	c.Control.Route(HandlerRequireSecure, c.onControlRequireSecure)
+	c.Control.Route(HandlerAllow, func(req message.RequestInterface) message.ReplyInterface {
+		publicKey, err := req.RouteParameters().StringValue("public-key")
+		if err != nil || publicKey == "" {
+			return req.Fail("public-key is required")
+		}
+		c.Allow(publicKey)
+		return req.Ok(datatype.New())
+	})
+}
+
+func (c *SyncReplier) onControlRequireWhitelist(req message.RequestInterface) message.ReplyInterface {
+	cmd, err := req.RouteParameters().StringValue("command")
+	if err != nil {
+		return req.Fail(fmt.Sprintf("req.RouteParameters().StringValue('command'): %v", err))
+	}
+	if cmd == "" {
+		return req.Fail("command is required")
+	}
+
+	secret, err := req.RouteParameters().StringValue("secret")
+	if err == nil && secret != "" {
+		if c.IsWhitelistExist(cmd, true) {
+			return req.Ok(datatype.New().Set("whitelisted", true))
+		}
+		if err := c.Whitelist(cmd, secret); err != nil {
+			return req.Fail(fmt.Sprintf(`Whitelist("%s"): %v`, cmd, err))
+		}
+	} else {
+		if c.IsWhitelistRequired(cmd, true) {
+			return req.Ok(datatype.New())
+		}
+		c.RequireWhitelist(cmd)
+	}
+
+	return req.Ok(datatype.New())
+}
+
+func (c *SyncReplier) onControlRequireSecure(req message.RequestInterface) message.ReplyInterface {
+	if !c.IsSecure() {
+		_, secret, err := message.GenerateCurveKey()
+		if err != nil {
+			return req.Fail(fmt.Sprintf("message.GenerateCurveKey: %v", err))
+		}
+		wasRunning := c.Control.Running()
+		if wasRunning {
+			c.stopWork()
+		}
+		c.Secure(secret)
+		if wasRunning {
+			if err := c.restartWork(); err != nil {
+				return req.Fail(err.Error())
+			}
+		}
+	}
+
+	pubKey, err := c.PublicKey()
+	if err != nil {
+		return req.Fail(fmt.Sprintf("PublicKey: %v", err))
+	}
+
+	return req.Ok(datatype.New().Set("public-key", pubKey))
 }
 
 func (c *SyncReplier) onControlClose(req message.RequestInterface) message.ReplyInterface {
 	if c.Control.Running() {
-		c.Control.SetSocketNil()
-		if wake := c.wake; wake != nil {
-			wake.signal()
-		}
-		c.workW.Wait()
+		c.stopWork()
 	}
 	_ = c.npacRemoveHandler()
 	return req.Ok(datatype.New())
@@ -135,8 +204,9 @@ func (c *SyncReplier) bindExternal() error {
 	if err != nil {
 		return fmt.Errorf("zmq.NewSocket(REP): %w", err)
 	}
+	_ = socket.SetLinger(0)
 
-	err = c.register(socket, c.Endpoint())
+	err = c.auth(socket, c.Endpoint())
 	if err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("register: %w", err)
@@ -201,7 +271,18 @@ func (c *SyncReplier) run() {
 	}
 
 	_ = poller.RemoveBySocket(socket)
-	c.cleanup()
+	c.finishRun(socket)
+}
+
+func (c *SyncReplier) stopWork() {
+	if !c.Control.Running() {
+		return
+	}
+	c.Control.SetSocketNil()
+	if wake := c.wake; wake != nil {
+		wake.signal()
+	}
+	c.workW.Wait()
 }
 
 func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
@@ -239,8 +320,8 @@ func (c *SyncReplier) handleRequest(socket *zmq.Socket) error {
 
 	reply := handleFunc(req)
 
-	if err := c.popHandleContext(cmd, handleFunc); err != nil {
-		c.LogError("popHandleContext", "error", err)
+	if err := c.npacPopHandleContext(cmd, handleFunc); err != nil {
+		c.LogError("npacPopHandleContext", "error", err)
 	}
 
 	return c.sendSyncReply(socket, reply, matchedSecret)
@@ -262,7 +343,15 @@ func (c *SyncReplier) sendSyncReply(socket *zmq.Socket, reply message.ReplyInter
 }
 
 func (c *SyncReplier) cleanup() {
-	takeAndCloseSocket(&c.socket)
+	takeAndCloseBoundSocket(&c.socket, c.Endpoint().HandlerUrl())
+	c.wake = nil
+	c.Control.SetSocketNil()
+}
+
+func (c *SyncReplier) finishRun(runSocket *zmq.Socket) {
+	if runSocket != nil && c.socket == runSocket {
+		takeAndCloseBoundSocket(&c.socket, c.Endpoint().HandlerUrl())
+	}
 	c.wake = nil
 	c.Control.SetSocketNil()
 }

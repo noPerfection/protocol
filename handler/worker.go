@@ -5,7 +5,6 @@ package handler
 import (
 	"fmt"
 	"sync"
-
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/message"
@@ -38,6 +37,12 @@ func NewWorker() *Worker {
 func (worker *Worker) Secure(secretKey string) {
 	worker.Security.Secure(secretKey)
 	worker.Control.setSecretKey(secretKey)
+}
+
+func (worker *Worker) wireControlAutocontext() {
+	if worker.Autocontext != nil {
+		worker.Control.setNpacSecureEdgeCase(worker.NpacSecureEdgeCase)
+	}
 }
 
 // SetEndpoint adds the parameters of the handler from the config.
@@ -74,6 +79,7 @@ func (c *Worker) Start() error {
 		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
+	c.wireControlAutocontext()
 	c.setControlRoutes()
 
 	if c.Control.Status() != SocketReady {
@@ -97,6 +103,76 @@ func (c *Worker) setControlRoutes() {
 	c.Control.Route(HandlerConfig, c.onControlConfig)
 	c.Control.Route(HandlerStart, c.onControlStart)
 	c.Control.Route(HandlerClose, c.onControlClose)
+	c.Control.Route(HandlerCommands, func(req message.RequestInterface) message.ReplyInterface {
+		return req.Ok(datatype.New().Set("commands", c.Commands()))
+	})
+	c.Control.Route(HandlerRequireWhitelist, c.onControlRequireWhitelist)
+	c.Control.Route(HandlerRequireSecure, c.onControlRequireSecure)
+	c.Control.Route(HandlerAllow, func(req message.RequestInterface) message.ReplyInterface {
+		publicKey, err := req.RouteParameters().StringValue("public-key")
+		if err != nil || publicKey == "" {
+			return req.Fail("public-key is required")
+		}
+		c.Allow(publicKey)
+		return req.Ok(datatype.New())
+	})
+}
+
+func (c *Worker) onControlRequireWhitelist(req message.RequestInterface) message.ReplyInterface {
+	cmd, err := req.RouteParameters().StringValue("command")
+	if err != nil {
+		return req.Fail(fmt.Sprintf("req.RouteParameters().StringValue('command'): %v", err))
+	}
+	if cmd == "" {
+		return req.Fail("command is required")
+	}
+
+	secret, err := req.RouteParameters().StringValue("secret")
+	if err == nil && secret != "" {
+		if c.IsWhitelistExist(cmd, true) {
+			return req.Ok(datatype.New().Set("whitelisted", true))
+		}
+		if err := c.Whitelist(cmd, secret); err != nil {
+			return req.Fail(fmt.Sprintf(`Whitelist("%s"): %v`, cmd, err))
+		}
+	} else {
+		if c.IsWhitelistRequired(cmd, true) {
+			return req.Ok(datatype.New())
+		}
+		c.RequireWhitelist(cmd)
+	}
+
+	return req.Ok(datatype.New())
+}
+
+func (c *Worker) onControlRequireSecure(req message.RequestInterface) message.ReplyInterface {
+	if !c.IsSecure() {
+		_, secret, err := message.GenerateCurveKey()
+		if err != nil {
+			return req.Fail(fmt.Sprintf("message.GenerateCurveKey: %v", err))
+		}
+		wasRunning := c.Control.Running()
+		if wasRunning {
+			c.Control.SetSocketNil()
+			if wake := c.wake; wake != nil {
+				wake.signal()
+			}
+			c.workW.Wait()
+		}
+		c.Secure(secret)
+		if wasRunning {
+			if err := c.restartWork(); err != nil {
+				return req.Fail(err.Error())
+			}
+		}
+	}
+
+	pubKey, err := c.PublicKey()
+	if err != nil {
+		return req.Fail(fmt.Sprintf("PublicKey: %v", err))
+	}
+
+	return req.Ok(datatype.New().Set("public-key", pubKey))
 }
 
 func (c *Worker) onControlClose(req message.RequestInterface) message.ReplyInterface {
@@ -140,7 +216,7 @@ func (c *Worker) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket(PULL): %w", err)
 	}
 
-	err = c.register(socket, c.Endpoint())
+	err = c.auth(socket, c.Endpoint())
 	if err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("register: %w", err)
@@ -241,8 +317,8 @@ func (c *Worker) handleRequest(socket *zmq.Socket) error {
 			c.LogError("npacPushHandleContext", "error", err)
 		}
 		handleFunc(req)
-		if err := c.popHandleContext(cmd, handleFunc); err != nil {
-			c.LogError("popHandleContext", "error", err)
+		if err := c.npacPopHandleContext(cmd, handleFunc); err != nil {
+			c.LogError("npacPopHandleContext", "error", err)
 		}
 	}()
 

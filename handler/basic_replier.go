@@ -90,6 +90,76 @@ func (c *BasicReplier) setControlRoutes() {
 	c.Control.Route(HandlerConfig, c.onControlConfig)
 	c.Control.Route(HandlerStart, c.onControlStart)
 	c.Control.Route(HandlerClose, c.onControlClose)
+	c.Control.Route(HandlerCommands, func(req message.RequestInterface) message.ReplyInterface {
+		return req.Ok(datatype.New().Set("commands", c.Commands()))
+	})
+	c.Control.Route(HandlerRequireWhitelist, c.onControlRequireWhitelist)
+	c.Control.Route(HandlerRequireSecure, c.onControlRequireSecure)
+	c.Control.Route(HandlerAllow, func(req message.RequestInterface) message.ReplyInterface {
+		publicKey, err := req.RouteParameters().StringValue("public-key")
+		if err != nil || publicKey == "" {
+			return req.Fail("public-key is required")
+		}
+		c.Allow(publicKey)
+		return req.Ok(datatype.New())
+	})
+}
+
+func (c *BasicReplier) onControlRequireWhitelist(req message.RequestInterface) message.ReplyInterface {
+	cmd, err := req.RouteParameters().StringValue("command")
+	if err != nil {
+		return req.Fail(fmt.Sprintf("req.RouteParameters().StringValue('command'): %v", err))
+	}
+	if cmd == "" {
+		return req.Fail("command is required")
+	}
+
+	secret, err := req.RouteParameters().StringValue("secret")
+	if err == nil && secret != "" {
+		if c.IsWhitelistExist(cmd, true) {
+			return req.Ok(datatype.New().Set("whitelisted", true))
+		}
+		if err := c.Whitelist(cmd, secret); err != nil {
+			return req.Fail(fmt.Sprintf(`Whitelist("%s"): %v`, cmd, err))
+		}
+	} else {
+		if c.IsWhitelistRequired(cmd, true) {
+			return req.Ok(datatype.New())
+		}
+		c.RequireWhitelist(cmd)
+	}
+
+	return req.Ok(datatype.New())
+}
+
+func (c *BasicReplier) onControlRequireSecure(req message.RequestInterface) message.ReplyInterface {
+	if !c.IsSecure() {
+		_, secret, err := message.GenerateCurveKey()
+		if err != nil {
+			return req.Fail(fmt.Sprintf("message.GenerateCurveKey: %v", err))
+		}
+		wasRunning := c.Control.Running()
+		if wasRunning {
+			c.Control.SetSocketNil()
+			if wake := c.wake; wake != nil {
+				wake.signal()
+			}
+			c.workW.Wait()
+		}
+		c.Security.Secure(secret)
+		if wasRunning {
+			if err := c.restartWork(); err != nil {
+				return req.Fail(err.Error())
+			}
+		}
+	}
+
+	pubKey, err := c.PublicKey()
+	if err != nil {
+		return req.Fail(fmt.Sprintf("PublicKey: %v", err))
+	}
+
+	return req.Ok(datatype.New().Set("public-key", pubKey))
 }
 
 func (c *BasicReplier) onControlClose(req message.RequestInterface) message.ReplyInterface {
@@ -132,7 +202,7 @@ func (c *BasicReplier) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
 	}
 
-	err = c.register(socket, c.Endpoint())
+	err = c.auth(socket, c.Endpoint())
 	if err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("register: %w", err)

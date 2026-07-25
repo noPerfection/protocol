@@ -56,7 +56,6 @@ func (c *Autocontext) HandlerContext(endpoint message.Endpoint, cmd string) (boo
 	if len(callerStack) == 0 {
 		return false, "", message.Endpoint{}, fmt.Errorf("no caller stack")
 	}
-	fmt.Println("callerStack: ", callerStack)
 	params.Set("caller-stack", callerStack)
 
 	reply, err := c.client.Request(&message.Request{

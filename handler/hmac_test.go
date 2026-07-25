@@ -130,6 +130,23 @@ func TestWhitelistRouteMessages(t *testing.T) {
 	})
 }
 
+func TestRequireWhitelistControlAcceptsAny(t *testing.T) {
+	replier := NewReplier()
+	require.NoError(t, replier.Route("cmd-a", func(req message.RequestInterface) message.ReplyInterface {
+		return req.Ok(datatype.New())
+	}))
+
+	reply := replier.onControlRequireWhitelist(&message.Request{
+		Command: HandlerRequireWhitelist,
+		Parameters: datatype.New().
+			Set("command", message.Any).
+			Set("secret", "route-secret"),
+	})
+	require.True(t, reply.IsOK(), reply.ErrorMessage())
+	require.True(t, replier.IsWhitelistExist("cmd-a"))
+	require.True(t, replier.IsWhitelistExist("other-cmd"))
+}
+
 func TestRequireWhitelistRouteMessages(t *testing.T) {
 	handler := New()
 	const (

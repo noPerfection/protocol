@@ -30,7 +30,7 @@ func (m *PublisherControl) SetMushroomURL(mushroomURL string) {
 	m.Autocontext.SetMushroomURL(mushroomURL)
 }
 
-// Start binds the control ROUTER socket, and registers HandlerStatus route.
+// Start binds the control PAIR socket, and registers HandlerStatus route.
 func (m *PublisherControl) Start() error {
 	if m.Endpoint() == (message.Endpoint{}) {
 		return fmt.Errorf("no config")
@@ -105,7 +105,7 @@ func (m *PublisherControl) Start() error {
 				continue
 			}
 
-			useNpacContext := cmd != HandlerClose && cmd != HandlerConfig && cmd != HandlerStart && cmd != HandlerStatus
+			useNpacContext := cmd != HandlerClose && cmd != HandlerConfig && cmd != HandlerStart && cmd != HandlerStatus && cmd != HandlerCommands && cmd != HandlerRequireWhitelist && cmd != HandlerRequireSecure && cmd != HandlerSecureOutbound && cmd != HandlerRequestAsContext && cmd != HandlerRegisterOutbounds
 
 			handleFunc, err := m.GetHandleFunc(cmd)
 			if err != nil {
@@ -124,9 +124,9 @@ func (m *PublisherControl) Start() error {
 			reply := handleFunc(req)
 
 			if useNpacContext {
-				err = m.popHandleContext(cmd, handleFunc)
+				err = m.npacPopHandleContext(cmd, handleFunc)
 				if err != nil {
-					m.sendControlReply(socket, req, req.Fail(fmt.Sprintf("popHandleContext(%s): %v", cmd, err)), cmd, matchedSecret)
+					m.sendControlReply(socket, req, req.Fail(fmt.Sprintf("npacPopHandleContext(%s): %v", cmd, err)), cmd, matchedSecret)
 					continue
 				}
 			}

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,18 +26,28 @@ const (
 	HandlerStart            = "start"              // Starts the handler
 	HandlerClose            = "close"              // Closes the handler
 	HandlerConfig           = "config"             // Returns the handler configuration
+	HandlerCommands         = "commands"           // Returns the handler route commands
+	HandlerRequireWhitelist = "require-whitelist"  // Marks a route as requiring whitelist; optional secret param whitelists it
+	HandlerRequireSecure    = "require-secure"     // Ensures the handler socket is secure and returns its public key
+	HandlerSecureOutbound   = "secure-outbound"    // Ensures control outbound identity and returns its CURVE public key
+	HandlerAllow            = "allow"              // Allows a CURVE client public key
 	ControlCategory         = "control"
 )
+
+type npacSecureEdgeCaseFunc func(outbound, localCmd string) error
 
 // Control is the control ROUTER socket for a handler.
 type Control struct {
 	*Handler
-	socket           *zmq.Socket
-	status           string
-	curveSecretKey   string
+	socket               *zmq.Socket
+	status               string
+	curveSecretKey       string
+	npacSecureEdgeCase   npacSecureEdgeCaseFunc
 	requireWhitelistCmds map[string]bool
 	// endpoint -> command: secret
 	outbounds map[string]map[string]string
+	// endpoint -> outbound handler public key
+	outboundPublicKeys map[string]string
 }
 
 var _ Interface = (*Control)(nil)
@@ -44,14 +55,19 @@ var _ Interface = (*Control)(nil)
 // NewControl creates a control handler.
 func NewControl(parent ...*log.Logger) *Control {
 	return &Control{
-		Handler:   New(parent...),
-		status:    SocketNil,
-		outbounds: make(map[string]map[string]string),
+		Handler:            New(parent...),
+		status:             SocketNil,
+		outbounds:          make(map[string]map[string]string),
+		outboundPublicKeys: make(map[string]string),
 	}
 }
 
 func (m *Control) setSecretKey(secretKey string) {
 	m.curveSecretKey = secretKey
+}
+
+func (m *Control) setNpacSecureEdgeCase(fn npacSecureEdgeCaseFunc) {
+	m.npacSecureEdgeCase = fn
 }
 
 // NewInternalControlEndpoint derives the control endpoint from a handler endpoint.
@@ -76,6 +92,35 @@ func (m *Control) IsSecure() bool {
 	return m.curveSecretKey != ""
 }
 
+func (m *Control) PublicKey() (string, error) {
+	if m.curveSecretKey == "" {
+		return "", fmt.Errorf("handler is not secure")
+	}
+	return message.DerivePublicKey(m.curveSecretKey)
+}
+
+// SecureOutbound returns the control outbound CURVE public key.
+// When the control already has a secret key, it is reused; otherwise an ephemeral key is generated.
+func (m *Control) SecureOutbound() (string, error) {
+	if m.IsSecure() {
+		return m.PublicKey()
+	}
+	_, secret, err := message.GenerateCurveKey()
+	if err != nil {
+		return "", fmt.Errorf("message.GenerateCurveKey: %w", err)
+	}
+	m.setSecretKey(secret)
+	return m.PublicKey()
+}
+
+func (m *Control) onSecureOutbound(req message.RequestInterface) message.ReplyInterface {
+	pubKey, err := m.SecureOutbound()
+	if err != nil {
+		return req.Fail(err.Error())
+	}
+	return req.Ok(datatype.New().Set("public-key", pubKey))
+}
+
 func (m *Control) RequireWhitelist(cmd string) {
 	if cmd == "" {
 		return
@@ -86,12 +131,15 @@ func (m *Control) RequireWhitelist(cmd string) {
 	m.requireWhitelistCmds[cmd] = true
 }
 
-func (m *Control) IsWhitelistRequired(cmd string) bool {
+func (m *Control) IsWhitelistRequired(cmd string, dontUseAny ...bool) bool {
 	if m.requireWhitelistCmds == nil {
 		return false
 	}
 	if m.requireWhitelistCmds[cmd] {
 		return true
+	}
+	if len(dontUseAny) > 0 && dontUseAny[0] {
+		return false
 	}
 	return m.requireWhitelistCmds[message.Any]
 }
@@ -138,10 +186,7 @@ func (m *Control) onRegisterOutbounds(req message.RequestInterface) message.Repl
 	if err != nil {
 		return req.Fail(fmt.Sprintf("failed to get endpoint from route parameters: %v", err))
 	}
-	handlerURL := endpoint.HandlerUrl()
-	if _, ok := m.outbounds[handlerURL]; ok {
-		return req.Fail(fmt.Sprintf("outbounds already registered for endpoint: %s", handlerURL))
-	}
+	endpointUrl := endpoint.HandlerUrl()
 	commandsKv, err := req.RouteParameters().NestedValue("commands")
 	if err != nil {
 		return req.Fail(fmt.Sprintf("failed to get commands from route parameters: %v", err))
@@ -151,13 +196,32 @@ func (m *Control) onRegisterOutbounds(req message.RequestInterface) message.Repl
 	if err != nil {
 		return req.Fail(fmt.Sprintf("failed to get commands from route parameters: %v", err))
 	}
-	m.outbounds[handlerURL] = make(map[string]string)
+	if _, ok := m.outbounds[endpointUrl]; !ok {
+		m.outbounds[endpointUrl] = make(map[string]string)
+	}
 	for command, secret := range commands {
 		if secret == "" {
 			return req.Fail(fmt.Sprintf("secret for command %q is empty", command))
 		}
-		m.outbounds[handlerURL][command] = secret
+		m.outbounds[endpointUrl][command] = secret
 	}
+	publicKey, err := req.RouteParameters().StringValue("public-key")
+	if err == nil && publicKey != "" {
+		m.outboundPublicKeys[endpointUrl] = publicKey
+	}
+
+	if m.npacSecureEdgeCase != nil {
+		outboundURL, outboundErr := req.RouteParameters().StringValue("outbound-url")
+		localCmd, localErr := req.RouteParameters().StringValue("local-command")
+		if outboundErr == nil && outboundURL != "" && localErr == nil && localCmd != "" {
+			if err := m.npacSecureEdgeCase(outboundURL, localCmd); err != nil {
+				if !errors.Is(err, ErrAlreadyWhitelisted) {
+					return req.Fail(fmt.Sprintf("NpacSecureEdgeCase(%q, %q): %v", outboundURL, localCmd, err))
+				}
+			}
+		}
+	}
+
 	return req.Ok(datatype.New())
 }
 
@@ -168,9 +232,10 @@ func (m *Control) onRegisterOutbounds(req message.RequestInterface) message.Repl
 // - envelope: the array of messages after serializing the message.RequestInterface.
 // - command: request.CommandName()
 // - client-type: the type of the client
-// - timeout: the timeout for the request
-// - attempt: the number of attempts to send the request
-// - hmac: the hmac of the request, can be empty, if empty it attempts to use internal hmac calculation
+// - timeout: poll timeout in nanoseconds (uint64)
+// - attempt: the number of attempts to send the request (uint64)
+//
+// HMAC is always computed locally from register-outbounds secrets; callers never pass it.
 func (m *Control) onRequestAsContext(req message.RequestInterface) message.ReplyInterface {
 	endpointKv, err := req.RouteParameters().NestedValue("endpoint")
 	if err != nil {
@@ -184,14 +249,15 @@ func (m *Control) onRequestAsContext(req message.RequestInterface) message.Reply
 	if _, ok := m.outbounds[endpoint.HandlerUrl()]; !ok {
 		return req.Fail(fmt.Sprintf("outbound endpoint not registered: %s", endpoint.HandlerUrl()))
 	}
-
 	publicKey, err := req.RouteParameters().StringValue("public-key")
-	if err != nil {
-		publicKey = ""
-	} else if m.curveSecretKey != "" {
+	if err != nil || publicKey == "" {
+		if stored, ok := m.outboundPublicKeys[endpoint.HandlerUrl()]; ok {
+			publicKey = stored
+		}
+	}
+	if m.curveSecretKey == "" {
 		return req.Fail("handler doesn't know what secret key to use to identify itself, please call handler.Control.SetSecretKey")
 	}
-
 	rawClientType, err := req.RouteParameters().StringValue("client-type")
 	if err != nil {
 		return req.Fail(fmt.Sprintf("failed to get client type from route parameters: %v", err))
@@ -219,17 +285,10 @@ func (m *Control) onRequestAsContext(req message.RequestInterface) message.Reply
 	if err != nil {
 		return req.Fail(fmt.Sprintf("failed to get request from route parameters: %v", err))
 	}
-	var hmacs []string
-	hmac, err := req.RouteParameters().StringValue("hmac")
+
+	secret, err := m.outboundHmacSecret(endpoint.HandlerUrl(), command)
 	if err != nil {
-		secret, ok := m.outbounds[endpoint.HandlerUrl()][command]
-		if ok {
-			hmacs = []string{message.ComputeHMAC(req.String(), secret)}
-		} else {
-			hmacs = []string{}
-		}
-	} else {
-		hmacs = []string{hmac}
+		return req.Fail(err.Error())
 	}
 
 	// Now we set a client:
@@ -255,12 +314,26 @@ func (m *Control) onRequestAsContext(req message.RequestInterface) message.Reply
 	c.Attempt(attempt).Timeout(timeout)
 	c.Packer(&packer)
 
-	reply, err := c.Request(r, hmacs...)
+	hmac := message.ComputeHMAC(r.String(), secret)
+	reply, err := c.Request(r, hmac)
 	if err != nil {
 		return req.Fail(fmt.Sprintf("failed to send request: %v", err))
 	}
-
 	return reply
+}
+
+func (m *Control) outboundHmacSecret(endpointURL, command string) (string, error) {
+	commands, ok := m.outbounds[endpointURL]
+	if !ok {
+		return "", fmt.Errorf("outbound endpoint not registered: %s", endpointURL)
+	}
+	if secret, ok := commands[command]; ok && secret != "" {
+		return secret, nil
+	}
+	if secret, ok := commands[message.Any]; ok && secret != "" {
+		return secret, nil
+	}
+	return "", fmt.Errorf("no HMAC secret registered for outbound %q command %q", endpointURL, command)
 }
 
 // Start binds the control ROUTER socket, and registers HandlerStatus route.
@@ -272,6 +345,7 @@ func (m *Control) Start() error {
 	m.Route(HandlerStatus, m.onBuiltinStatus)
 	m.Route(HandlerRegisterOutbounds, m.onRegisterOutbounds)
 	m.Route(HandlerRequestAsContext, m.onRequestAsContext)
+	m.Route(HandlerSecureOutbound, m.onSecureOutbound)
 
 	ready := make(chan error)
 
@@ -360,6 +434,15 @@ func (m *Control) Start() error {
 }
 
 func (m *Control) sendControlReply(socket *zmq.Socket, req message.RequestInterface, reply message.ReplyInterface, cmd, matchedSecret string) {
+	// ROUTER must reply with the requester's routing identity. Handlers such as
+	// request-as-context return the inner outbound reply, which carries a different
+	// (often empty) conId from the nested client socket.
+	if req != nil {
+		if conId := req.ConId(); conId != "" {
+			reply.SetConId(conId)
+		}
+	}
+
 	var hmac string
 	if m.IsWhitelistExist(cmd) && matchedSecret != "" {
 		hmac = message.ComputeHMAC(reply.String(), matchedSecret)

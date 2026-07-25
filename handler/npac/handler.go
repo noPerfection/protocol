@@ -349,8 +349,10 @@ func (h *Npac) onRegisterHandler(req message.RequestInterface) message.ReplyInte
 		return req.Fail(fmt.Sprintf("control-endpoint: %v", err))
 	}
 
-	if _, exists := h.handlers[mushroomURL]; exists {
-		return req.Fail(fmt.Sprintf("handler %q already registered", mushroomURL))
+	if existing, exists := h.handlers[mushroomURL]; exists {
+		existing.NpacSecret = npacSecret
+		existing.ControlEndpoint = controlEndpoint
+		return req.Ok(datatype.New())
 	}
 
 	h.handlers[mushroomURL] = &handlerEntry{
@@ -402,24 +404,44 @@ func (h *Npac) onRegisterOutbound(req message.RequestInterface) message.ReplyInt
 
 	handlerURL := endpoint.HandlerUrl()
 
-	hypha, err := (&mushroom.Soil{}).Hypha(mushroomURL)
+	handlerMushroomURL, _, err := routeURLToHandlerURL(mushroomURL)
 	if err != nil {
 		return req.Fail(fmt.Sprintf("mushroom-url parse: %v", err))
 	}
-	if !hypha.URL {
-		return req.Fail(fmt.Sprintf("mushroom-url %q is not a mushroom URL", mushroomURL))
-	}
 
-	if _, exists := h.outbounds[handlerURL]; exists {
-		return req.Fail(fmt.Sprintf("outbound for endpoint %q already registered", handlerURL))
+	if existing, exists := h.outbounds[handlerURL]; exists {
+		h.mushroomUrlToOutbounds[handlerMushroomURL] = handlerURL
+		existing.PublicKey = pubKey
+		existing.MushroomURL = mushroomURL
+		return req.Ok(datatype.New())
 	}
 	h.outbounds[handlerURL] = &outbound{
 		PublicKey:   pubKey,
 		MushroomURL: mushroomURL,
 	}
-	h.mushroomUrlToOutbounds[mushroomURL] = handlerURL
+	h.mushroomUrlToOutbounds[handlerMushroomURL] = handlerURL
 
 	return req.Ok(datatype.New())
+}
+
+func (h *Npac) lookupOutbound(outboundMushroomURL string) (handlerURL string, ob *outbound, ok bool) {
+	if handlerURL, exists := h.mushroomUrlToOutbounds[outboundMushroomURL]; exists {
+		return handlerURL, h.outbounds[handlerURL], true
+	}
+	for endpointURL, entry := range h.outbounds {
+		if entry == nil {
+			continue
+		}
+		storedHandlerURL, _, err := routeURLToHandlerURL(entry.MushroomURL)
+		if err != nil {
+			continue
+		}
+		if storedHandlerURL == outboundMushroomURL {
+			h.mushroomUrlToOutbounds[outboundMushroomURL] = endpointURL
+			return endpointURL, entry, true
+		}
+	}
+	return "", nil, false
 }
 
 // onSecureEdgeCase adds a mushroom URL to a specific command's whitelist on an
@@ -450,11 +472,10 @@ func (h *Npac) onSecureEdgeCase(req message.RequestInterface) message.ReplyInter
 		return req.Fail(fmt.Sprintf("outbound parse: %v", err))
 	}
 
-	handlerURL, exists := h.mushroomUrlToOutbounds[outboundMushroomURL]
-	if !exists {
+	_, ob, ok := h.lookupOutbound(outboundMushroomURL)
+	if !ok || ob == nil {
 		return req.Fail(fmt.Sprintf("outbound for mushroom-url %q not found", outboundMushroomURL))
 	}
-	ob := h.outbounds[handlerURL]
 
 	if ob.Whitelist == nil {
 		ob.Whitelist = make(map[string][]string)
@@ -481,7 +502,6 @@ func (h *Npac) onPushHandlerContext(req message.RequestInterface) message.ReplyI
 	if err != nil {
 		return req.Fail(fmt.Sprintf("mushroom-url param: %v", err))
 	}
-	fmt.Println("onPushHandlerContext: ", len(h.contexts))
 	h.contexts = append(h.contexts, mushroomURL)
 	return req.Ok(datatype.New())
 }
@@ -497,7 +517,6 @@ func (h *Npac) onPopHandlerContext(req message.RequestInterface) message.ReplyIn
 	if len(h.contexts) == 0 {
 		return req.Fail("context stack is empty")
 	}
-	fmt.Println("onPopHandlerContext: ", len(h.contexts))
 	for i := len(h.contexts) - 1; i >= 0; i-- {
 		if h.contexts[i] == mushroomURL {
 			h.contexts = append(h.contexts[:i], h.contexts[i+1:]...)
@@ -535,12 +554,10 @@ func (h *Npac) onHandlerContext(req message.RequestInterface) message.ReplyInter
 	if err != nil {
 		return req.Fail(fmt.Sprintf("command param: %v", err))
 	}
-	fmt.Println("handler context: ", h.contexts)
 
 	// Resolve the outbound registered for this endpoint.
 	ob, exists := h.outbounds[endpoint.HandlerUrl()]
 	if !exists {
-		fmt.Println("outbounds not exist so return unregistered, contexts: ", h.contexts)
 		return req.Ok(datatype.New().Set("unregistered", true))
 	}
 
@@ -548,7 +565,6 @@ func (h *Npac) onHandlerContext(req message.RequestInterface) message.ReplyInter
 	_, cmdWhitelisted := ob.Whitelist[cmd]
 	_, anyWhitelisted := ob.Whitelist[message.Any]
 	if !cmdWhitelisted && !anyWhitelisted {
-		fmt.Println("command not whitelisted so return unregistered, contexts: ", h.contexts)
 		return req.Ok(datatype.New().Set("unregistered", true))
 	}
 
@@ -676,6 +692,9 @@ func (h *Npac) onRemoveOutbound(req message.RequestInterface) message.ReplyInter
 		return req.Fail(fmt.Sprintf("outbound for entrypoint %q has %d whitelisted mushroom URLs, please remove them first", handlerURL, i))
 	}
 
+	if storedHandlerURL, _, err := routeURLToHandlerURL(entry.MushroomURL); err == nil {
+		delete(h.mushroomUrlToOutbounds, storedHandlerURL)
+	}
 	delete(h.mushroomUrlToOutbounds, entry.MushroomURL)
 	delete(h.outbounds, handlerURL)
 
