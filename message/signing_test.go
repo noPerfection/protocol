@@ -51,11 +51,10 @@ func TestDecodeSigningPublicKeyHex(t *testing.T) {
 	pub, err := DerivePublicKey(secret)
 	require.NoError(t, err)
 
-	edPub, err := signingPublicKey(pub)
+	fromCurve, err := decodeSigningPublicKey(pub)
 	require.NoError(t, err)
 
-	decoded, err := decodeSigningPublicKey(pub)
+	fromHex, err := decodeSigningPublicKey(hex.EncodeToString(fromCurve))
 	require.NoError(t, err)
-	require.Equal(t, edPub, decoded)
-	require.Equal(t, hex.EncodeToString(edPub), hex.EncodeToString(decoded))
+	require.Equal(t, fromCurve, fromHex)
 }
