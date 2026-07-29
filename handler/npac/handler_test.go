@@ -12,6 +12,20 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+const (
+	testHandlerFunc    = "npac_test.handlerFunc"
+	deniedHandlerFunc  = "npac_test.deniedHandlerFunc"
+	anyTestHandlerFunc = "npac_test.anyHandlerFunc"
+)
+
+func testRouteURL(handlerURL, command, handleFunc string) string {
+	return handlerURL + "?command=" + command + "&handle-func=" + handleFunc
+}
+
+func testCallerStack(funcs ...string) []string {
+	return funcs
+}
+
 // testActor simulates an independent handler process that talks to npac
 // directly via a sync-replier client, signing its requests with its own
 // internally-generated npac secret.
@@ -130,16 +144,20 @@ func (a *testActor) popHandlerContext(routeURL string) error {
 	return nil
 }
 
-func (a *testActor) handlerContext(endpoint message.Endpoint, cmd string) (message.ReplyInterface, error) {
+func (a *testActor) handlerContext(endpoint message.Endpoint, cmd string, callerStack []string) (message.ReplyInterface, error) {
 	endpointKV, err := datatype.NewFromInterface(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("handlerContext: NewFromInterface: %w", err)
 	}
+	params := datatype.New().
+		Set("endpoint", endpointKV).
+		Set("command", cmd)
+	if len(callerStack) > 0 {
+		params.Set("caller-stack", callerStack)
+	}
 	return a.c.Request(&message.Request{
-		Command: npac.HandlerContext,
-		Parameters: datatype.New().
-			Set("endpoint", endpointKV).
-			Set("command", cmd),
+		Command:    npac.HandlerContext,
+		Parameters: params,
 	})
 }
 
@@ -333,6 +351,7 @@ func (s *TestNpacSuite) TestHandlerContext() {
 	callerURL := s.uniqueMushroomURL("hc-caller")
 	outboundRouteURL := outboundURL + "?command=" + targetCmd
 	callerRouteURL := callerURL + "?command=some-route"
+	callerContextRouteURL := testRouteURL(callerURL, "some-route", testHandlerFunc)
 
 	outboundEndpoint := message.NewEndpoint("npac-hc-outbound", 0)
 	controlEndpoint := message.NewEndpoint("npac-hc-control", 0)
@@ -344,7 +363,7 @@ func (s *TestNpacSuite) TestHandlerContext() {
 	s.Require().NoError(actor.secureEdgeCase(outboundRouteURL, callerRouteURL))
 
 	s.Run("unregistered entrypoint", func() {
-		reply, err := actor.handlerContext(message.NewEndpoint("npac-hc-unknown", 0), targetCmd)
+		reply, err := actor.handlerContext(message.NewEndpoint("npac-hc-unknown", 0), targetCmd, nil)
 		s.Require().NoError(err)
 		s.Require().True(reply.IsOK())
 		unregistered, err := reply.ReplyParameters().BoolValue("unregistered")
@@ -353,7 +372,7 @@ func (s *TestNpacSuite) TestHandlerContext() {
 	})
 
 	s.Run("cmd not whitelisted", func() {
-		reply, err := actor.handlerContext(outboundEndpoint, "unknown-cmd")
+		reply, err := actor.handlerContext(outboundEndpoint, "unknown-cmd", nil)
 		s.Require().NoError(err)
 		s.Require().True(reply.IsOK())
 		unregistered, err := reply.ReplyParameters().BoolValue("unregistered")
@@ -362,32 +381,32 @@ func (s *TestNpacSuite) TestHandlerContext() {
 	})
 
 	s.Run("no context", func() {
-		reply, err := actor.handlerContext(outboundEndpoint, targetCmd)
+		reply, err := actor.handlerContext(outboundEndpoint, targetCmd, testCallerStack(testHandlerFunc))
 		s.Require().NoError(err)
 		s.Require().False(reply.IsOK())
-		s.Contains(reply.ErrorMessage(), "no-context")
+		s.Contains(reply.ErrorMessage(), "context stack is empty")
 	})
 
 	s.Run("cross-access-denied", func() {
 		// Register a handler that is NOT whitelisted on the outbound.
 		deniedURL := s.uniqueMushroomURL("hc-denied")
-		deniedRouteURL := deniedURL + "?command=some-route"
+		deniedRouteURL := testRouteURL(deniedURL, "some-route", deniedHandlerFunc)
 		deniedActor := newTestActor(s.T())
 		s.Require().NoError(deniedActor.addHandler(deniedURL, message.NewEndpoint("npac-hc-denied-ctl", 0)))
 		s.Require().NoError(deniedActor.pushHandlerContext(deniedRouteURL))
 		defer func() { _ = deniedActor.popHandlerContext(deniedRouteURL) }()
 
-		reply, err := actor.handlerContext(outboundEndpoint, targetCmd)
+		reply, err := actor.handlerContext(outboundEndpoint, targetCmd, testCallerStack(deniedHandlerFunc))
 		s.Require().NoError(err)
 		s.Require().False(reply.IsOK())
 		s.Contains(reply.ErrorMessage(), "cross-access-denied")
 	})
 
 	s.Run("success via cmd whitelist", func() {
-		s.Require().NoError(actor.pushHandlerContext(callerRouteURL))
-		defer func() { _ = actor.popHandlerContext(callerRouteURL) }()
+		s.Require().NoError(actor.pushHandlerContext(callerContextRouteURL))
+		defer func() { _ = actor.popHandlerContext(callerContextRouteURL) }()
 
-		reply, err := actor.handlerContext(outboundEndpoint, targetCmd)
+		reply, err := actor.handlerContext(outboundEndpoint, targetCmd, testCallerStack(testHandlerFunc))
 		s.Require().NoError(err)
 		s.Require().True(reply.IsOK(), reply.ErrorMessage())
 
@@ -409,6 +428,7 @@ func (s *TestNpacSuite) TestHandlerContext() {
 	s.Run("success via any whitelist", func() {
 		anyCallerURL := s.uniqueMushroomURL("hc-any-caller")
 		anyCallerRouteURL := anyCallerURL + "?command=some-route"
+		anyCallerContextRouteURL := testRouteURL(anyCallerURL, "some-route", anyTestHandlerFunc)
 		anyOutboundURL := s.uniqueMushroomURL("hc-any-outbound")
 		anyOutboundEndpoint := message.NewEndpoint("npac-hc-any-ob", 0)
 		anyControlEndpoint := message.NewEndpoint("npac-hc-any-ctl", 0)
@@ -419,10 +439,10 @@ func (s *TestNpacSuite) TestHandlerContext() {
 		s.Require().NoError(anyActor.addHandler(anyCallerURL, anyControlEndpoint))
 		// Whitelist under message.Any so the catch-all covers any command.
 		s.Require().NoError(anyActor.secureEdgeCase(anyOutboundURL+"?command="+message.Any, anyCallerRouteURL))
-		s.Require().NoError(anyActor.pushHandlerContext(anyCallerRouteURL))
-		defer func() { _ = anyActor.popHandlerContext(anyCallerRouteURL) }()
+		s.Require().NoError(anyActor.pushHandlerContext(anyCallerContextRouteURL))
+		defer func() { _ = anyActor.popHandlerContext(anyCallerContextRouteURL) }()
 
-		reply, err := actor.handlerContext(anyOutboundEndpoint, anyTestCmd)
+		reply, err := actor.handlerContext(anyOutboundEndpoint, anyTestCmd, testCallerStack(anyTestHandlerFunc))
 		s.Require().NoError(err)
 		s.Require().True(reply.IsOK(), reply.ErrorMessage())
 

@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"sync/atomic"
+	"syscall"
 
 	zmq "github.com/pebbe/zmq4"
 )
@@ -82,12 +83,22 @@ func (w *wakePipe) addToPoller(poller *zmq.Poller) {
 }
 
 func (w *wakePipe) signal() {
+	if w == nil {
+		return
+	}
 	_, _ = w.push.SendBytes([]byte{0}, zmq.DONTWAIT)
 }
 
 func (w *wakePipe) drain() {
-	for {
+	if w == nil {
+		return
+	}
+	const maxWakeDrain = 64
+	for i := 0; i < maxWakeDrain; i++ {
 		_, err := w.pull.RecvBytes(zmq.DONTWAIT)
+		if isZmqWouldBlock(err) {
+			return
+		}
 		if err != nil {
 			return
 		}
@@ -107,4 +118,11 @@ func (w *wakePipe) close() {
 
 func isWakePoll(wake *wakePipe, polled zmq.Polled) bool {
 	return wake != nil && polled.Socket == wake.pull
+}
+
+func isZmqWouldBlock(err error) bool {
+	if err == nil {
+		return false
+	}
+	return zmq.AsErrno(err) == zmq.Errno(syscall.EAGAIN)
 }

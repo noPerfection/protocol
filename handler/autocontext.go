@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ahmetson/mushroom"
@@ -24,6 +25,7 @@ type Autocontext struct {
 	mushroomURL string
 	started     bool
 	client      *client.Socket
+	clientMu    sync.Mutex // serializes npac REQ socket use (not goroutine-safe)
 }
 
 // AutocontextHandler is implemented by handlers that embed Autocontext.
@@ -75,6 +77,15 @@ func (c *Autocontext) routeURL(cmd string, handleFunc string) (string, error) {
 	return hypha.String(), nil
 }
 
+func (c *Autocontext) npacRequest(req message.RequestInterface, hmac ...string) (message.ReplyInterface, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("npac client not initialized")
+	}
+	c.clientMu.Lock()
+	defer c.clientMu.Unlock()
+	return c.client.Request(req, hmac...)
+}
+
 func handleFuncName(fn any) string {
 	if fn == nil {
 		return ""
@@ -101,7 +112,7 @@ func (c *Autocontext) npacRegisterHandler(controlEndpoint message.Endpoint) erro
 			Set("npac-secret", c.npacSecret),
 	}
 	hmac := message.ComputeHMAC(req.String(), c.npacSecret)
-	reply, err := c.client.Request(req, hmac)
+	reply, err := c.npacRequest(req, hmac)
 	if err != nil {
 		if errors.Is(err, message.RequestTimeoutError) {
 			c.started = false
@@ -123,14 +134,11 @@ func (c *Autocontext) npacRegisterHandler(controlEndpoint message.Endpoint) erro
 // npacPushHandleContext pushes a route URL (mushroomURL + cmd) onto npac's
 // context stack so outbound calls can reach this handler's control endpoint.
 func (c *Autocontext) npacPushHandleContext(cmd string, handleFunc any) error {
-	url, err := c.routeURL(cmd, handleFuncName(handleFunc))
-	if err != nil {
-		return err
-	}
 	if !c.started {
 		return nil
 	}
-	reply, err := c.client.Request(&message.Request{
+	url, err := c.routeURL(cmd, handleFuncName(handleFunc))
+	reply, err := c.npacRequest(&message.Request{
 		Command:    npac.PushHandlerContext,
 		Parameters: datatype.New().Set("mushroom-url", url),
 	})
@@ -157,7 +165,7 @@ func (c *Autocontext) NpacSecureEdgeCase(outbound, cmd string) error {
 	if err != nil {
 		return err
 	}
-	reply, err := c.client.Request(&message.Request{
+	reply, err := c.npacRequest(&message.Request{
 		Command: npac.SecureEdgeCase,
 		Parameters: datatype.New().
 			Set("outbound", outbound).
@@ -180,7 +188,7 @@ func (c *Autocontext) npacRemoveHandler() error {
 	if !c.started {
 		return nil
 	}
-	reply, err := c.client.Request(&message.Request{
+	reply, err := c.npacRequest(&message.Request{
 		Command:    npac.RemoveHandler,
 		Parameters: datatype.New().Set("mushroom-url", c.mushroomURL),
 	})
@@ -212,7 +220,7 @@ func (c *Autocontext) npacPopHandleContext(cmd string, handleFunc any) error {
 	if err != nil {
 		return err
 	}
-	reply, err := c.client.Request(&message.Request{
+	reply, err := c.npacRequest(&message.Request{
 		Command:    npac.PopHandlerContext,
 		Parameters: datatype.New().Set("mushroom-url", url),
 	})

@@ -5,6 +5,7 @@ package handler
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
@@ -17,10 +18,10 @@ type Replier struct {
 	*Handler
 	*Autocontext
 	*Security
-	socket  *zmq.Socket
-	wake    *wakePipe
-	Control *Control
-	workW   sync.WaitGroup
+	socket   *zmq.Socket
+	Control  *Control
+	workW    sync.WaitGroup
+	handlerW sync.WaitGroup
 }
 
 type pendingReply struct {
@@ -205,9 +206,7 @@ func (c *Replier) stopWork() {
 		return
 	}
 	c.Control.SetSocketNil()
-	if wake := c.wake; wake != nil {
-		wake.signal()
-	}
+	takeAndCloseBoundSocket(&c.socket, c.Endpoint().HandlerUrl())
 	c.workW.Wait()
 }
 
@@ -246,6 +245,11 @@ func (c *Replier) bindExternal() error {
 	return nil
 }
 
+// pollInterval is how long Replier.run waits when no socket events are ready.
+// Replies are flushed at the start of each loop iteration, so this bounds
+// reply latency without a per-handler wake pipe (which can abort libzmq under load).
+const pollInterval = 50 * time.Millisecond
+
 func (c *Replier) run() {
 	defer c.workW.Done()
 
@@ -257,42 +261,34 @@ func (c *Replier) run() {
 	poller := zmq.NewPoller()
 	poller.Add(socket, zmq.POLLIN)
 
-	wake, err := newWakePipe()
-	if err != nil {
-		c.LogError("replier.newWakePipe", "error", err)
-		c.cleanup()
-		return
-	}
-	c.wake = wake
-	defer wake.close()
-	wake.addToPoller(poller)
-
 	replies := make(chan pendingReply, 65536)
 
 	for c.Control.Running() {
 		c.flushReplies(socket, replies)
 
-		sockets, err := poller.Poll(blockForever)
+		sockets, err := poller.Poll(pollInterval)
 		if err != nil {
 			break
 		}
 
 		for _, polled := range sockets {
-			if isWakePoll(wake, polled) {
-				wake.drain()
-				continue
-			}
 			if polled.Socket != socket {
 				continue
 			}
-			if polled.Socket != socket {
-				continue
-			}
-			if err := c.handleRequest(socket, replies); err != nil {
-				c.LogError("replier.handleRequest", "error", err)
+			for {
+				if err := c.handleRequest(socket, replies); err != nil {
+					if isZmqWouldBlock(err) {
+						break
+					}
+					c.LogError("replier.handleRequest", "error", err)
+					break
+				}
 			}
 		}
 	}
+
+	c.handlerW.Wait()
+	c.flushReplies(socket, replies)
 
 	_ = poller.RemoveBySocket(socket)
 	c.cleanup()
@@ -318,16 +314,20 @@ func (c *Replier) failReply(raw []string, errMsg string) message.ReplyInterface 
 	return fail.Fail(errMsg)
 }
 
+func (c *Replier) enqueueReply(replies chan<- pendingReply, pending pendingReply) {
+	replies <- pending
+}
+
 func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply) error {
-	raw, err := socket.RecvMessage(0)
+	raw, err := socket.RecvMessage(zmq.DONTWAIT)
 	if err != nil {
-		return fmt.Errorf("socket.RecvMessage: %w", err)
+		return err
 	}
 
 	req, hmacHash, err := c.Packer().DeserializeRequest(raw)
 	if err != nil {
 		reply := c.failReply(raw, fmt.Sprintf("messageOps.DeserializeRequest: %v", err))
-		replies <- pendingReply{reply: reply}
+		c.enqueueReply(replies, pendingReply{reply: reply})
 		return nil
 	}
 
@@ -337,21 +337,24 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 		var ok bool
 		matchedSecret, ok = c.getRequestSecret(req, hmacHash)
 		if !ok {
-			replies <- pendingReply{reply: req.Fail(message.ErrAccessDenied.Error())}
+			c.enqueueReply(replies, pendingReply{reply: req.Fail(message.ErrAccessDenied.Error())})
 			return nil
 		}
 	} else if c.IsWhitelistRequired(cmd) {
-		replies <- pendingReply{reply: req.Fail(message.ErrAccessDenied.Error() + ", whitelist required")}
+		c.enqueueReply(replies, pendingReply{reply: req.Fail(message.ErrAccessDenied.Error() + ", whitelist required")})
 		return nil
 	}
 
 	handleFunc, err := c.GetHandleFunc(cmd)
 	if err != nil {
-		replies <- pendingReply{reply: req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err))}
+		c.enqueueReply(replies, pendingReply{reply: req.Fail(fmt.Sprintf("handler.GetHandleFunc(%s): %v", cmd, err))})
 		return nil
 	}
 
+	c.handlerW.Add(1)
 	go func(cmd, matchedSecret string) {
+		defer c.handlerW.Done()
+
 		if err := c.npacPushHandleContext(cmd, handleFunc); err != nil {
 			c.LogError("npacPushHandleContext", "error", err)
 		}
@@ -360,10 +363,7 @@ func (c *Replier) handleRequest(socket *zmq.Socket, replies chan<- pendingReply)
 		if err := c.npacPopHandleContext(cmd, handleFunc); err != nil {
 			c.LogError("npacPopHandleContext", "error", err)
 		}
-		replies <- pendingReply{reply: reply, cmd: cmd, matchedSecret: matchedSecret}
-		if wake := c.wake; wake != nil {
-			wake.signal()
-		}
+		c.enqueueReply(replies, pendingReply{reply: reply, cmd: cmd, matchedSecret: matchedSecret})
 	}(cmd, matchedSecret)
 
 	return nil
@@ -386,6 +386,5 @@ func (c *Replier) sendReply(socket *zmq.Socket, reply message.ReplyInterface, cm
 
 func (c *Replier) cleanup() {
 	takeAndCloseBoundSocket(&c.socket, c.Endpoint().HandlerUrl())
-	c.wake = nil
 	c.Control.SetSocketNil()
 }
