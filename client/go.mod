@@ -11,13 +11,9 @@ require (
 )
 
 require (
-	github.com/noPerfection/datatype v0.0.0
+	github.com/noPerfection/datatype v0.1.0
 	github.com/noPerfection/protocol/message v0.0.0
 	github.com/pebbe/zmq4 v1.2.10
 )
 
-replace (
-	github.com/noPerfection/datatype => ../../datatype
-	github.com/noPerfection/log => ../../log
-	github.com/noPerfection/protocol/message => ../message
-)
+replace github.com/noPerfection/protocol/message => ../message

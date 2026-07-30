@@ -3,7 +3,7 @@ module github.com/noPerfection/protocol/test
 go 1.22
 
 require (
-	github.com/noPerfection/datatype v0.0.0
+	github.com/noPerfection/datatype v0.1.0
 	github.com/noPerfection/protocol/client v0.0.0
 	github.com/noPerfection/protocol/handler v0.0.0
 	github.com/noPerfection/protocol/message v0.0.0
@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/ahmetson/mushroom v0.0.0-20260707102258-ccc67a16e74a // indirect
+	github.com/ahmetson/mushroom v1.0.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/lipgloss v0.8.0 // indirect
 	github.com/charmbracelet/log v0.2.4 // indirect
@@ -25,7 +25,7 @@ require (
 	github.com/muesli/kmeans v0.3.1 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
-	github.com/noPerfection/log v0.0.0 // indirect
+	github.com/noPerfection/log v0.1.0 // indirect
 	github.com/pebbe/zmq4 v1.2.10 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
@@ -35,9 +35,6 @@ require (
 )
 
 replace (
-	github.com/ahmetson/mushroom => ../../../ahmetson/mushroom
-	github.com/noPerfection/datatype => ../../datatype
-	github.com/noPerfection/log => ../../log
 	github.com/noPerfection/protocol/client => ../client
 	github.com/noPerfection/protocol/handler => ../handler
 	github.com/noPerfection/protocol/message => ../message

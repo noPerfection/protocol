@@ -10,11 +10,7 @@ import (
 	"time"
 
 	"github.com/noPerfection/datatype"
-	cpair "github.com/noPerfection/protocol/client/pair"
-	cpublisher "github.com/noPerfection/protocol/client/publisher"
-	creplier "github.com/noPerfection/protocol/client/replier"
-	csyncreplier "github.com/noPerfection/protocol/client/sync_replier"
-	cworker "github.com/noPerfection/protocol/client/worker"
+	"github.com/noPerfection/protocol/client"
 	"github.com/noPerfection/protocol/handler"
 	"github.com/noPerfection/protocol/message"
 	"github.com/stretchr/testify/require"
@@ -66,7 +62,7 @@ func stressWorkerSends(t *testing.T) {
 	control := newWorkerControl(t, id)
 	defer closeControlBestEffort(t, control)
 
-	client, err := cworker.NewClient(id, 0)
+	client, err := client.NewWorker(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(stressTimeout)
@@ -90,7 +86,7 @@ func stressReplierSends(t *testing.T) {
 	control := newReplierControl(t, id)
 	defer closeControlBestEffort(t, control)
 
-	client, err := creplier.NewClient(id, 0)
+	client, err := client.NewReplier(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(stressTimeout)
@@ -115,7 +111,7 @@ func stressPairSends(t *testing.T) {
 	control := newPairControl(t, id)
 	defer closeControlBestEffort(t, control)
 
-	client, err := cpair.NewClient(id, 0)
+	client, err := client.NewPair(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(stressTimeout)
@@ -141,7 +137,7 @@ func stressSyncReplierRequests(t *testing.T) {
 	control := newSyncControl(t, id)
 	defer closeControlBestEffort(t, control)
 
-	client, err := csyncreplier.NewClient(id, 0)
+	client, err := client.NewSyncReplier(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(stressTimeout)
@@ -170,7 +166,7 @@ func stressReplierReceive(t *testing.T) {
 	control := newReplierControl(t, id)
 	defer closeControlBestEffort(t, control)
 
-	client, err := creplier.NewClient(id, 0)
+	client, err := client.NewReplier(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(stressTimeout)
@@ -194,7 +190,7 @@ func stressPairReceive(t *testing.T) {
 	control := newPairControl(t, id)
 	defer closeControlBestEffort(t, control)
 
-	client, err := cpair.NewClient(id, 0)
+	client, err := client.NewPair(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(stressTimeout)
@@ -218,7 +214,7 @@ func stressPublisherReceive(t *testing.T) {
 	control := newPublisherControl(t, id)
 	defer closeControlBestEffort(t, control)
 
-	client, err := cpublisher.NewClient(id, 0)
+	client, err := client.NewPublisher(id, 0)
 	req.NoError(err)
 	defer func() { req.NoError(client.Close()) }()
 	client.Timeout(stressTimeout)

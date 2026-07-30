@@ -1,3 +1,5 @@
+github.com/ahmetson/mushroom v1.0.0 h1:9yxvn/KRepI0jo9NT0ZPtTf9shzPYmN1d31wXJbifJg=
+github.com/ahmetson/mushroom v1.0.0/go.mod h1:MjXkhsMWBqK5QhlnzukN9XpqH8bptgEcQUlsocdZ1O8=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/charmbracelet/lipgloss v0.8.0 h1:IS00fk4XAHcf8uZKc3eHeMUTCxUH6NkaTrdyCQk84RU=
@@ -31,6 +33,10 @@ github.com/muesli/reflow v0.3.0 h1:IFsN6K9NfGtjeggFP+68I4chLZV2yIKsXJFNZ+eWh6s=
 github.com/muesli/reflow v0.3.0/go.mod h1:pbwTDkVPibjO2kyvBQRBxTWEEGDGq0FlB1BIKtnHY/8=
 github.com/muesli/termenv v0.15.2 h1:GohcuySI0QmI3wN8Ok9PtKGkgkFIk7y6Vpb5PvrY+Wo=
 github.com/muesli/termenv v0.15.2/go.mod h1:Epx+iuz8sNs7mNKhxzH4fWXGNpZwUaJKRS1noLXviQ8=
+github.com/noPerfection/datatype v0.1.0 h1:vX0Vc4+jBBBXkdTB0F+XyyUM6eO7FkRaciW8OgXOQ5w=
+github.com/noPerfection/datatype v0.1.0/go.mod h1:B1U0zt1tmcVZbN+kU5ytBrY2HfkXowb4nCtTKEz7Tgs=
+github.com/noPerfection/log v0.1.0 h1:Os63FgYRVjEDf9BTRH3gVUOLby1tEOqKCuHLo/BkYOM=
+github.com/noPerfection/log v0.1.0/go.mod h1:21mXSyPQg0o6iVGTQL6PJqxL+KH7gc1yZqMAvEZ+tvA=
 github.com/pebbe/zmq4 v1.2.10 h1:wQkqRZ3CZeABIeidr3e8uQZMMH5YAykA/WN0L5zkd1c=
 github.com/pebbe/zmq4 v1.2.10/go.mod h1:nqnPueOapVhE2wItZ0uOErngczsJdLOGkebMxaO8r48=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
