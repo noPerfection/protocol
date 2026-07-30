@@ -12,3 +12,11 @@ var ErrAccessDenied = errors.New("access-denied")
 // This typically means the client's public key is not in the server's allow-list,
 // or the client connected without CURVE credentials to a CURVE-only server.
 var ErrNoCurveKey = errors.New("no-curve-key")
+
+// ErrNotFound is returned when a requested resource does not exist.
+var ErrNotFound = errors.New("not-found")
+
+// ErrInvalidArg is returned when a function argument is invalid.
+var ErrInvalidArg = errors.New("invalid-argument")
+
+var ErrNilStruct = errors.New("nil-struct")
