@@ -175,3 +175,18 @@ Handlers embed `handler.Autocontext` and talk to npac over an inproc socket. Whe
 - On an `"access-denied"` reply — the same `HandlerContext` lookup routes the request through the calling handler's control socket, which signs it with the route HMAC secret, and retries once.
 
 Autocontext clients use a **50 ms timeout**. Handler-side npac calls that fail (for example when npac is not running) are silently ignored.
+
+
+
+## Release
+
+Protocol is a go modules mono repo. Therefore tag module using semantics:
+
+
+
+```bash
+cd ./handler
+git tag -a handler/v0.0.1 -m "Summary of version"
+git push origin handler/v0.0.1
+```
+

@@ -90,8 +90,6 @@ The endpoint chooses the ZeroMQ transport from `Id` and `Port`:
 
 For TCP endpoints, local handlers and clients use different URLs. If `Id` is empty, `localhost`, or starts with `127.0.0.`, `HandlerUrl()` binds to `tcp://*:<port>`, while `ClientUrl()` connects to `tcp://localhost:<port>`. For any other `Id`, both handler and client URLs use `tcp://<id>:<port>`.
 
-
-
 ## Local Development
 
 For local testing, building, and running, prefix each command with `GOFLAGS=-modfile=go.local.mod`:
