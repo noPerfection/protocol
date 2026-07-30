@@ -53,6 +53,7 @@ type Socket struct {
 	whitelists      map[string]string
 	serverPublicKey string
 	curveSecretKey  string
+	linger          time.Duration // reconnect linger; -1 for Send (fire-and-forget)
 }
 
 // New creates a client for the given handler endpoint. Client type is determined by the target handler.
@@ -103,8 +104,12 @@ func (socket *Socket) reconnect() (err error) {
 		return fmt.Errorf("zmq.NewSocket('%s'): %w", socketType.String(), err)
 	}
 
-	if err := socket.zmqSocket.SetLinger(0); err != nil {
-		return fmt.Errorf("zmqSocket.SetLinger(0): %w", err)
+	socket.mu.Lock()
+	linger := socket.linger
+	socket.mu.Unlock()
+
+	if err := socket.zmqSocket.SetLinger(linger); err != nil {
+		return fmt.Errorf("zmqSocket.SetLinger(%v): %w", linger, err)
 	}
 
 	if err := socket.applyCurveClient(socket.zmqSocket); err != nil {
@@ -314,10 +319,20 @@ func (socket *Socket) attemptRequesting(envelope []string) ([]string, error) {
 }
 
 func (socket *Socket) attemptSending(envelope []string) error {
+	socket.mu.Lock()
+	socket.linger = -1
+	socket.mu.Unlock()
+
 	socket.zmqMu.Lock()
 	defer socket.zmqMu.Unlock()
 
 	_, maxAttempt := socket.options()
+
+	if socket.zmqSocket != nil {
+		if err := socket.zmqSocket.SetLinger(-1); err != nil {
+			return fmt.Errorf("zmqSocket.SetLinger(-1): %w", err)
+		}
+	}
 
 	triesLeft := maxAttempt
 	for {
@@ -351,6 +366,16 @@ func (socket *Socket) send(envelope []string) (bool, error) {
 
 	if err := socket.reconnect(); err != nil {
 		return false, fmt.Errorf("socket connect: %w", err)
+	}
+
+	socket.mu.Lock()
+	sendPath := socket.linger == -1
+	socket.mu.Unlock()
+
+	if sendPath && socket.serverPublicKey != "" && !socket.endpoint.IsInproc() {
+		if err := waitMonitorHandshake(socket.monitorSocket, socket.poller, timeoutDuration); err != nil {
+			return false, err
+		}
 	}
 
 	socket.pollOut()

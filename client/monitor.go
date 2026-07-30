@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
@@ -79,6 +80,49 @@ func drainMonitor(mon *zmq.Socket) error {
 	}
 
 	return nil
+}
+
+// waitMonitorHandshake blocks until CURVE handshake succeeds or timeout.
+func waitMonitorHandshake(mon *zmq.Socket, poller *zmq.Poller, timeout time.Duration) error {
+	if mon == nil {
+		return nil
+	}
+
+	deadline := time.Now().Add(timeout)
+	connected := false
+
+	for time.Now().Before(deadline) {
+		for {
+			event, _, _, err := mon.RecvEvent(zmq.DONTWAIT)
+			if err != nil {
+				break
+			}
+			switch event {
+			case zmq.EVENT_CONNECTED:
+				connected = true
+			case zmq.EVENT_HANDSHAKE_SUCCEEDED:
+				return nil
+			case zmq.EVENT_DISCONNECTED:
+				if connected {
+					return fmt.Errorf("%w: connected then disconnected without handshake", message.ErrNoCurveKey)
+				}
+			case zmq.EVENT_HANDSHAKE_FAILED_AUTH,
+				zmq.EVENT_HANDSHAKE_FAILED_NO_DETAIL,
+				zmq.EVENT_HANDSHAKE_FAILED_PROTOCOL:
+				return fmt.Errorf("%w: zmq handshake event %v", message.ErrNoCurveKey, event)
+			}
+		}
+
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+		if _, err := poller.Poll(remaining); err != nil {
+			return fmt.Errorf("poll error: %w", err)
+		}
+	}
+
+	return fmt.Errorf("send-timeout waiting for handshake")
 }
 
 // monitorAuthErr drains pending monitor events and reports handshake failures.
