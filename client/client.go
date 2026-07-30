@@ -252,7 +252,7 @@ func (socket *Socket) attemptRequesting(envelope []string) ([]string, error) {
 		if !infiniteAttempts(maxAttempt) {
 			triesLeft--
 			if triesLeft == 0 {
-				return nil, fmt.Errorf("%w: envelope=%v", message.RequestTimeoutError, envelope)
+				return nil, message.ErrReqTimeout
 			}
 		}
 
@@ -337,7 +337,7 @@ func (socket *Socket) attemptSending(envelope []string) error {
 
 		triesLeft--
 		if triesLeft == 0 {
-			return fmt.Errorf("send_timeout: envelope=%v", envelope)
+			return fmt.Errorf("send-timeout")
 		}
 	}
 	return nil

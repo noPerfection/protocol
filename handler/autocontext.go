@@ -114,7 +114,7 @@ func (c *Autocontext) npacRegisterHandler(controlEndpoint message.Endpoint) erro
 	hmac := message.ComputeHMAC(req.String(), c.npacSecret)
 	reply, err := c.npacRequest(req, hmac)
 	if err != nil {
-		if errors.Is(err, message.RequestTimeoutError) {
+		if errors.Is(err, message.ErrReqTimeout) {
 			c.started = false
 			return nil
 		}
