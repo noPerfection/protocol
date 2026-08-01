@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"sync"
+
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/message"
@@ -80,7 +81,7 @@ func (c *Publisher) Start() error {
 		return fmt.Errorf("control not set")
 	}
 
-	if c.PublisherControl.mushroomURL == "" {
+	if c.PublisherControl.Autocontext.mushroomURL == "" {
 		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
@@ -213,7 +214,7 @@ func (c *Publisher) startBroadcaster() error {
 			return
 		}
 
-		err = c.auth(socket, c.Endpoint())
+		err = c.auth(socket, c.PublisherControl.Autocontext.mushroomURL)
 		if err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("register: %w", err)

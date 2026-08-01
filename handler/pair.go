@@ -73,7 +73,7 @@ func (pair *Pair) Start() error {
 		return fmt.Errorf("control not set")
 	}
 
-	if pair.PublisherControl.mushroomURL == "" {
+	if pair.PublisherControl.Autocontext.mushroomURL == "" {
 		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
@@ -206,7 +206,7 @@ func (pair *Pair) startPair() error {
 			return
 		}
 
-		err = pair.auth(socket, pair.Endpoint())
+		err = pair.auth(socket, pair.PublisherControl.Autocontext.mushroomURL)
 		if err != nil {
 			_ = socket.Close()
 			ready <- fmt.Errorf("register: %w", err)

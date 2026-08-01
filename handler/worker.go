@@ -5,6 +5,7 @@ package handler
 import (
 	"fmt"
 	"sync"
+
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
 	"github.com/noPerfection/protocol/message"
@@ -216,7 +217,7 @@ func (c *Worker) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket(PULL): %w", err)
 	}
 
-	err = c.auth(socket, c.Endpoint())
+	err = c.auth(socket, c.mushroomURL)
 	if err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("register: %w", err)

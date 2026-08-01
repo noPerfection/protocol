@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/noPerfection/datatype"
 	"github.com/noPerfection/log"
@@ -94,7 +95,7 @@ func (c *Handler) SetLogger(parent *log.Logger) error {
 		c.logger = parent
 		return nil
 	}
-	c.logger = parent.Child(c.endpoint.ZapDomain())
+	c.logger = parent.Child(c.endpoint.Id + strconv.FormatUint(c.endpoint.Port, 10))
 
 	return nil
 }

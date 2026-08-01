@@ -65,7 +65,7 @@ func TestCurveClientServerInterop(t *testing.T) {
 	endpoint := message.NewEndpoint("127.0.0.1", 6000)
 
 	// Same CURVE configuration the handler applies on its bound socket.
-	if err := server.ServerAuthCurve(endpoint.ZapDomain(), serverSecret); err != nil {
+	if err := server.ServerAuthCurve(endpoint.HandlerUrl(), serverSecret); err != nil {
 		t.Fatal(err)
 	}
 	if err := server.Bind("tcp://127.0.0.1:*"); err != nil {

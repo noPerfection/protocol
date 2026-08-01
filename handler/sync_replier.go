@@ -206,7 +206,7 @@ func (c *SyncReplier) bindExternal() error {
 	}
 	_ = socket.SetLinger(0)
 
-	err = c.auth(socket, c.Endpoint())
+	err = c.auth(socket, c.mushroomURL)
 	if err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("register: %w", err)

@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/noPerfection/datatype"
@@ -42,6 +43,7 @@ type Control struct {
 	socket               *zmq.Socket
 	status               string
 	curveSecretKey       string
+	mushroomURL          string
 	npacSecureEdgeCase   npacSecureEdgeCaseFunc
 	requireWhitelistCmds map[string]bool
 	// endpoint -> command: secret
@@ -74,7 +76,7 @@ func (m *Control) setNpacSecureEdgeCase(fn npacSecureEdgeCaseFunc) {
 // Control sockets are always in-process, so Port is set to 0 to use the inproc
 // transport regardless of the original handler's transport.
 func NewInternalControlEndpoint(handlerEndpoint message.Endpoint) message.Endpoint {
-	handlerEndpoint.Id = handlerEndpoint.ZapDomain() + "_control"
+	handlerEndpoint.Id = handlerEndpoint.Id + strconv.FormatUint(handlerEndpoint.Port, 10) + "_control"
 	handlerEndpoint.Port = 0
 	return handlerEndpoint
 }
@@ -147,8 +149,10 @@ func (m *Control) IsWhitelistRequired(cmd string, dontUseAny ...bool) bool {
 // Allow is a no-op; control sockets are inproc and do not use CURVE client allowlists.
 func (m *Control) Allow(_ string) {}
 
-// SetMushroomURL is a no-op; control sockets are inproc and do not register with npac.
-func (m *Control) SetMushroomURL(_ string) {}
+// SetMushroomURL stores the handler mushroom URL (ZAP domain for the external socket).
+func (m *Control) SetMushroomURL(mushroomURL string) {
+	m.mushroomURL = mushroomURL
+}
 
 func (m *Control) Status() string {
 	return m.status

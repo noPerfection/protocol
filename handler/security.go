@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/noPerfection/protocol/handler/npac"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -18,10 +19,6 @@ type Security struct {
 // NewPair Pair returned.
 func NewSecurity() *Security {
 	return &Security{}
-}
-
-func (security *Security) handshakeCompleted() {
-	security.handshaked = true
 }
 
 func (security *Security) IsHandshaked() bool {
@@ -68,7 +65,7 @@ func (security *Security) Secure(secretKey string) {
 	security.curveSecretKey = secretKey
 }
 
-// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
+// Allow registers a client CURVE public key permitted to connect when ZAP is active.
 func (security *Security) Allow(clientPubKey string) {
 	if clientPubKey == "" {
 		return
@@ -79,14 +76,13 @@ func (security *Security) Allow(clientPubKey string) {
 	security.allowedClientPubKeys = append(security.allowedClientPubKeys, clientPubKey)
 }
 
-func (security *Security) auth(socket *zmq.Socket, endpoint message.Endpoint) error {
-	if security.curveSecretKey != "" && !endpoint.IsInproc() {
-		domain := endpoint.ZapDomain()
-		if err := socket.ServerAuthCurve(domain, security.curveSecretKey); err != nil {
+func (security *Security) auth(socket *zmq.Socket, handlerURL string) error {
+	if security.curveSecretKey != "" {
+		if err := socket.ServerAuthCurve(handlerURL, security.curveSecretKey); err != nil {
 			return fmt.Errorf("socket.ServerAuthCurve: %w", err)
 		}
 		if len(security.allowedClientPubKeys) > 0 {
-			zmq.AuthCurveAdd(domain, security.allowedClientPubKeys...)
+			npac.AuthCurveAdd(handlerURL, security.allowedClientPubKeys...)
 		}
 	}
 	return nil

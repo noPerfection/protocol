@@ -34,7 +34,8 @@ func NewBasicReplier() *BasicReplier {
 	}
 }
 
-func (c *BasicReplier) SetMushroomURL(_ string) {
+func (c *BasicReplier) SetMushroomURL(mushroomURL string) {
+	c.Control.SetMushroomURL(mushroomURL)
 }
 
 // SetEndpoint adds the parameters of the handler from the config.
@@ -65,6 +66,9 @@ func (c *BasicReplier) Start() error {
 	}
 	if c.Control == nil {
 		return fmt.Errorf("control not set")
+	}
+	if c.Control.mushroomURL == "" {
+		return fmt.Errorf("mushroom URL not set, call SetMushroomURL first")
 	}
 
 	c.setControlRoutes()
@@ -202,7 +206,7 @@ func (c *BasicReplier) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
 	}
 
-	err = c.auth(socket, c.Endpoint())
+	err = c.auth(socket, c.Control.mushroomURL)
 	if err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("register: %w", err)

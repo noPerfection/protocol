@@ -225,7 +225,7 @@ func (c *Replier) bindExternal() error {
 		return fmt.Errorf("zmq.NewSocket('%s'): %w", c.Type(), err)
 	}
 
-	err = c.auth(socket, c.Endpoint())
+	err = c.auth(socket, c.mushroomURL)
 	if err != nil {
 		_ = socket.Close()
 		return fmt.Errorf("register: %w", err)
