@@ -364,6 +364,7 @@ func (socket *Socket) attemptSending(envelope []string) error {
 func (socket *Socket) send(envelope []string) (bool, error) {
 	timeoutDuration, _ := socket.options()
 
+	needReconnect := socket.zmqSocket == nil
 	if err := socket.reconnect(); err != nil {
 		return false, fmt.Errorf("socket connect: %w", err)
 	}
@@ -372,12 +373,11 @@ func (socket *Socket) send(envelope []string) (bool, error) {
 	sendPath := socket.linger == -1
 	socket.mu.Unlock()
 
-	if sendPath && socket.serverPublicKey != "" && !socket.endpoint.IsInproc() {
+	if sendPath && socket.serverPublicKey != "" && needReconnect && !socket.endpoint.IsInproc() {
 		if err := waitMonitorHandshake(socket.monitorSocket, socket.poller, timeoutDuration); err != nil {
 			return false, err
 		}
 	}
-
 	socket.pollOut()
 
 	sockets, err := socket.poller.Poll(timeoutDuration)
