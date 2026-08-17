@@ -139,21 +139,6 @@ func (c *Control) RequireSecure() (string, error) {
 	return pubKey, nil
 }
 
-// Allow registers a CURVE client public key on the handler.
-func (c *Control) Allow(publicKey string) error {
-	reply, err := c.Request(&message.Request{
-		Command:    "allow",
-		Parameters: datatype.New().Set("public-key", publicKey),
-	})
-	if err != nil {
-		return fmt.Errorf("client.Request('allow'): %w", err)
-	}
-	if !reply.IsOK() {
-		return fmt.Errorf("reply.Message: %s", reply.ErrorMessage())
-	}
-	return nil
-}
-
 // RegisterOutbounds registers outbound endpoints and command secrets on the handler.
 // publicKey is stored for request-as-context when the outbound handler is secure.
 // outboundURL and localCmd are passed to npac when the handler control has autocontext wired.
