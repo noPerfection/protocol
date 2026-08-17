@@ -7,6 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestComputeCacheHash(t *testing.T) {
+	hash := ComputeCacheHash("hmac-secret", "curve-pubkey", "dep-url")
+	require.Len(t, hash, 64)
+	require.Equal(t, hash, ComputeCacheHash("hmac-secret", "curve-pubkey", "dep-url"))
+	require.NotEqual(t, hash, ComputeCacheHash("hmac-secret", "other-pubkey", "dep-url"))
+	require.NotEqual(t, ComputeCacheHash("ab", "c"), ComputeCacheHash("a", "bc"))
+}
+
 func TestComputeHMAC(t *testing.T) {
 	body := `{"command":"hello","parameters":{}}`
 	secret := "test-secret"
