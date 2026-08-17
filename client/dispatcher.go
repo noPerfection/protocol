@@ -67,11 +67,11 @@ func (d *dispatcher) runLoop() {
 		select {
 		case <-d.wake:
 			if recv := d.socket.receiver; recv != nil && recv.isActive() {
-				recv.pollOnce()
+				recv.pollOnceWithTimeout(0)
 			}
 		case <-receiverTick.C:
 			if recv := d.socket.receiver; recv != nil && recv.isActive() {
-				recv.pollOnce()
+				recv.pollOnceWithTimeout(0)
 			}
 		}
 	}
