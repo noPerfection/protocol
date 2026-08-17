@@ -6,7 +6,7 @@ require (
 	github.com/noPerfection/datatype v0.1.0
 	github.com/noPerfection/log v0.1.0
 	github.com/noPerfection/protocol/client v0.0.0
-	github.com/noPerfection/protocol/message v0.1.1
+	github.com/noPerfection/protocol/message v0.0.0
 	github.com/pebbe/zmq4 v1.2.10
 	github.com/stretchr/testify v1.11.1
 )
