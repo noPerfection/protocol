@@ -35,10 +35,6 @@ func supportsReceive(handlerType HandlerType) bool {
 		handlerType == PublisherType
 }
 
-func (r *receiver) pollOnce() {
-	r.pollOnceWithTimeout(0)
-}
-
 func (r *receiver) pollOnceWithTimeout(pollTimeout time.Duration) {
 	r.socket.zmqMu.Lock()
 	defer r.socket.zmqMu.Unlock()
@@ -64,7 +60,9 @@ func (r *receiver) pollOnceWithTimeout(pollTimeout time.Duration) {
 		if errors.Is(authErr, message.ErrNoCurveKey) && r.recoverNoCurveKey() {
 			return
 		}
-		r.markIdle()
+		reply := r.socket.messagePacker.EmptyRequest().Fail(message.ErrNoCurveKey.Error())
+		r.markReceived()
+		r.deliver(reply)
 		return
 	}
 
@@ -159,6 +157,9 @@ func (r *receiver) recoverNoCurveKey() bool {
 }
 
 func (r *receiver) activate() {
+	if r.active {
+		return
+	}
 	timeout, _ := r.socket.options()
 
 	r.socket.mu.Lock()
@@ -229,7 +230,8 @@ func (socket *Socket) Receive() <-chan message.ReplyInterface {
 		return ch
 	}
 	socket.receiver.activate()
-	socket.receiver.pollOnce()
+	socket.receiver.pollOnceWithTimeout(0)
+
 	return socket.receiver.replies
 }
 
