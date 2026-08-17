@@ -38,6 +38,10 @@ func (pair *Pair) SetMushroomURL(mushroomURL string) {
 	pair.PublisherControl.Autocontext.SetMushroomURL(mushroomURL)
 }
 
+func (pair *Pair) MushroomURL() string {
+	return pair.PublisherControl.Autocontext.mushroomURL
+}
+
 func (pair *Pair) Secure(secretKey string) {
 	pair.Security.Secure(secretKey)
 	pair.PublisherControl.setSecretKey(secretKey)
@@ -105,14 +109,6 @@ func (pair *Pair) setControlRoutes() {
 	pair.PublisherControl.Route(HandlerRegisterOutbounds, pair.PublisherControl.onRegisterOutbounds)
 	pair.PublisherControl.Route(HandlerRequireWhitelist, pair.onControlRequireWhitelist)
 	pair.PublisherControl.Route(HandlerRequireSecure, pair.onControlRequireSecure)
-	pair.PublisherControl.Route(HandlerAllow, func(req message.RequestInterface) message.ReplyInterface {
-		publicKey, err := req.RouteParameters().StringValue("public-key")
-		if err != nil || publicKey == "" {
-			return req.Fail("public-key is required")
-		}
-		pair.Allow(publicKey)
-		return req.Ok(datatype.New())
-	})
 }
 
 func (pair *Pair) onControlRequireWhitelist(req message.RequestInterface) message.ReplyInterface {

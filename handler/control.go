@@ -31,7 +31,6 @@ const (
 	HandlerRequireWhitelist = "require-whitelist"  // Marks a route as requiring whitelist; optional secret param whitelists it
 	HandlerRequireSecure    = "require-secure"     // Ensures the handler socket is secure and returns its public key
 	HandlerSecureOutbound   = "secure-outbound"    // Ensures control outbound identity and returns its CURVE public key
-	HandlerAllow            = "allow"              // Allows a CURVE client public key
 	ControlCategory         = "control"
 )
 
@@ -146,12 +145,13 @@ func (m *Control) IsWhitelistRequired(cmd string, dontUseAny ...bool) bool {
 	return m.requireWhitelistCmds[message.Any]
 }
 
-// Allow is a no-op; control sockets are inproc and do not use CURVE client allowlists.
-func (m *Control) Allow(_ string) {}
-
 // SetMushroomURL stores the handler mushroom URL (ZAP domain for the external socket).
 func (m *Control) SetMushroomURL(mushroomURL string) {
 	m.mushroomURL = mushroomURL
+}
+
+func (m *Control) MushroomURL() string {
+	return m.mushroomURL
 }
 
 func (m *Control) Status() string {
@@ -220,7 +220,7 @@ func (m *Control) onRegisterOutbounds(req message.RequestInterface) message.Repl
 		if outboundErr == nil && outboundURL != "" && localErr == nil && localCmd != "" {
 			if err := m.npacSecureEdgeCase(outboundURL, localCmd); err != nil {
 				if !errors.Is(err, ErrAlreadyWhitelisted) {
-					return req.Fail(fmt.Sprintf("NpacSecureEdgeCase(%q, %q): %v", outboundURL, localCmd, err))
+					return req.Fail(fmt.Sprintf("npacSecureEdgeCase(%q, %q): %v", outboundURL, localCmd, err))
 				}
 			}
 		}

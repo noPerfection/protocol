@@ -6,12 +6,15 @@ require (
 	github.com/noPerfection/datatype v0.1.0
 	github.com/noPerfection/log v0.1.0
 	github.com/noPerfection/protocol/client v0.0.0
-	github.com/noPerfection/protocol/message v0.0.0
+	github.com/noPerfection/protocol/message v0.1.1
 	github.com/pebbe/zmq4 v1.2.10
 	github.com/stretchr/testify v1.11.1
 )
 
-require github.com/rogpeppe/go-internal v1.9.0 // indirect
+require (
+	github.com/kr/text v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.9.0 // indirect
+)
 
 replace (
 	github.com/noPerfection/protocol/client => ../client

@@ -35,9 +35,6 @@ type secure interface {
 	// PublicKey returns the Z85 CURVE public key when the handler is secure.
 	PublicKey() (string, error)
 
-	// Allow registers a client CURVE public key permitted to connect when ZAP is active (zmq.AuthStart).
-	Allow(clientPubKey string)
-
 	//
 	// HMAC to whitelist per route or to authenticate the inproc request
 	//
@@ -84,6 +81,7 @@ type Interface interface {
 	//
 	// By following the topology convention, the handler can be resolved by the topology.
 	SetMushroomURL(mushroomURL string)
+	MushroomURL() string
 
 	// IsRouteExist returns true if the command is registered
 	IsRouteExist(string) bool

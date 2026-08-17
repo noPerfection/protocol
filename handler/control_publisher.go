@@ -28,6 +28,11 @@ func NewPublisherControl(parent ...*log.Logger) *PublisherControl {
 // SetMushroomURL registers this control handler with npac.
 func (m *PublisherControl) SetMushroomURL(mushroomURL string) {
 	m.Autocontext.SetMushroomURL(mushroomURL)
+	m.Control.SetMushroomURL(mushroomURL)
+}
+
+func (m *PublisherControl) MushroomURL() string {
+	return m.Control.MushroomURL()
 }
 
 // Start binds the control PAIR socket, and registers HandlerStatus route.

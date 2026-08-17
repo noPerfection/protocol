@@ -2,16 +2,13 @@ package handler
 
 import (
 	"fmt"
-	"slices"
 
-	"github.com/noPerfection/protocol/handler/npac"
 	"github.com/noPerfection/protocol/message"
 	zmq "github.com/pebbe/zmq4"
 )
 
 type Security struct {
 	curveSecretKey       string
-	allowedClientPubKeys []string
 	requireWhitelistCmds map[string]bool
 	handshaked           bool
 }
@@ -65,24 +62,10 @@ func (security *Security) Secure(secretKey string) {
 	security.curveSecretKey = secretKey
 }
 
-// Allow registers a client CURVE public key permitted to connect when ZAP is active.
-func (security *Security) Allow(clientPubKey string) {
-	if clientPubKey == "" {
-		return
-	}
-	if slices.Contains(security.allowedClientPubKeys, clientPubKey) {
-		return
-	}
-	security.allowedClientPubKeys = append(security.allowedClientPubKeys, clientPubKey)
-}
-
 func (security *Security) auth(socket *zmq.Socket, handlerURL string) error {
 	if security.curveSecretKey != "" {
 		if err := socket.ServerAuthCurve(handlerURL, security.curveSecretKey); err != nil {
 			return fmt.Errorf("socket.ServerAuthCurve: %w", err)
-		}
-		if len(security.allowedClientPubKeys) > 0 {
-			npac.AuthCurveAdd(handlerURL, security.allowedClientPubKeys...)
 		}
 	}
 	return nil

@@ -116,14 +116,10 @@ func (c *Replier) setControlRoutes() {
 	})
 	c.Control.Route(HandlerRequireWhitelist, c.onControlRequireWhitelist)
 	c.Control.Route(HandlerRequireSecure, c.onControlRequireSecure)
-	c.Control.Route(HandlerAllow, func(req message.RequestInterface) message.ReplyInterface {
-		publicKey, err := req.RouteParameters().StringValue("public-key")
-		if err != nil || publicKey == "" {
-			return req.Fail("public-key is required")
-		}
-		c.Allow(publicKey)
-		return req.Ok(datatype.New())
-	})
+}
+
+func (c *Replier) MushroomURL() string {
+	return c.mushroomURL
 }
 
 func (c *Replier) onControlRequireWhitelist(req message.RequestInterface) message.ReplyInterface {

@@ -38,6 +38,10 @@ func (c *BasicReplier) SetMushroomURL(mushroomURL string) {
 	c.Control.SetMushroomURL(mushroomURL)
 }
 
+func (c *BasicReplier) MushroomURL() string {
+	return c.Control.MushroomURL()
+}
+
 // SetEndpoint adds the parameters of the handler from the config.
 func (c *BasicReplier) SetEndpoint(endpoint message.Endpoint) {
 	c.Handler.SetEndpoint(endpoint)
@@ -99,14 +103,6 @@ func (c *BasicReplier) setControlRoutes() {
 	})
 	c.Control.Route(HandlerRequireWhitelist, c.onControlRequireWhitelist)
 	c.Control.Route(HandlerRequireSecure, c.onControlRequireSecure)
-	c.Control.Route(HandlerAllow, func(req message.RequestInterface) message.ReplyInterface {
-		publicKey, err := req.RouteParameters().StringValue("public-key")
-		if err != nil || publicKey == "" {
-			return req.Fail("public-key is required")
-		}
-		c.Allow(publicKey)
-		return req.Ok(datatype.New())
-	})
 }
 
 func (c *BasicReplier) onControlRequireWhitelist(req message.RequestInterface) message.ReplyInterface {

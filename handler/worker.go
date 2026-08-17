@@ -109,14 +109,10 @@ func (c *Worker) setControlRoutes() {
 	})
 	c.Control.Route(HandlerRequireWhitelist, c.onControlRequireWhitelist)
 	c.Control.Route(HandlerRequireSecure, c.onControlRequireSecure)
-	c.Control.Route(HandlerAllow, func(req message.RequestInterface) message.ReplyInterface {
-		publicKey, err := req.RouteParameters().StringValue("public-key")
-		if err != nil || publicKey == "" {
-			return req.Fail("public-key is required")
-		}
-		c.Allow(publicKey)
-		return req.Ok(datatype.New())
-	})
+}
+
+func (c *Worker) MushroomURL() string {
+	return c.mushroomURL
 }
 
 func (c *Worker) onControlRequireWhitelist(req message.RequestInterface) message.ReplyInterface {
